@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
+/*
+  ============================================
+  DESIGN TOKENS — Tek kaynak, tüm renkler burada
+  Bir rengi değiştirmek istediğinde SADECE burayı düzenle.
+  ============================================
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+
+
+  /* Yazılar */
+  --foreground: #e8edf5;    /* ana metin (açık) */
+  --foreground-muted: #8fa3c0;  /* ikincil/soluk metin */
+
+  /* Vurgu renkleri */
+  --accent: #c9834f;            /* bakır/turuncu vurgu (başlıklar, linkler) */
+  --accent-hover: #e0985f;      /* vurgu hover */
+
+  /* Çizgiler / kenarlıklar */
+  --border: #2a3b57;            /* panel kenarlıkları, devre çizgileri */
+
+  /* Fontlar */
+  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans);
+
+    /* Chip (sosyal medya kartı) renkleri */
+  --chip-border: rgba(180, 200, 220, 0.15);
+
+  --chip-glass: #4b5871;
+  --chip-glass-highlight: rgba(255, 255, 255, 0.15);
+  --chip-glass-shadow: rgba(0, 0, 0, 0.5);
+  --chip-glow-blue: rgba(180, 210, 240, 0.9);
+  --chip-glow-gold: rgba(201, 150, 90, 0.55);
+  --chip-icon-glow: rgba(255, 255, 255, 0.6);
+    --chip-icon-ring: rgba(140, 190, 240, 0.5);
+      --panel-glow-blue: rgba(90, 130, 180, 0.25);
+  --panel-glow-gold: rgba(180, 130, 70, 0.15);
+    --menu-backplate-light: #7c879a;
+  --menu-backplate-dark: #3f4756;
+
+    /* Menü butonu (ışıklı konnektör) renkleri */
+  /* Menü butonu — metal çubuk, sol mavi-gri, sağ bronz */
+  --menu-frame-dark: #1c2230;
+  --menu-rib: #3a4658;
+  --menu-bar-blue: #6b7f94;
+  --menu-bar-bronze: #a58968;
+  --menu-bar-bronze-dark: #5c4a38;
+  --menu-text: #f5f0e8;
+    --menu-frame-light: #3a5578;
+  --menu-frame-dark2: #16233a;
+  --menu-recess: #0a1220;
+
+ --chip2-glass-top: #30505f;
+--chip2-glass-bottom: #306363;
+--chip2-icon-glow: rgba(200, 255, 230, 0.96);
+--chip2-pin: #98f0f3;
+
+  /* Yeni menü butonu — cam panel, teal LED yazı */
+  --menu2-frame: #1c2836;
+  --menu2-panel-top: #2a3b4a;
+  --menu2-panel-bottom: #131c26;
+  --menu2-led: #6ef0c0;
 }
 
+/*
+  Tailwind'e bu değişkenleri utility class olarak tanıt:
+  bg-background, text-accent, border-border gibi kullanabileceğiz.
+*/
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-border: var(--border);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
