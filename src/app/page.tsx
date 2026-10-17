@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type Ref,
 } from "react";
 
@@ -30,6 +31,10 @@ const ROADMAP_TO_PROJECTS_MS = 2200;
 /** telefonda / dar ekranda geçişler daha kısa (ms) */
 const MOBILE_TRANSITION_MS = 1300;
 const isNarrow = () => typeof window !== "undefined" && window.innerWidth < 768;
+const subscribeResize = (cb: () => void) => {
+  window.addEventListener("resize", cb);
+  return () => window.removeEventListener("resize", cb);
+};
 
 /* SAYFA GEÇİŞİ — yeni sayfa alttan, üst kenarına düşen gölgeyle
    yükselir; eski sayfa ondan YAVAŞ yukarı kayar (derinlik / paralaks)
@@ -134,6 +139,11 @@ const show = (el: HTMLElement | null, on: boolean) => {
 export default function Home() {
   const [powered, setPowered] = useState(false);
   const [heroTransitioning, setHeroTransitioning] = useState(false);
+  /* TELEFON: yeni sayfanın animasyonu (kayan avatar, fan…) geçiş BİTİNCE
+     başlar — geçişle aynı anda iki ağır animasyon telefonu kasıyordu */
+  const narrow = useSyncExternalStore(subscribeResize, isNarrow, () => false);
+  const [roadmapArrived, setRoadmapArrived] = useState(false);
+  const [projectsArrived, setProjectsArrived] = useState(false);
   const [roadmapComplete, setRoadmapComplete] = useState(false);
   const [projectsComplete, setProjectsComplete] = useState(false);
   const [footerOpen, setFooterOpen] = useState(false);
@@ -257,6 +267,7 @@ export default function Home() {
       (v) => {
         prog.current.hero = v;
         paint();
+        if (v >= 1) setRoadmapArrived(true);
       },
     );
   }, [heroTransitioning, paint]);
@@ -269,6 +280,7 @@ export default function Home() {
       (v) => {
         prog.current.projects = v;
         paint();
+        if (v >= 1) setProjectsArrived(true);
       },
     );
   }, [roadmapComplete, paint]);
@@ -358,26 +370,27 @@ export default function Home() {
   const onRoadmapDone = useCallback(() => setRoadmapComplete(true), []);
   const onProjectsDone = useCallback(() => setProjectsComplete(true), []);
 
+  const roadmapActive = heroTransitioning && (!narrow || roadmapArrived);
+  const projectsActive = roadmapComplete && (!narrow || projectsArrived);
+
   /* avatar gizlenince fiş sokette takılı kalsın (sayfa geçişinde de) */
   const hero = useMemo(
     () => <HeroSection powered={powered} plugged={heroTransitioning} />,
     [powered, heroTransitioning],
   );
   const roadmap = useMemo(
-    () => (
-      <RoadmapSection active={heroTransitioning} onComplete={onRoadmapDone} />
-    ),
-    [heroTransitioning, onRoadmapDone],
+    () => <RoadmapSection active={roadmapActive} onComplete={onRoadmapDone} />,
+    [roadmapActive, onRoadmapDone],
   );
   const projects = useMemo(
     () => (
       <ProjectsSection
-        active={roadmapComplete}
+        active={projectsActive}
         onComplete={onProjectsDone}
         riderHidden={footerOpen}
       />
     ),
-    [roadmapComplete, onProjectsDone, footerOpen],
+    [projectsActive, onProjectsDone, footerOpen],
   );
   const footer = useMemo(
     () => (

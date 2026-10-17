@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Ref,
+} from "react";
 
 import type { LucideIcon } from "lucide-react";
 
 import CollectedSkillsPanel, {
   DEFAULT_CATEGORIES,
 } from "@/components/sections/CollectedSkillsPanel";
-import RoadmapPerch, { PERCH_ASPECT } from "@/components/sections/RoadmapPerch"
+import RoadmapPerch, { PERCH_ASPECT } from "@/components/sections/RoadmapPerch";
 import SciFiBackground from "../ui/ScifiBackground";
 
 /* ================================================================
@@ -525,6 +533,20 @@ const pointAt = (points: Pt[], value: number): Pt => {
 const computeScale = (w: number, h: number, portrait: boolean) =>
   portrait ? (h * 0.96) / (RIVER_END.y + 80) : Math.max(w / W, h / H);
 
+/* kamera yatay kayması: dikey ekranda kişi ekranın ~%38'inde durur;
+   sona gelince nehrin ucu tam SAĞ ALT köşeden çıkar */
+function panAt(w: number, scale: number, portrait: boolean, i: number) {
+  if (!portrait) return (w - W * scale) / 2;
+  const ax = pointAt(GEO.middle, i).x * scale;
+  const want = w * 0.38 - ax;
+  const minPan = w - RIVER_END.x * scale + 24; // uç sağ kenarın biraz dışında
+  return Math.min(0, Math.max(minPan, want));
+}
+
+/* nehrin ucu alt kenarın biraz dışında → sağ alt köşeden çıkar */
+const panYOf = (h: number, scale: number, portrait: boolean) =>
+  portrait ? h - RIVER_END.y * scale + 24 : (h - H * scale) / 2;
+
 /* ================================================================
    SCROLL PARENT
 ================================================================ */
@@ -659,6 +681,32 @@ const ROADMAP_CSS = `
     will-change: transform;
   }
 
+  /* TELEFON / TABLET: ağır efektler kapalı — eğim + maske (her karede
+     yeniden boyama), ince akış çizgileri, bulanık bantlar */
+  @media (max-width: 1023px), (hover: none) {
+    .rm-river-layer,
+    .rm-front-layer {
+      transform: none;
+      will-change: auto;
+    }
+    .rm-river-layer {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+    .rm-fine,
+    .rm-hl {
+      display: none;
+    }
+    .rm-dark {
+      filter: none;
+    }
+    /* akan çizgiler telefonda durur: her karede koca nehri yeniden
+       boyamak en ağır iş buydu (çizgiler yerinde, sabit görünür) */
+    .rm-flow {
+      animation: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .rm-flow,
     .rm-pulse {
@@ -725,7 +773,11 @@ export default function RoadmapSection({
 
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  const [avatarIndex, setAvatarIndex] = useState(0);
+  /* PERFORMANS: kişinin nehirdeki yeri ve dikey ekrandaki kamera kayması
+     React state ile DEĞİL, doğrudan stil yazılarak güncellenir — her
+     karede bütün bölüm (nehir, 22 etiket) yeniden çizilmez */
+  const avatarElRef = useRef<HTMLDivElement>(null);
+  const camRef = useRef<HTMLDivElement>(null);
 
   /* Avatar: en son vardığı durak (-1 = henüz başlamadı), hareket ediyor mu,
      hangi yöne bakıyor */
@@ -765,7 +817,6 @@ export default function RoadmapSection({
     setPrevMode(mode);
 
     if (mode === 0) {
-      setAvatarIndex(0);
       setFacingScreen(true);
       setArrived(-1);
       setMoving(false);
@@ -942,6 +993,30 @@ export default function RoadmapSection({
     };
   }, []);
 
+  /* kişiyi nehirde i. noktaya koyar + dikey ekranda kamerayı kaydırır
+     (stil doğrudan yazılır, React yeniden çizmez) */
+  const placeAvatar = useCallback(
+    (i: number) => {
+      const sc = computeScale(size.w, size.h, portrait);
+      const base = panAt(size.w, sc, portrait, 0);
+      const py = panYOf(size.h, sc, portrait);
+      const pt = pointAt(GEO.middle, i);
+      const av = avatarElRef.current;
+      if (av)
+        av.style.transform = `translate3d(${base + pt.x * sc}px, ${py + pt.y * sc}px, 0) translate(-50%, -96%)`;
+      const cam = camRef.current;
+      if (cam)
+        cam.style.transform = `translate3d(${panAt(size.w, sc, portrait, i) - base}px, 0, 0)`;
+    },
+    [size.w, size.h, portrait],
+  );
+
+  /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
+     kişiyi ve kamerayı son konuma yeniden yerleştir */
+  useLayoutEffect(() => {
+    placeAvatar(avatarRef.current);
+  });
+
   /* ==============================================================
      KİŞİ HAREKETİ
      Kişi nehrin başından sonuna DURMADAN kayar; kıyıdaki her yeteneğin
@@ -1035,7 +1110,7 @@ export default function RoadmapSection({
       }
 
       avatarRef.current = current;
-      setAvatarIndex(current);
+      placeAvatar(current);
 
       if (progress < 1) {
         frame = requestAnimationFrame(animate);
@@ -1062,7 +1137,7 @@ export default function RoadmapSection({
       cancelAnimationFrame(kick);
       cancelAnimationFrame(frame);
     };
-  }, [active, portrait, size.w, size.h]);
+  }, [active, portrait, size.w, size.h, placeAvatar]);
 
   /* ==============================================================
      KAMERA
@@ -1070,22 +1145,10 @@ export default function RoadmapSection({
 
   const scale = computeScale(size.w, size.h, portrait);
 
-  /* kamera: avatar ekranın ~%38'inde dursun; sona gelince nehrin ucu
-     tam SAĞ ALT köşeden çıkacak şekilde durur */
-  let panX = (size.w - W * scale) / 2;
-
-  if (portrait) {
-    const ax = pointAt(GEO.middle, avatarIndex).x * scale;
-    const want = size.w * 0.38 - ax;
-    const minPan = size.w - RIVER_END.x * scale + 24; // uç sağ kenarın biraz dışında
-
-    panX = Math.min(0, Math.max(minPan, want));
-  }
-
-  /* nehrin ucu alt kenarın biraz dışında → sağ alt köşeden çıkar */
-  const panY = portrait
-    ? size.h - RIVER_END.y * scale + 24
-    : (size.h - H * scale) / 2;
+  /* kamera: başlangıç konumu (dikey ekranda kişinin başladığı yer).
+     Kişi ilerledikçe kamera kayması camRef'e doğrudan yazılır. */
+  const panX = panAt(size.w, scale, portrait, 0);
+  const panY = panYOf(size.h, scale, portrait);
 
   const toPx = (pt: Pt) => ({
     left: panX + pt.x * scale,
@@ -1232,168 +1295,208 @@ export default function RoadmapSection({
       ====================================================== */}
 
       <div className="rm-river-layer pointer-events-none absolute inset-0">
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="none"
-          className="absolute"
-          style={{
-            /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
-            left: panX,
-            top: panY,
-            width: W * scale,
-            height: H * scale,
-          }}
-        >
-          <defs>
-            {/* WATER */}
+        {/* KAMERA: dikey ekranda nehir, etiketler ve kişi birlikte kayar */}
+        <div ref={camRef} className="absolute inset-0 will-change-transform">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            className="absolute"
+            style={{
+              /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
+              left: panX,
+              top: panY,
+              width: W * scale,
+              height: H * scale,
+            }}
+          >
+            <defs>
+              {/* WATER */}
 
-            <linearGradient
-              id="rm-water"
-              gradientUnits="userSpaceOnUse"
-              x1="150"
-              y1="0"
-              x2={W}
-              y2={H}
-            >
-              <stop offset="0" stopColor="#061f3a" />
-              <stop offset=".22" stopColor="#0a2c52" />
-              <stop offset=".46" stopColor="#0e3b6b" />
-              <stop offset=".66" stopColor="#0b3058" />
-              <stop offset=".84" stopColor="#072444" />
-              <stop offset="1" stopColor="#04162e" />
-            </linearGradient>
+              <linearGradient
+                id="rm-water"
+                gradientUnits="userSpaceOnUse"
+                x1="150"
+                y1="0"
+                x2={W}
+                y2={H}
+              >
+                <stop offset="0" stopColor="#061f3a" />
+                <stop offset=".22" stopColor="#0a2c52" />
+                <stop offset=".46" stopColor="#0e3b6b" />
+                <stop offset=".66" stopColor="#0b3058" />
+                <stop offset=".84" stopColor="#072444" />
+                <stop offset="1" stopColor="#04162e" />
+              </linearGradient>
 
-            {/* CORE */}
+              {/* CORE */}
 
-            <linearGradient
-              id="rm-core"
-              gradientUnits="userSpaceOnUse"
-              x1="150"
-              y1="0"
-              x2={W}
-              y2={H}
-            >
-              <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
-              <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
-              <stop offset=".55" stopColor={C.ice} stopOpacity=".26" />
-              <stop offset=".74" stopColor={C.steel} stopOpacity=".12" />
-              <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
-            </linearGradient>
+              <linearGradient
+                id="rm-core"
+                gradientUnits="userSpaceOnUse"
+                x1="150"
+                y1="0"
+                x2={W}
+                y2={H}
+              >
+                <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
+                <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
+                <stop offset=".55" stopColor={C.ice} stopOpacity=".26" />
+                <stop offset=".74" stopColor={C.steel} stopOpacity=".12" />
+                <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
+              </linearGradient>
 
-            {/* DEPTH */}
+              {/* DEPTH */}
 
-            <linearGradient id="rm-depth" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#0a2240" />
-              <stop offset=".55" stopColor="#081c36" />
-              <stop offset="1" stopColor="#051328" />
-            </linearGradient>
+              <linearGradient id="rm-depth" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#0a2240" />
+                <stop offset=".55" stopColor="#081c36" />
+                <stop offset="1" stopColor="#051328" />
+              </linearGradient>
 
-            {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
+              {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
 
-            <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="white" stopOpacity="0" />
-              <stop offset=".2" stopColor="white" stopOpacity=".8" />
-              <stop offset=".85" stopColor="white" stopOpacity=".9" />
-              <stop offset="1" stopColor="white" stopOpacity="0" />
-            </linearGradient>
+              <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="white" stopOpacity="0" />
+                <stop offset=".2" stopColor="white" stopOpacity=".8" />
+                <stop offset=".85" stopColor="white" stopOpacity=".9" />
+                <stop offset="1" stopColor="white" stopOpacity="0" />
+              </linearGradient>
 
-            <mask id="rm-mask" maskUnits="userSpaceOnUse">
-              <rect width={W} height={H} fill="url(#rm-fade)" />
-            </mask>
+              <mask id="rm-mask" maskUnits="userSpaceOnUse">
+                <rect width={W} height={H} fill="url(#rm-fade)" />
+              </mask>
 
-            {/* RIVER CLIP */}
+              {/* RIVER CLIP */}
 
-            <clipPath id="rm-clip">
-              <path d={GEO.river} />
-            </clipPath>
+              <clipPath id="rm-clip">
+                <path d={GEO.river} />
+              </clipPath>
 
-            {/* WATER WAVE */}
+              {/* WATER WAVE */}
 
-            <filter id="rm-wave" x="-5%" y="-5%" width="110%" height="110%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.002 0.009"
-                numOctaves="1"
-                seed="4"
-              />
-              <feDisplacementMap in="SourceGraphic" scale="12" />
-            </filter>
+              <filter id="rm-wave" x="-5%" y="-5%" width="110%" height="110%">
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency="0.002 0.009"
+                  numOctaves="1"
+                  seed="4"
+                />
+                <feDisplacementMap in="SourceGraphic" scale="12" />
+              </filter>
 
-            {/* GLOW */}
+              {/* GLOW */}
 
-            <filter id="rm-glow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+              <filter id="rm-glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
 
-            <filter id="rm-soft" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="7" />
-            </filter>
-          </defs>
+              <filter id="rm-soft" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="7" />
+              </filter>
+            </defs>
 
-          {/* DERE TABANI */}
+            {/* DERE TABANI */}
 
-          <path d={GEO.river} fill="url(#rm-depth)" />
+            <path d={GEO.river} fill="url(#rm-depth)" />
 
-          {/* SU */}
+            {/* SU */}
 
-          <g clipPath="url(#rm-clip)">
-            <path d={GEO.surface} fill="url(#rm-water)" />
+            <g clipPath="url(#rm-clip)">
+              <path d={GEO.surface} fill="url(#rm-water)" />
 
-            {/* KOYU DERİNLİK BANTLARI */}
+              {/* KOYU DERİNLİK BANTLARI */}
 
-            {DARK_BANDS.map((ratio) => (
-              <path
-                key={ratio}
-                d={GEO.lane(ratio)}
-                fill="none"
-                stroke="#04142b"
-                strokeWidth="34"
-                opacity=".28"
-                filter="url(#rm-soft)"
-              />
-            ))}
+              {DARK_BANDS.map((ratio) => (
+                <path
+                  key={ratio}
+                  d={GEO.lane(ratio)}
+                  fill="none"
+                  stroke="#04142b"
+                  strokeWidth="34"
+                  opacity=".28"
+                  filter="url(#rm-soft)"
+                  className="rm-dark"
+                />
+              ))}
 
-            {/* İÇ CAM */}
+              {/* İÇ CAM */}
 
-            <path d={GEO.core} fill="url(#rm-core)" opacity=".75" />
+              <path d={GEO.core} fill="url(#rm-core)" opacity=".75" />
 
-            {/* AKIŞ ÇİZGİLERİ
+              {/* AKIŞ ÇİZGİLERİ
 
                 PERFORMANS: akan çizgiler hareketli olduğu için üzerlerinde
                 SVG filtresi (bulanıklık / dalga) YOK — filtre her karede
                 yeniden hesaplanıp ekranı yavaşlatıyordu. Parlaklık, çizgi
                 kalınlığı ve opaklığıyla veriliyor. */}
 
-            {/* SOFT STREAMS */}
+              {/* SOFT STREAMS */}
 
-            {SOFT_STREAMS.map((ratio, i) => (
-              <path
-                key={ratio}
-                d={GEO.lane(ratio)}
-                fill="none"
-                stroke={C.edge}
-                strokeWidth="5"
-                strokeOpacity=".25"
-                strokeDasharray={`${320 + i * 100} ${280 + i * 70}`}
-                strokeLinecap="round"
-                className="rm-flow"
-                style={flowVars(`${7 + i}s`)}
-              />
-            ))}
+              {SOFT_STREAMS.map((ratio, i) => (
+                <path
+                  key={ratio}
+                  d={GEO.lane(ratio)}
+                  fill="none"
+                  stroke={C.edge}
+                  strokeWidth="5"
+                  strokeOpacity=".25"
+                  strokeDasharray={`${320 + i * 100} ${280 + i * 70}`}
+                  strokeLinecap="round"
+                  className="rm-flow"
+                  style={flowVars(`${7 + i}s`)}
+                />
+              ))}
 
-            {/* FINE STREAMS */}
+              {/* FINE STREAMS */}
 
-            <g mask="url(#rm-mask)">
-              {FINE_STREAMS.map((stream, i) => (
+              <g mask="url(#rm-mask)" className="rm-fine">
+                {FINE_STREAMS.map((stream, i) => (
+                  <path
+                    key={`${stream.f}-${i}`}
+                    d={GEO.lane(stream.f)}
+                    fill="none"
+                    stroke={C.iceSoft}
+                    strokeWidth={stream.width}
+                    strokeOpacity={stream.opacity}
+                    strokeDasharray={stream.dash}
+                    strokeLinecap="round"
+                    className="rm-flow"
+                    style={flowVars(`${stream.duration}s`)}
+                  />
+                ))}
+              </g>
+
+              {/* HIGHLIGHTS */}
+
+              <g className="rm-hl">
+                {HIGHLIGHTS.map((ratio, i) => (
+                  <path
+                    key={ratio}
+                    d={GEO.lane(ratio)}
+                    fill="none"
+                    stroke={C.ice}
+                    strokeWidth="1.2"
+                    strokeOpacity=".62"
+                    strokeDasharray={`${500 + i * 150} ${380 + i * 100}`}
+                    strokeLinecap="round"
+                    className="rm-flow"
+                    style={flowVars(`${6 + i}s`)}
+                  />
+                ))}
+              </g>
+
+              {/* MAIN STREAMS */}
+
+              {STREAMS.map((stream, i) => (
                 <path
                   key={`${stream.f}-${i}`}
                   d={GEO.lane(stream.f)}
                   fill="none"
-                  stroke={C.iceSoft}
+                  stroke={i % 3 === 0 ? C.edge : C.steel}
                   strokeWidth={stream.width}
                   strokeOpacity={stream.opacity}
                   strokeDasharray={stream.dash}
@@ -1402,161 +1505,127 @@ export default function RoadmapSection({
                   style={flowVars(`${stream.duration}s`)}
                 />
               ))}
+
+              {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
+
+              <g mask="url(#rm-mask)">
+                {BINARY_LANES.map(([ratio, opacity, offset], i) => (
+                  <g key={ratio}>
+                    <path id={`rm-lane-${i}`} d={GEO.lane(ratio)} fill="none" />
+
+                    <text
+                      fontFamily={MONO}
+                      fontSize={BINARY_SIZE}
+                      letterSpacing={BINARY_SPACING}
+                      fill={C.ice}
+                      opacity={opacity}
+                    >
+                      <textPath href={`#rm-lane-${i}`} startOffset={offset}>
+                        {BINARY[i]}
+                      </textPath>
+                    </text>
+                  </g>
+                ))}
+              </g>
             </g>
 
-            {/* HIGHLIGHTS */}
+            {/* DERE KENARLARI */}
 
-            {HIGHLIGHTS.map((ratio, i) => (
-              <path
-                key={ratio}
-                d={GEO.lane(ratio)}
-                fill="none"
-                stroke={C.ice}
-                strokeWidth="1.2"
-                strokeOpacity=".62"
-                strokeDasharray={`${500 + i * 150} ${380 + i * 100}`}
-                strokeLinecap="round"
-                className="rm-flow"
-                style={flowVars(`${6 + i}s`)}
-              />
-            ))}
+            <path
+              d={GEO.top}
+              fill="none"
+              stroke={C.steel}
+              strokeWidth="1"
+              opacity=".35"
+            />
 
-            {/* MAIN STREAMS */}
+            <path
+              d={GEO.bottom}
+              fill="none"
+              stroke={C.steelDim}
+              strokeWidth="1"
+              opacity=".3"
+            />
+          </svg>
 
-            {STREAMS.map((stream, i) => (
-              <path
-                key={`${stream.f}-${i}`}
-                d={GEO.lane(stream.f)}
-                fill="none"
-                stroke={i % 3 === 0 ? C.edge : C.steel}
-                strokeWidth={stream.width}
-                strokeOpacity={stream.opacity}
-                strokeDasharray={stream.dash}
-                strokeLinecap="round"
-                className="rm-flow"
-                style={flowVars(`${stream.duration}s`)}
-              />
-            ))}
-
-            {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
-
-            <g mask="url(#rm-mask)">
-              {BINARY_LANES.map(([ratio, opacity, offset], i) => (
-                <g key={ratio}>
-                  <path id={`rm-lane-${i}`} d={GEO.lane(ratio)} fill="none" />
-
-                  <text
-                    fontFamily={MONO}
-                    fontSize={BINARY_SIZE}
-                    letterSpacing={BINARY_SPACING}
-                    fill={C.ice}
-                    opacity={opacity}
-                  >
-                    <textPath href={`#rm-lane-${i}`} startOffset={offset}>
-                      {BINARY[i]}
-                    </textPath>
-                  </text>
-                </g>
-              ))}
-            </g>
-          </g>
-
-          {/* DERE KENARLARI */}
-
-          <path
-            d={GEO.top}
-            fill="none"
-            stroke={C.steel}
-            strokeWidth="1"
-            opacity=".35"
-          />
-
-          <path
-            d={GEO.bottom}
-            fill="none"
-            stroke={C.steelDim}
-            strokeWidth="1"
-            opacity=".3"
-          />
-        </svg>
-
-        {/* ====================================================
+          {/* ====================================================
             NEHİRDEKİ KİŞİ / IŞIK
 
             Node'ları topladıktan sonra aynı nehir üzerinde
             devam ederek ekranın sağ-alt çıkışına gidiyor.
         ==================================================== */}
 
-        {/* (nehirle aynı katmanda: eğim ve kayma birebir aynı)
+          {/* (nehirle aynı katmanda: eğim ve kayma birebir aynı)
             KIYIDAKİ YETENEKLER — her biri geçilince altın yanıp söner */}
-        {size.w > 0 &&
-          NODES.map((node, i) => {
-            const pos = chipPositions[i];
-            const collected = arrived >= node.number;
-            const Icon = node.icon;
+          {size.w > 0 &&
+            NODES.map((node, i) => {
+              const pos = chipPositions[i];
+              const collected = arrived >= node.number;
+              const Icon = node.icon;
 
-            return (
-              <div
-                key={node.number}
-                ref={(el) => {
-                  cardRefs.current[i] = el;
-                }}
-                className="absolute z-10 w-max"
-                style={{
-                  left: pos.left,
-                  top: pos.top,
-                  transform: "translate(-50%, -50%)",
-                }}
-              >
+              return (
                 <div
-                  className="flex items-center gap-1.5 rounded-full font-mono"
+                  key={node.number}
+                  ref={(el) => {
+                    cardRefs.current[i] = el;
+                  }}
+                  className="absolute z-10 w-max"
                   style={{
-                    padding: "4px 9px 4px 7px",
-                    lineHeight: "15px",
-                    fontSize: chipFont,
-                    letterSpacing: ".02em",
-                    color: collected
-                      ? C.goldLight
-                      : "rgb(var(--c-a8eef6,168,238,246))",
-                    background: "rgba(6,22,46,.72)",
-                    border: `1px solid ${collected ? C.goldLight : "rgba(207,230,255,.28)"}`,
-                    boxShadow: collected
-                      ? `0 0 14px rgba(${C.goldRGB},.8)`
-                      : `0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)`,
-                    opacity: collected ? 0 : 1,
-                    transform: collected
-                      ? "scale(.4) translateY(-14px)"
-                      : "scale(1)",
-                    filter: collected ? "blur(4px) brightness(1.8)" : "none",
-                    transition: collected
-                      ? "opacity 320ms ease-in 140ms, transform 320ms cubic-bezier(.5,0,.8,.4) 140ms, filter 320ms ease-in 140ms, color 120ms, border-color 120ms, box-shadow 120ms"
-                      : "none",
+                    left: pos.left,
+                    top: pos.top,
+                    transform: "translate(-50%, -50%)",
                   }}
                 >
-                  <Icon
-                    size={portrait ? 11 : 13}
-                    strokeWidth={1.6}
-                    style={{ opacity: 0.85, flexShrink: 0 }}
-                  />
-                  {node.name}
+                  <div
+                    className="flex items-center gap-1.5 rounded-full font-mono"
+                    style={{
+                      padding: "4px 9px 4px 7px",
+                      lineHeight: "15px",
+                      fontSize: chipFont,
+                      letterSpacing: ".02em",
+                      color: collected
+                        ? C.goldLight
+                        : "rgb(var(--c-a8eef6,168,238,246))",
+                      background: "rgba(6,22,46,.72)",
+                      border: `1px solid ${collected ? C.goldLight : "rgba(207,230,255,.28)"}`,
+                      boxShadow: collected
+                        ? `0 0 14px rgba(${C.goldRGB},.8)`
+                        : `0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)`,
+                      opacity: collected ? 0 : 1,
+                      transform: collected
+                        ? "scale(.4) translateY(-14px)"
+                        : "scale(1)",
+                      filter: collected ? "blur(4px) brightness(1.8)" : "none",
+                      transition: collected
+                        ? "opacity 320ms ease-in 140ms, transform 320ms cubic-bezier(.5,0,.8,.4) 140ms, filter 320ms ease-in 140ms, color 120ms, border-color 120ms, box-shadow 120ms"
+                        : "none",
+                    }}
+                  >
+                    <Icon
+                      size={portrait ? 11 : 13}
+                      strokeWidth={1.6}
+                      style={{ opacity: 0.85, flexShrink: 0 }}
+                    />
+                    {node.name}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-        {size.w > 0 &&
-          arrived >= 0 &&
-          !finished &&
-          !((compactPanel || portrait) && panelOn) && (
-            <WalkingAvatar
-              pos={toPx(pointAt(GEO.middle, avatarIndex))}
-              moving={moving}
-              facingLeft={facingLeft}
-              facingScreen={facingScreen}
-              collecting={moving && arrived >= 1 && arrived <= NODES.length}
-              pickKey={arrived}
-            />
-          )}
+          {size.w > 0 &&
+            arrived >= 0 &&
+            !finished &&
+            !((compactPanel || portrait) && panelOn) && (
+              <WalkingAvatar
+                elRef={avatarElRef}
+                moving={moving}
+                facingLeft={facingLeft}
+                facingScreen={facingScreen}
+                collecting={moving && arrived >= 1 && arrived <= NODES.length}
+                pickKey={arrived}
+              />
+            )}
+        </div>
       </div>
 
       {/* ========================================================
@@ -1646,14 +1715,15 @@ export default function RoadmapSection({
 ================================================================ */
 
 function WalkingAvatar({
-  pos,
+  elRef,
   moving,
   facingLeft,
   facingScreen,
   collecting,
   pickKey,
 }: {
-  pos: { left: number; top: number };
+  /** konumu üst bileşen doğrudan yazar (transform) */
+  elRef: Ref<HTMLDivElement>;
   moving: boolean;
   facingLeft: boolean;
   facingScreen: boolean;
@@ -1662,14 +1732,13 @@ function WalkingAvatar({
 }) {
   return (
     <div
-      className="pointer-events-none absolute z-20"
+      ref={elRef}
+      className="pointer-events-none absolute top-0 left-0 z-20 will-change-transform"
       style={{
-        left: pos.left,
-        top: pos.top,
         width: AV_W,
         height: AV_H,
-        /* ayaklar nehrin orta çizgisinde */
-        transform: "translate(-50%, -96%)",
+        /* konum: translate3d(x, y) translate(-50%, -96%) — ayaklar nehrin
+           orta çizgisinde (placeAvatar yazar) */
       }}
       aria-hidden
     >
