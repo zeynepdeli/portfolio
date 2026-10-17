@@ -4,14 +4,14 @@ import { useId } from "react";
 
 /* ================================================================
    ROADMAP — NEHRİN SAĞINDA OTURAN KİŞİ
-   Projects'teki oturma animasyonunun aynısı (zeynepOturma.png,
+   Projects'teki oturma animasyonunun aynısı (zeynep-oturma.png,
    dizden sallanan baldırlar). Burada fan göbeğinin yerine dev bir
    cam YAKA KARTININ (ID tag) üst kenarına oturur: kart ipinden
    hafifçe sallanır, ayakları kartın önünden sarkar.
    Yetenekler panelinin tam karşısında.
 ================================================================ */
 
-/* GÖRSEL — ProjectsSection ile aynı ölçüler (public/images/zeynepOturma.png) */
+/* GÖRSEL — ProjectsSection ile aynı ölçüler (public/images/zeynep-oturma.png) */
 const SIT_SRC = "/images/zeynep-oturma.png";
 const SIT_W = 1584;
 const SIT_H = 672;

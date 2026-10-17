@@ -3,13 +3,13 @@
 import type { CSSProperties } from "react";
 
 /* =========================================================
-   OTURAN AVATAR (HTML) — public/images/zeynepOturma.png
+   OTURAN AVATAR (HTML) — public/images/zeynep-oturma.png
    Görsel üç katmana bölünür: gövde + uyluklar (sabit) ve dizden
    aşağı iki baldır. Baldırlar dizden, birbirine ters zamanda
    ileri-geri sallanır. ProjectsSection'daki SVG sürümüyle aynı ölçüler.
 ========================================================= */
 
-const SRC = "/images/zeynepOturma.png";
+const SRC = "/images/zeynep-oturma.png";
 const IMG_W = 1584;
 const IMG_H = 672;
 /* kişinin görseldeki yeri (px) */
