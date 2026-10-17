@@ -16,15 +16,44 @@ export const CHIP = {
   perspective: 1400,
   /** plaka kenarı = size × plateRatio */
   plateRatio: 1 / 1.55,
-  /** cam gövde kalınlığı (px) — kalın "madeni para" hissi */
+  /** cam gövde kalınlığı (px, 1440×900'deki çipte) — gerçek değer çip
+   *  boyutuyla orantılı: chipThick(size) */
   thick: 30,
-  /** pinlerin dışarı uzunluğu (px) */
+  /** pinlerin dışarı uzunluğu (px, referans çipte) — gerçek değer
+   *  chipLead(size); çip küçülünce pinler de orantılı kısalır */
   lead: 20,
   /** iç yükseltilmiş plakanın cam yüzeyden yüksekliği (px) */
   innerZ: 6,
-  /** soket halkasının iç yarıçapı / plaka kenarı */
-  ringRatio: 0.215,
+  /** soket halkasının (orta dairenin) iç yarıçapı / plaka kenarı */
+  ringRatio: 0.27,
 };
+
+/* =====================================================
+   PİNLER — SocialChip'teki pinlerin BİREBİR aynısı:
+   2px bacak, 3px boşluk (5px adım), 7px boy. Çipin her kenarı
+   boyunca (kenarın %7–%93'ü) dizilirler.
+   Gövde kalınlığı ise çip boyutuyla ORANTILI (küçük ekranda
+   kalınlık çipe göre kocaman kalmasın).
+===================================================== */
+/** Referans çip boyutu (1440×900 ekranda) */
+const REF_CHIP = 960;
+/** Sosyal pin ölçüleri × PIN_SCALE (px). Şekil/renk sosyal pinlerle
+ *  aynı; çip çok büyük ve soluk (0.55) çizildiği için 1× ölçüde kenarda
+ *  görünmez bir saçağa dönüşüyordu → 2× */
+const PIN_SCALE = 2;
+export const PIN_W = 2 * PIN_SCALE;
+export const PIN_GAP = 3 * PIN_SCALE;
+export const PIN_LEN = 7 * PIN_SCALE;
+/** Pin sırasının kenar üzerindeki yeri (plaka kenarına oran) */
+export const PIN_FROM = 0.07;
+export const PIN_TO = 0.93;
+
+export const chipLead = (_size?: number) => PIN_LEN;
+export const chipThick = (size: number) =>
+  Math.max(8, Math.round((CHIP.thick * size) / REF_CHIP / 2) * 2);
+
+/** Pin sırasının kenar üzerindeki yeri (plaka kenarına oran, 0→1) */
+export const pinSpan = () => ({ from: PIN_FROM, to: PIN_TO });
 
 /** Cam panelin ekran oranları — neredeyse tam genişlik (orijinal tasarım) */
 export const PANEL = { left: 0.01, top: 0, right: 0.01, bottom: 0.015 };
@@ -136,16 +165,17 @@ export function computeChipLayout(
   /** Çipin (pinler dahil) merkezine göre ekrandaki sınırları */
   const extent = (size: number) => {
     const p = projector(0, 0, tilt, spin, turn);
-    const o = (size * CHIP.plateRatio) / 2 + CHIP.lead;
+    const o = (size * CHIP.plateRatio) / 2 + chipLead(size);
+    const th = chipThick(size);
     const pts = [
       p(-o, -o, 0),
       p(o, -o, 0),
       p(o, o, 0),
       p(-o, o, 0),
-      p(-o, -o, -CHIP.thick),
-      p(o, -o, -CHIP.thick),
-      p(o, o, -CHIP.thick),
-      p(-o, o, -CHIP.thick),
+      p(-o, -o, -th),
+      p(o, -o, -th),
+      p(o, o, -th),
+      p(-o, o, -th),
     ];
     const xs = pts.map((q) => q[0]);
     const ys = pts.map((q) => q[1]);
@@ -165,7 +195,11 @@ export function computeChipLayout(
      kompozisyon için her şey tek bir ölçekle (designScale) büyür/küçülür.
      Böylece çip ekrana oranla hep aynı büyüklükte ve aynı köşede durur. */
   const k = designScale(vw, vh);
-  const chipK = k; // dar ekranda genişliğe göre küçülür (üstü sabit kalır)
+  /* Çip (ve onunla orantılı portre) ekran YÜKSEKLİĞİNE göre ölçeklenir:
+     pencere daraldığında çip kısalmaz, sağ kenardan biraz daha taşar.
+     Çok dar/geniş oranlarda menüyle çakışmasın diye genişlik ölçeğinin
+     en fazla 1.3 katına kadar büyür. */
+  const chipK = Math.min(vh / REF_H, (vw / REF_W) * 1.3);
   let size = stack ? vw : REF_CHIP_SIZE * chipK;
   for (let i = 0; i < 4 && stack; i++) {
     const e = extent(size);
@@ -305,10 +339,13 @@ type Side = "UL" | "UR" | "LR" | "LL";
  *  UL: T→L, UR: T→R, LR: R→B, LL: L→B */
 function pinFoot(l: ChipLayout, side: Side, f: number): Pt {
   const hs = l.plate / 2;
-  const out = hs + CHIP.lead;
-  const z = -CHIP.thick;
+  const out = hs + chipLead(l.size);
+  const z = -chipThick(l.size);
   const p = projector(l.cx, l.cy, l.tilt, l.spin, l.turn);
-  const w = -hs + f * 2 * hs;
+  /* çizgiler pin sırasının kapladığı aralıktan çıkar (kenarın ortası) */
+  const { from, to } = pinSpan();
+  const g = from + f * (to - from);
+  const w = -hs + g * 2 * hs;
 
   switch (side) {
     case "UL": // plakanın sol kenarı (u = -hs), v: -hs(T) → +hs(L)
@@ -428,7 +465,7 @@ export function buildTraces(l: ChipLayout): Trace[] {
 /** Masaüstü sahnesinin referans boyutu ve o boyuttaki çip */
 export const REF_W = 1440;
 export const REF_H = 900;
-const REF_CHIP_SIZE = 960;
+const REF_CHIP_SIZE = REF_CHIP;
 /** menünün dikey ortası (ekran yüksekliğine oranı) — çipin sol köşesi buraya hizalanır */
 const MENU_CENTER_FRAC = 0.5;
 /** sol köşenin menü ortasından ne kadar aşağıda olacağı (ekran yüksekliğine oran) */

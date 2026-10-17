@@ -27,7 +27,7 @@ export const PANEL_TOP_CSS = "26px"; // panel üstten 26px'de başlar (diğer sa
 /** Panelin üst kenarındayken (tırmanma, porta yürüme, fiş takma) avatar
  *  UZAKTA gibi küçük görünür; böylece dar üst boşluğa sığar. İsme
  *  zıplarken normal boyuna büyür (izleyiciye yaklaşıyormuş gibi). */
-const EDGE_SCALE = 0.42;
+const EDGE_SCALE = 0.5; // avatar ve fiş biraz daha büyük (eskiden 0.42)
 
 /** true: avatar panelin üst kenarına TIRMANMAZ; panelin içinde, üstteki
  *  fiş soketinin hemen altındaki şeritte koşar ve fişi sokete aşağıdan takar.
@@ -75,13 +75,18 @@ const LEDGE = 0.86;
 const LEDGE_GRIP = 0.74;
 const CLIMB_SHIFT = Math.round(CLIMB_H * (LEDGE - LEDGE_GRIP));
 
-/* Tırmanma videosu yüklenemezse / bitmezse en geç bu süre sonra devam et */
-const CLIMB_FALLBACK_MS = 3000;
+/* AVATAR HIZI — 1 = eski hız; büyüdükçe tüm hareketler YAVAŞLAR
+   (videolar, yürüme, fiş takma, zıplamalar aynı oranda) */
+const SLOW = 1.5;
+const ms = (v: number) => Math.round(v * SLOW);
 
 /* HIZ — kullanıcı beklemesin diye her şey hızlı ama akıcı.
    Videolar da aynı oranda hızlı oynar (adım/kol uyumu bozulmaz). */
-const CLIMB_RATE = 3; // tırmanma videosu oynatma hızı
-const RUN_RATE = 2.1; // koşma videosu oynatma hızı
+const CLIMB_RATE = 3.2; // tırmanma videosu hızı (eskiden 3 / SLOW = 2): fiş ~1 sn önce takılır
+const RUN_RATE = 2.1 / SLOW; // koşma videosu oynatma hızı
+
+/* Tırmanma videosu yüklenemezse / bitmezse en geç bu süre sonra devam et */
+const CLIMB_FALLBACK_MS = Math.round(5000 / CLIMB_RATE) + 1200;
 
 /* Hız izi çizgileri: [yükseklik oranı, uzunluk px, opaklık, titreşim ms] */
 const TRAILS: [number, number, number, number][] = [
@@ -93,25 +98,34 @@ const TRAILS: [number, number, number, number][] = [
 const EDGE_RGB = "222,231,243"; // hız izi / konma halkası: açık altın
 
 /* Süreler (ms) */
-const WALK_MS = 260; // porta 1-2 adım
-const PLUG_MS = 380;
+const WALK_MS = ms(150); // porta 1-2 adım (eskiden ms(260))
+const PLUG_MS = ms(270); // eskiden ms(380)
 /** "hero:built" hiç gelmezse avatar bu kadar sonra yine başlar (ms) */
-const SCENE_WAIT_FALLBACK_MS = 9000;
+const SCENE_WAIT_FALLBACK_MS = 15000;
 /** "hero:built" geldi ama "hero:plug" gelmezse portta en fazla bu kadar bekler (ms) */
 const PLUG_WAIT_FALLBACK_MS = 4000;
-const JUMP_MS = 420; // porttan isme zıplama
-const NAME_RUN_MS = 380; // ismin üstünde koşma
-const PREJUMP_MS = 110; // zıplamadan önce kenarda çömelme
-const LAND_MS = 190; // isme konunca çömelip kalkma
+const JUMP_MS = ms(420); // porttan isme zıplama
+const NAME_RUN_MS = ms(380); // ismin üstünde koşma
+const PREJUMP_MS = ms(110); // zıplamadan önce kenarda çömelme
+const LAND_MS = ms(190); // isme konunca çömelip kalkma
 
 /* SOSYAL İKONLAR — isimden aşağıdaki ikon sırasına zıplar, her birine
    basıp bir sonrakine sekerek geçer (HeroSection > SocialChip'teki
    data-avatar-hop işaretli cam gövdeler) */
-const TO_SOCIAL_MS = 340; // isimden ilk ikona zıplama
-const HOP_AIR_MS = 150; // ikondan ikona havada geçen süre
-const HOP_SQUAT_MS = 45; // her ikona basma (ayak değme) süresi
+const TO_SOCIAL_MS = ms(340); // isimden ilk ikona zıplama
+const HOP_AIR_MS = ms(150); // ikondan ikona havada geçen süre
+const HOP_SQUAT_MS = ms(45); // her ikona basma (ayak değme) süresi
 const HOP_HEIGHT = 26; // ikonlar arası sekme yüksekliği (px)
-const EXIT_MS = 450; // son ikondan aşağı atlayıp çıkış
+const EXIT_MS = ms(450); // ekranın en solundan aşağı atlayıp çıkış
+/* ÇIKIŞ: son ikondan yere atlar, yerde KOŞARAK ekranın en soluna gider,
+   oradan alttaki sayfaya iner (yol haritasındaki nehir de soldan başlar) */
+const TO_FLOOR_MS = ms(380); // son ikondan yere atlama
+/** yerde koşma hızı (px / ms) — mesafeye göre süre hesaplanır */
+const FLOOR_RUN_SPEED = 0.9 / SLOW;
+/** yer çizgisi: ekranın altından bu kadar yukarıda (px) */
+const FLOOR_GAP = 22;
+/** ekranın sol kenarından iç boşluk (px) */
+const LEFT_EDGE_PAD = 10;
 
 /* ÇÖMELME POZU — senin fotoğrafından (arka planı silindi).
    Eller kenara dayalı; resmin %95.4'ündeki çizgi = basılan yüzey. */
@@ -138,7 +152,7 @@ const DENT_MAP =
       "</radialGradient></defs>" +
       `<rect width='${DENT_RX * 2}' height='${DENT_RY * 2}' fill='url(#g)'/></svg>`,
   );
-const DESCEND_MS = 1000; // koşarak sol alta iniş
+const DESCEND_MS = ms(1000); // koşarak sol alta iniş
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -200,6 +214,11 @@ const CONN_IN_Y = H - 6; // takılıyken gövde üstü (pimler kenarın 6px alt�
 /* Kenarda küçültülmüşken (ayak ortasından EDGE_SCALE ile) konnektör yine
    soketin tam ortasına gelsin diye kutunun sol kenarı */
 const PORT_ROOT_LEFT_EDGE = `calc(50% - ${(W / 2 + (CONN_X - W / 2) * EDGE_SCALE).toFixed(1)}px)`;
+
+/** Sokette takılı kalan fişin kablosu (fiş ölçeğinde; y=0 panel kenarı):
+ *  kovandan yukarı kalkar, portun biraz soluna kıvrılıp panelin arkasına
+ *  iner. ScifiBackground > PluggedJack ile AYNI olmalı. */
+const PLUG_CABLE_D = "M 0 -19 C 0 -28, -20 -30, -36 -24 S -53 -8, -54 0";
 
 /** Fiş/kablo takılınca yanan turkuaz (poster rengi) */
 const PLUG_CYAN = "79,216,255";
@@ -353,6 +372,8 @@ type Stage =
   | "land" // isme konar: çömelir, yazı içe göçer
   | "onName" // ismin üstünde koşar
   | "social" // sosyal ikonların üstünde tek tek sekerek geçer
+  | "toFloor" // son ikondan yere atlar
+  | "toLeft" // yerde koşarak ekranın en soluna gider
   | "descending"
   | "done";
 
@@ -465,7 +486,11 @@ export default function SiteAvatar({
   /* İsim yazısının çökmesi: konunca sert çöker, üstünde koşarken
      ayağının altında hafif çukur gezer, ayrılınca yaylanıp düzelir */
   useEffect(() => {
-    const releasing = stage === "social" || stage === "descending";
+    const releasing =
+      stage === "social" ||
+      stage === "toFloor" ||
+      stage === "toLeft" ||
+      stage === "descending";
     if (stage !== "land" && stage !== "onName" && !releasing) return;
     if (releasing && dentT.current.released) return;
     const el = document.querySelector<HTMLElement>("[data-avatar-name]");
@@ -562,7 +587,7 @@ export default function SiteAvatar({
     const t2 = setTimeout(() => {
       setSquat(false);
       if (hopIdx < hops.length - 1) setHopIdx((i) => i + 1);
-      else setStage("descending");
+      else setStage("toFloor");
     }, air + HOP_SQUAT_MS);
     return () => {
       clearTimeout(t1);
@@ -614,8 +639,17 @@ export default function SiteAvatar({
     const t = window.setTimeout(() => setAtPort(true), WALK_MS + 100);
     return () => window.clearTimeout(t);
   }, [stage]);
-  /* fiş izni tırmanırken gelirse tırmanmayı kısa kes, hemen porta yürü */
-  if (plugGo && stage === "climbing" && isActive) setStage("toPort");
+  /* TIRMANMA HİÇ KESİLMEZ: fiş izni tırmanırken gelse bile avatar önce
+     kenara tamamen tırmanır, sonra porta yürür ve fişi ANCAK o zaman takar
+     (izin yürürken/portta beklerken kullanılır — aşağıdaki zamanlayıcı) */
+
+  /* Yerde koşma: son ikonun altından ekranın en soluna; süre mesafeye göre */
+  const lastHop = hops[hops.length - 1];
+  const floorStartX = lastHop ? lastHop.x - 50 : 0;
+  const floorEndX = LEFT_EDGE_PAD + W / 2;
+  const floorRunMs = Math.round(
+    Math.max(ms(300), (floorStartX - floorEndX) / FLOOR_RUN_SPEED),
+  );
 
   /* Aşama zamanlayıcıları (tırmanma videoyla biter; bu süre yedek) */
   useEffect(() => {
@@ -626,6 +660,8 @@ export default function SiteAvatar({
       prejump: ["jump", PREJUMP_MS],
       jump: ["land", JUMP_MS],
       land: ["onName", LAND_MS],
+      toFloor: ["toLeft", TO_FLOOR_MS],
+      toLeft: ["descending", floorRunMs],
       descending: ["done", hops.length ? EXIT_MS : DESCEND_MS],
     };
     /* İsimden sonra: ikon varsa onlara, yoksa eskisi gibi sol alta */
@@ -648,7 +684,15 @@ export default function SiteAvatar({
       if (step[0] === "done") onSequenceComplete?.();
     }, step[1]);
     return () => clearTimeout(t);
-  }, [stage, onPlugged, onSequenceComplete, isActive, hops.length, plugGo]);
+  }, [
+    stage,
+    onPlugged,
+    onSequenceComplete,
+    isActive,
+    hops.length,
+    plugGo,
+    floorRunMs,
+  ]);
 
   /* İkinci kopya: hiçbir şey çizme */
   if (!isActive) return null;
@@ -723,16 +767,22 @@ export default function SiteAvatar({
             ? at(spots.end)
             : stage === "social" && hops[hopIdx]
               ? at(hops[hopIdx])
-              : stage === "descending" && hops.length
-                ? /* son ikondan (LinkedIn) sol-aşağı atlayıp ekranın altından çıkar */
-                  at({
-                    x: hops[hops.length - 1].x - 150,
-                    y: window.innerHeight + H + 20,
-                  })
-                : {
-                    left: `${DESCEND_TARGET.left}%`,
-                    top: `${DESCEND_TARGET.top}%`,
-                  };
+              : stage === "toFloor" && hops.length
+                ? /* son ikondan biraz sola, yere atlar */
+                  at({ x: floorStartX, y: window.innerHeight - FLOOR_GAP })
+                : stage === "toLeft" && hops.length
+                  ? /* yerde koşarak ekranın en soluna */
+                    at({ x: floorEndX, y: window.innerHeight - FLOOR_GAP })
+                  : stage === "descending" && hops.length
+                    ? /* en soldan aşağı atlayıp alttaki sayfaya geçer */
+                      at({
+                        x: LEFT_EDGE_PAD + W / 2,
+                        y: window.innerHeight + H + 20,
+                      })
+                    : {
+                        left: `${DESCEND_TARGET.left}%`,
+                        top: `${DESCEND_TARGET.top}%`,
+                      };
 
   const onEdge =
     stage === "climbing" ||
@@ -757,17 +807,23 @@ export default function SiteAvatar({
             ? hopIdx === 0
               ? `left ${TO_SOCIAL_MS}ms linear, top ${TO_SOCIAL_MS}ms cubic-bezier(.3,-0.7,.7,1)`
               : `left ${HOP_AIR_MS}ms linear, top ${HOP_AIR_MS}ms linear`
-            : stage === "descending" && hops.length
-              ? `left ${EXIT_MS}ms linear, top ${EXIT_MS}ms cubic-bezier(.3,-0.5,.8,1), opacity ${EXIT_MS}ms ease-in`
-              : stage === "descending"
-                ? `left ${DESCEND_MS}ms cubic-bezier(.45,.05,.4,1), top ${DESCEND_MS}ms cubic-bezier(.45,.05,.4,1)`
-                : `left ${WALK_MS}ms cubic-bezier(.45,.05,.4,1), top ${WALK_MS}ms cubic-bezier(.45,.05,.4,1)`;
+            : stage === "toFloor"
+              ? `left ${TO_FLOOR_MS}ms linear, top ${TO_FLOOR_MS}ms cubic-bezier(.3,-0.6,.7,1)`
+              : stage === "toLeft"
+                ? `left ${floorRunMs}ms cubic-bezier(.3,0,.7,1), top ${floorRunMs}ms linear`
+                : stage === "descending" && hops.length
+                  ? `left ${EXIT_MS}ms linear, top ${EXIT_MS}ms cubic-bezier(.3,-0.5,.8,1), opacity ${EXIT_MS}ms ease-in`
+                  : stage === "descending"
+                    ? `left ${DESCEND_MS}ms cubic-bezier(.45,.05,.4,1), top ${DESCEND_MS}ms cubic-bezier(.45,.05,.4,1)`
+                    : `left ${WALK_MS}ms cubic-bezier(.45,.05,.4,1), top ${WALK_MS}ms cubic-bezier(.45,.05,.4,1)`;
 
   const walking =
     (stage === "toPort" && !atPort) /* portta beklerken durur */ ||
     stage === "jump" ||
     stage === "onName" ||
     stage === "social" ||
+    stage === "toFloor" ||
+    stage === "toLeft" ||
     stage === "descending";
   /* Sosyal ikonlarda bir önceki noktaya göre yön */
   const hopPrevX =
@@ -778,11 +834,14 @@ export default function SiteAvatar({
   const facingLeft =
     stage === "onName" ||
     hopLeft ||
+    stage === "toFloor" ||
+    stage === "toLeft" ||
     stage === "descending" ||
     ((stage === "prejump" || stage === "jump" || stage === "land") &&
       !!spots?.jumpLeft);
   const plugged = stage === "plugged";
-  const airborne = stage === "jump" || (stage === "social" && !squat);
+  const airborne =
+    stage === "jump" || stage === "toFloor" || (stage === "social" && !squat);
   /* Kenarda zıplamaya hazırlanırken ve isme konunca fotoğraf pozu
      (ikonlarda eğilmez, koşar adım basıp geçer) */
   const crouching = stage === "prejump" || stage === "land";
@@ -792,6 +851,8 @@ export default function SiteAvatar({
     stage === "jump" ||
     stage === "onName" ||
     (stage === "social" && !squat) ||
+    stage === "toFloor" ||
+    stage === "toLeft" ||
     stage === "descending";
   /* Konma anları: ayak altında ışık halkası */
   const impactKey =
@@ -799,7 +860,9 @@ export default function SiteAvatar({
       ? "land"
       : stage === "social" && squat
         ? `hop${hopIdx}`
-        : null;
+        : stage === "toLeft"
+          ? "floor" // yere değdiği an
+          : null;
   /* İkonlar arası sekmede (aynı yükseklik) yay çizmek için iç sıçrama */
   const hopBounce = stage === "social" && !squat && hopIdx > 0;
 
@@ -884,34 +947,9 @@ export default function SiteAvatar({
               : `scale(${EDGE_SCALE})`
           }
         >
-          <defs>
-            <linearGradient id="avCableFade" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0" stopColor="#fff" stopOpacity="0" />
-              <stop offset=".6" stopColor="#fff" stopOpacity="1" />
-            </linearGradient>
-            <mask
-              id="avCableMask"
-              maskUnits="userSpaceOnUse"
-              x="-220"
-              y="-40"
-              width="240"
-              height="60"
-            >
-              <rect
-                x="-220"
-                y="-40"
-                width="240"
-                height="60"
-                fill="url(#avCableFade)"
-              />
-            </mask>
-          </defs>
-          <g mask="url(#avCableMask)">
-            <CableStroke
-              d="M 0 -11 C 0 -22, -14 -6, -40 -4 S -120 -3, -210 -3"
-              lit
-            />
-          </g>
+          {/* kablo portun biraz solundan panelin ARKASINA iner
+              (ScifiBackground > PluggedJack ile aynı) */}
+          <CableStroke d={PLUG_CABLE_D} lit cap="butt" />
           <g transform={`translate(0, -6)`}>
             <Connector lit />
           </g>
@@ -1315,9 +1353,18 @@ function Cable({
 
 /* GÜÇ KABLOSU — footer'daki PSU kablosu gibi: kalın koyu kılıf,
    üstünde ince ışık yansıması; takılınca içinden turkuaz akım akar */
-function CableStroke({ d, lit = false }: { d: string; lit?: boolean }) {
+function CableStroke({
+  d,
+  lit = false,
+  cap = "round",
+}: {
+  d: string;
+  lit?: boolean;
+  /** "butt": uç düz kesilir (kablo panel kenarında arkaya iniyormuş gibi) */
+  cap?: "round" | "butt";
+}) {
   return (
-    <g fill="none" strokeLinecap="round">
+    <g fill="none" strokeLinecap={cap}>
       {/* kılıf */}
       <path d={d} stroke="#020b17" strokeWidth={6.5} />
       <path d={d} stroke="#0a1a33" strokeWidth={4.2} />

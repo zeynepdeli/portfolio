@@ -1,6 +1,5 @@
 "use client";
 
-import { SparkleStroke } from "@/components/ui/Sparkle";
 import {
   useEffect,
   useId,
@@ -24,6 +23,10 @@ export type Project = {
   id: number;
   title: string;
   images: string[];
+  /** resmin üstünde, başlığın altında görünen kısa açıklama */
+  description?: string;
+  /** kullanılan teknolojiler (küçük etiketler) */
+  tags?: string[];
 };
 
 type Props = {
@@ -55,11 +58,19 @@ type FanProps = {
   hubK?: number;
   /** fanın kart içindeki küçülmesi (≥1) */
   tall?: number;
+  /** nehrin girişini ekranın üstüne kadar uzatma payı (fan birimi;
+      dikeyde sahne ekranın altında olduğu için gerekli) */
+  entryExtra?: number;
+  /** kartın sağ köşe yarıçapı (viewBox birimi) — panelinkiyle aynı */
+  rightR?: number;
 };
 
 export const PROJECTS: Project[] = Array.from({ length: 10 }, (_, i) => ({
   id: i + 1,
   title: `Proje ${i + 1}`,
+  description:
+    "Proje açıklaması burada yer alacak — ne yaptığı, senin rolün ve öne çıkan özellikleri.",
+  tags: ["Next.js", "TypeScript", "Tailwind CSS"],
   // 1. görsel büyük panelde, 2. ve 3. görsel küçük panellerde
   images: [
     `https://picsum.photos/seed/proje${i + 1}/1200/800`,
@@ -90,9 +101,10 @@ const CHAMFER_Y = 455;
 // Görünür alan: kart üstten alta tam, sağda göbek tamamen içeride.
 // VIEW_PAD_Y: kartın üst/alt kenar çizgisi ekranda görünsün diye bırakılan pay
 // (0 yaparsan kenar tam ekran sınırına oturur, büyütürsen kart küçülür)
-const VIEW_PAD_Y = 22;
+const VIEW_PAD_Y = 0; // kartın üst/alt kenarı = cam panelin üst/alt kenarı
 const VIEW_LEFT = SHROUD_LEFT - 30;
-// Sağ kenar: orta göbeğin (koyu dış halkası dahil) bittiği yer
+// Sağ kenar: orta göbeğin (koyu dış halkası dahil) bittiği yer — fanın
+// sağ yarısı YOK, kart ve fan burada (ekranın sağ kenarında) biter
 const VIEW_RIGHT = CX + HUB_R + 8;
 const VIEW_W = VIEW_RIGHT - VIEW_LEFT;
 const VIEW_H = SHROUD_BOTTOM - SHROUD_TOP + VIEW_PAD_Y * 2;
@@ -105,45 +117,53 @@ const CORNER_R_RIGHT = 40;
 const CORNER_R_CHAMFER = 40;
 
 // Arka plan kartı ekranın sağ kenarından içeride bitiyorsa aradaki boşluk (px)
-const STAGE_INSET_RIGHT = 21;
-
-// Üstte sabit bir navbar varsa yüksekliğini buraya yaz (px)
-const STAGE_INSET_TOP = 0;
-const STAGE_INSET_BOTTOM = 0;
-
-// Sahne yüksekliği: section yüksekliği ama asla görünür ekran yüksekliğinden
-// fazla değil (svh = mobilde adres çubuğu açıkken bile görünen en küçük alan)
-const STAGE_INSETS = STAGE_INSET_TOP + STAGE_INSET_BOTTOM;
-const STAGE_H = `min(calc(100% - ${STAGE_INSETS}px), calc(100svh - ${STAGE_INSETS}px))`;
+const STAGE_INSET_RIGHT = 21; // (yalnızca fan genişliği hesabında)
+/* CAM PANELİN YERİ — ScifiBackground'daki varsayılan panelInset ile AYNI:
+   sol/sağ %1, üst/alt %1.5. Kart bu kenarlarda biter. */
+const PANEL_SIDE = 0.01; // genişliğe oran
+const PANEL_TOPBOT = 0.015; // yüksekliğe oran
+/** cam panelin köşe yuvarlaklığı (px) — Theme.tsx'teki --glass-radius ile aynı */
+const PANEL_RADIUS = 14;
 
 // Tüm animasyon hızı: küçüldükçe hızlanır (1 = orijinal)
 const SPEED = 0.6; // nehir + avatar + fan oluşumu (küçük = hızlı)
 const ms = (v: number) => v * SPEED;
 
-const STREAM_START = 0;
-const STREAM_DUR = ms(2200);
-const HUB_START = ms(1100);
-const HUB_DUR = ms(950);
-const BLADE_START = ms(1950);
-const BLADE_STAGGER = ms(150);
-const BLADE_DUR = ms(700);
-const BODY_START = ms(4050);
-const BODY_DUR = ms(1100);
-const MATERIAL_START = ms(5050);
-const MATERIAL_DUR = ms(1250);
-const PHOTO_STAGGER = ms(120);
-const PHOTO_DUR = ms(650);
+/* ZAMAN ÇİZELGESİ (ms)
+   1) nehir bir üst sayfadan (ekranın üstünden) akarak gelir, kişi suyun
+      ucunda oturmuş halde kayar            0 → ARRIVE
+   2) göbeğin kenarından yumuşak bir yayla ortasına süzülüp oturur
+   3) kişi oturduktan SONRA fan yaprakları, ardından kart gövdesi oluşur */
+const ARRIVE = 2600; // kişinin göbeğin kenarına vardığı an
+const SPIRAL_DUR = 820; // kenardan göbeğin ortasına ZIPLAMA süresi
+/** zıplamanın yüksekliği (fan birimi, ekranda yukarı doğru) */
+const JUMP_H = 300;
+const SEATED = ARRIVE + SPIRAL_DUR + 120; // yere inip oturma anı
+const STREAM_TAIL_DUR = 500; // kişi varınca suyun göbeğe dolması
+const HUB_START = ARRIVE - 500;
+const HUB_DUR = 700;
+
+/* DONMA — kişi oturunca su göbekten fan yuvasına yayılır, sonra buz
+   cephesi göbekten dışa doğru ilerleyip suyu yaprak yaprak dondurur;
+   buz kararıp koyu cama döner, fotoğraflar belirir; en son kart gövdesi
+   aynı şekilde donarak oluşur */
+const FILL_START = SEATED - 250; // su fan yuvasına yayılır
+const FILL_DUR = 650;
+const FREEZE_START = SEATED + 300; // yapraklar donar (göbekten dışa)
+const FREEZE_DUR = 1100;
+const THAW_START = FREEZE_START + FREEZE_DUR * 0.55; // buz → koyu cam
+const THAW_DUR = 900;
+const BODY_FREEZE_START = FREEZE_START + FREEZE_DUR * 0.7; // kart gövdesi
+const BODY_FREEZE_DUR = 1000;
+const BODY_THAW_DUR = 900;
+/** gövde donma cephesinin ulaşacağı yarıçap (kartın en uzak köşesi) */
+const BODY_REACH = 1700;
+const PHOTO_STAGGER = 70;
+const PHOTO_DUR = 420;
 
 // Fan dönmez: oluşunca yalnızca bir yaprak kadar kayar
-const STEP_DELAY = ms(250);
+const STEP_DELAY = 150;
 const STEP_DUR = 550;
-
-// Kişi: akımın başında gelir, göbeğe oturur ve büyür
-/* Kişinin yolculuğu: akıntıda kayma → girdapta sarmal → göbeğe oturma */
-const RIDE_END = 0.86; // akımın neresine kadar kayar (göbeğin kenarı)
-/* nehrin ucu (easeInOutCubic) %86'ya bu oranda varır → kişi suyun ucunda kalır */
-const RIDE_TRAVEL = STREAM_DUR * 0.673;
-const SPIRAL_DUR = ms(1500);
 const AVATAR_R = 170;
 // Kişi göbeğe oturduğunda göbeğin içinde kalacak boyut
 const PERSON_FINAL_SCALE = (HUB_R - 40) / AVATAR_R;
@@ -245,91 +265,206 @@ function roundedPath(points: Pt[], radii: number[], closed: boolean) {
   return d + `L ${points[n - 1][0]} ${points[n - 1][1]}`;
 }
 
-// Deterministik 0/1 dizisi (SSR ve client aynı sonucu üretir)
-function binaryString(seed: number, length: number) {
-  let s = seed >>> 0;
-  let out = "";
+/* =========================================================
+   NEHİR — YOL HARİTASIYLA BİREBİR AYNI GÖRÜNÜM
+   Aynı renkler, aynı akış çizgileri (yumuşak / ince / parlak / ana),
+   aynı koyu derinlik bantları ve aynı boyutta 0/1 yazıları.
+   RM_K: yol haritası nehri ekranda bu kadar büyük çizildiği için fan
+   birimine çevirme katsayısı (ekranda aynı boyutta görünsün diye).
+========================================================= */
+const RM_K = 1.4;
+const RM = {
+  edge: "#46beff",
+  ice: "#cfe6ff",
+  iceSoft: "#a9cdf5",
+  steel: "#5b8fc9",
+  steelDim: "#3d6fa8",
+};
 
+const makeStreams = (
+  count: number,
+  from: number,
+  span: number,
+  width: number,
+  opacity: number,
+  dash: number,
+  gap: number,
+) =>
+  Array.from({ length: count }, (_, i) => ({
+    f: from + (i * span) / (count - 1),
+    width: (width + ((i * 7) % 5) * width * 0.5) * RM_K,
+    opacity: opacity + ((i * 3) % 4) * 0.09,
+    dash: `${(dash + ((i * 37) % 5) * dash * 0.22) * RM_K} ${
+      (gap + ((i * 13) % 4) * gap * 0.45) * RM_K
+    }`,
+    duration: 4 + ((i * 5) % 4),
+  }));
+
+const RM_STREAMS = makeStreams(7, 0.1, 0.8, 0.8, 0.22, 700, 220);
+const RM_FINE_STREAMS = makeStreams(10, 0.05, 0.9, 0.6, 0.2, 200, 80);
+const RM_SOFT_STREAMS = [0.15, 0.35, 0.55, 0.75];
+const RM_HIGHLIGHTS = [0.28, 0.5, 0.68];
+const RM_DARK_BANDS = [0.3, 0.62, 0.85];
+
+const RM_MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+/** 0/1 yazı boyu ve harf aralığı (yol haritasıyla aynı görünür boyut) */
+const RM_BINARY_SIZE = 11 * RM_K;
+const RM_BINARY_SPACING = 1.1 * RM_K;
+/** [nehir genişliğine oran, opaklık, başlangıç kayması] */
+const RM_BINARY_LANES: [number, number, string][] = [
+  [0.14, 0.3, "0%"],
+  [0.26, 0.36, "3%"],
+  [0.38, 0.4, "1%"],
+  [0.5, 0.44, "4%"],
+  [0.62, 0.4, "2%"],
+  [0.74, 0.34, "0%"],
+  [0.86, 0.28, "3%"],
+];
+function seededBinary(length: number, seed: number): string {
+  let s = Math.imul(seed + 1, 2654435761) >>> 0;
+  let out = "";
   for (let i = 0; i < length; i++) {
-    if (i % 9 === 8) {
-      out += " ";
-      continue;
-    }
-    s = (Math.imul(s, 1103515245) + 12345) >>> 0;
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
     out += (s >>> 16) & 1 ? "1" : "0";
   }
-
   return out;
 }
+const RM_BINARY = RM_BINARY_LANES.map((_, i) => seededBinary(1600, i + 3));
 
-const LANE_DY = [-48, -32, -16, 0, 16, 32, 48];
-
-const BINARY_LANES = LANE_DY.map((dy, i) => {
-  const edge = Math.abs(dy) / 48;
-
-  return {
-    dy,
-    bits: binaryString(i * 7919 + 13, 260),
-    speed: 0.85 + ((i * 37) % 7) / 20,
-    shift: -((i * 53) % 90),
-    opacity: 0.95 - edge * 0.55,
-    color: edge < 0.4 ? "#e6f0ff" : edge < 0.8 ? "#8cc4f2" : "#3d7fc4",
-  };
-});
+/** nehrin bir kenarından (0) diğerine (1) şerit yolu — LUT noktalarından */
+function laneFromLut(lut: LutPoint[], ratio: number, width: number) {
+  const off = (ratio - 0.5) * width;
+  const pts: string[] = [];
+  const step = 2;
+  for (let i = 0; i < lut.length; i += step) {
+    const a = lut[Math.max(0, i - 1)];
+    const b = lut[Math.min(lut.length - 1, i + 1)];
+    const tx = b.x - a.x;
+    const ty = b.y - a.y;
+    const l = Math.hypot(tx, ty) || 1;
+    const p = lut[i];
+    pts.push(
+      `${(p.x - (ty / l) * off).toFixed(1)} ${(p.y + (tx / l) * off).toFixed(1)}`,
+    );
+  }
+  return `M ${pts.join(" L ")}`;
+}
 
 const BLADE_CENTER = polar((INNER_R + OUTER_R) / 2 + 20, -TWIST * 0.6);
 
+/* Yaprağın içindeki buz kristali çizgileri: yaprak boyunca uzanan bir
+   omurga ve ondan iki yana açılan dallar (deterministik, bir kez üretilir) */
+const FROST_PATH = (() => {
+  const parts: string[] = [];
+  const spine = (k: number) =>
+    polar(lerp(INNER_R + 30, OUTER_R - 40, k), -TWIST * (0.25 + k * 0.6));
+  const pts = Array.from({ length: 9 }, (_, i) => spine(i / 8));
+  parts.push(
+    `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`,
+  );
+  pts.slice(1, -1).forEach((p, i) => {
+    const len = 34 + ((i * 37) % 4) * 14;
+    const base = Math.atan2(p.y - CY, p.x - CX);
+    [1, -1].forEach((side) => {
+      const a = base + side * (0.75 + ((i * 13) % 3) * 0.12);
+      const q = { x: p.x + Math.cos(a) * len, y: p.y + Math.sin(a) * len };
+      parts.push(
+        `M ${p.x.toFixed(1)} ${p.y.toFixed(1)} L ${q.x.toFixed(1)} ${q.y.toFixed(1)}`,
+      );
+      /* dalın ucunda küçük çatal */
+      const b = a + side * 0.6;
+      const r = {
+        x: q.x - Math.cos(a) * len * 0.45,
+        y: q.y - Math.sin(a) * len * 0.45,
+      };
+      parts.push(
+        `M ${r.x.toFixed(1)} ${r.y.toFixed(1)} L ${(r.x + Math.cos(b) * len * 0.35).toFixed(1)} ${(r.y + Math.sin(b) * len * 0.35).toFixed(1)}`,
+      );
+    });
+  });
+  return parts.join(" ");
+})();
+
 /* =========================================================
-   NEHİR YOLU
+   NEHİR YOLU — bir üst sayfadan gelir
+   Rota EKRAN yönünde (sağ = +x, aşağı = +y) ve göbeğe göre tanımlıdır;
+   dikey ekranda fan 90° döndüğü için fan koordinatına çevrilir.
+   Nehir ekranın ÜSTÜNDEN girer, S çizerek göbeğe akar.
    Bézier parçaları sayı olarak tutulur: hem SVG yolu hem de
-   "kişi nehirde nerede?" hesabı aynı veriden (DOM'a bakmadan) üretilir.
+   "kişi nehirde nerede?" hesabı aynı veriden üretilir.
 ========================================================= */
-const STREAM_START_POINT = { x: 560, y: -360 };
+type Seg = [number, number, number, number, number, number];
+type StreamGeo = { start: [number, number]; curves: Seg[] };
 
-/** Kübik Bézier parçaları: [c1x, c1y, c2x, c2y, x, y] */
-const STREAM_CURVES: [number, number, number, number, number, number][] = [
-  [525, -180, 390, -80, 300, 45],
-  [205, 175, 95, 300, 112, 465],
-  [130, 625, 300, 720, 445, 665],
-  [520, 635, 565, 612, 600, 600],
-];
+/** Masaüstü (fan sağda): ekranın SAĞ ÜST köşesinden (yol haritasındaki
+    nehrin bittiği köşe) girer, sola-aşağı iner, kıvrılıp soldan göbeğe akar */
+const ROUTE_WIDE: StreamGeo = {
+  start: [200, -820],
+  curves: [
+    [200, -600, -40, -560, -240, -380],
+    [-420, -220, -390, -40, -210, -12],
+    [-120, 0, -55, 0, 0, 0],
+  ],
+};
+/** Dikey (fan altta): ekranın SAĞ üst köşesinden iner, sola kıvrılıp
+    soldan göbeğe girer */
+const ROUTE_TALL: StreamGeo = {
+  start: [470, -1150],
+  curves: [
+    [470, -760, 160, -600, -60, -420],
+    [-280, -250, -270, -50, -130, -12],
+    [-80, 0, -35, 0, 0, 0],
+  ],
+};
 
-const STREAM_CURVES_D = STREAM_CURVES.map((c) => `C ${c.join(" ")}`).join(" ");
+/** Ekran yönündeki rotayı fan koordinatına çevirir ve ekranın üst
+    kenarının dışına kadar düz bir girişle uzatır */
+function buildStreamGeo(
+  upright: boolean,
+  viewTop: number,
+  viewLeft: number,
+  extra = 0,
+): StreamGeo {
+  const route = upright ? ROUTE_TALL : ROUTE_WIDE;
+  /* ekran ofseti (dx, dy) → fan noktası (dikeyde fan 90° dönük) */
+  const map = (dx: number, dy: number): [number, number] =>
+    upright ? [CX + dy, CY - dx] : [CX + dx, CY + dy];
+  const curves = route.curves.map(
+    ([a, b, c, d, e, f]) => [...map(a, b), ...map(c, d), ...map(e, f)] as Seg,
+  );
+  const [sdx, sdy] = route.start;
+  const first = map(sdx, sdy);
+  const reach =
+    (upright
+      ? Math.max(0, first[0] - (viewLeft - 200))
+      : Math.max(0, first[1] - (viewTop - 200))) + extra;
+  const entry = map(sdx, sdy - reach);
+  return {
+    start: entry,
+    curves: [[...entry, ...first, ...first] as Seg, ...curves],
+  };
+}
 
-/** Akış, görünür alanın üstünden (topY) başlar; gerekirse düz bir çizgiyle uzatılır */
-function buildStreamPath(topY: number) {
-  const { x, y } = STREAM_START_POINT;
-  return topY < y
-    ? `M ${x} ${topY} L ${x} ${y} ${STREAM_CURVES_D}`
-    : `M ${x} ${y} ${STREAM_CURVES_D}`;
+function buildStreamPath(g: StreamGeo) {
+  const segs = g.curves.map((c) => `C ${c.join(" ")}`).join(" ");
+  return `M ${g.start[0]} ${g.start[1]} ${segs}`;
 }
 
 type LutPoint = { x: number; y: number; len: number };
 
 /** Yol uzunluğu tablosu: yolun %f noktasındaki koordinatı saf matematikle verir */
-function buildStreamLut(topY: number): LutPoint[] {
+function buildStreamLut(g: StreamGeo): LutPoint[] {
   const SAMPLES = 80;
-  const { x: sx, y: sy } = STREAM_START_POINT;
-
-  const pts: LutPoint[] = [];
+  const [sx, sy] = g.start;
+  const pts: LutPoint[] = [{ x: sx, y: sy, len: 0 }];
   let acc = 0;
-
-  if (topY < sy) {
-    pts.push({ x: sx, y: topY, len: 0 });
-    acc = sy - topY;
-    pts.push({ x: sx, y: sy, len: acc });
-  } else {
-    pts.push({ x: sx, y: sy, len: 0 });
-  }
-
   let px = sx;
   let py = sy;
 
-  for (const [x1, y1, x2, y2, x3, y3] of STREAM_CURVES) {
+  for (const [x1, y1, x2, y2, x3, y3] of g.curves) {
     for (let k = 1; k <= SAMPLES; k++) {
       const t = k / SAMPLES;
       const u = 1 - t;
-
       const x =
         u * u * u * px +
         3 * u * u * t * x1 +
@@ -340,17 +475,22 @@ function buildStreamLut(topY: number): LutPoint[] {
         3 * u * u * t * y1 +
         3 * u * t * t * y2 +
         t * t * t * y3;
-
       const prev = pts[pts.length - 1];
       acc += Math.hypot(x - prev.x, y - prev.y);
       pts.push({ x, y, len: acc });
     }
-
     px = x3;
     py = y3;
   }
 
   return pts;
+}
+
+/** kişinin akıntıda kaydığı son nokta: göbeğin kenarına ulaştığı yer (oran) */
+function rideEndOf(lut: LutPoint[], edge: number) {
+  const total = lut[lut.length - 1].len || 1;
+  const hit = lut.find((p) => Math.hypot(p.x - CX, p.y - CY) <= edge);
+  return hit ? hit.len / total : 0.9;
 }
 
 function pointOnLut(lut: LutPoint[], frac: number) {
@@ -463,7 +603,14 @@ function clipConvex(subject: Pt[], clip: Pt[]): Pt[] {
   return out;
 }
 
-function buildCard(cover: number, hubK = 1, tall = 1) {
+function buildCard(
+  cover: number,
+  hubK = 1,
+  tall = 1,
+  upright = false,
+  entryExtra = 0,
+  rightR = CORNER_R_RIGHT,
+) {
   const L = SHROUD_LEFT + cover;
   /* sağ kenar: (küçültülmüş) göbeğin bittiği yer */
   const SR = CX + HUB_R * hubK + 8;
@@ -482,8 +629,8 @@ function buildCard(cover: number, hubK = 1, tall = 1) {
   const R = [
     CORNER_R_CHAMFER,
     CORNER_R_CHAMFER,
-    CORNER_R_RIGHT,
-    CORNER_R_RIGHT,
+    rightR,
+    rightR,
     CORNER_R_CHAMFER,
     CORNER_R_CHAMFER,
   ];
@@ -493,7 +640,11 @@ function buildCard(cover: number, hubK = 1, tall = 1) {
      Kapak kenarı fana girmediyse tam daire kalır. */
   let hole: string;
   if (cover > 0) {
-    const inner = insetConvex(pts, COVER_LIP);
+    /* yalnızca SOL (pahlı) kapak ve üst/alt kenar fan deliğini keser;
+       sağda delik kartın kenarına kadar açık kalır (fan orada biter) —
+       aksi halde sağda fazladan düz bir mavi halka çizgisi oluşuyordu */
+    const far: Pt[] = pts.map(([x, y]) => [x >= SR ? SR + 4000 : x, y] as Pt);
+    const inner = insetConvex(far, COVER_LIP);
     const circle: Pt[] = Array.from({ length: 160 }, (_, i) => {
       const a = (i / 160) * Math.PI * 2;
       return [CX + Math.cos(a) * CUT_R, CY + Math.sin(a) * CUT_R];
@@ -519,7 +670,7 @@ function buildCard(cover: number, hubK = 1, tall = 1) {
         [SR, y],
         [SR, CY],
       ],
-      [0, CORNER_R_CHAMFER, CORNER_R_CHAMFER, CORNER_R_RIGHT, 0],
+      [0, CORNER_R_CHAMFER, CORNER_R_CHAMFER, rightR, 0],
       false,
     );
   const edgeUp = edge(top, top + CHAMFER_Y);
@@ -540,13 +691,13 @@ function buildCard(cover: number, hubK = 1, tall = 1) {
   const viewTop = top - padY;
   const viewH = bottom - top + padY * 2;
   /* akış her zaman görünür alanın ÜSTÜNDEN başlasın */
-  const streamTop = Math.min(STREAM_START_POINT.y, viewTop - 200);
+  const stream = buildStreamGeo(upright, viewTop, viewLeft, entryExtra);
 
   return {
     viewTop,
     viewH,
-    streamTop,
-    streamPath: buildStreamPath(streamTop),
+    stream,
+    streamPath: buildStreamPath(stream),
     shroudLeft: L,
     shroudOuter: outer,
     shroudPath: shroud,
@@ -569,31 +720,34 @@ function buildCard(cover: number, hubK = 1, tall = 1) {
 /* GÖBEKTE OTURAN KİŞİ — public/images/zeynepOturma.png
    Görselin piksel boyutu ve kişinin görsel içindeki yeri (ölçüldü).
    Görselin boyutu farklıysa SIT_W / SIT_H'yi gerçek boyutla değiştir. */
-const SIT_SRC = "/images/zeynepOturma.png";
+const SIT_SRC = "/images/zeynep-oturma.png";
 const SIT_W = 1584;
 const SIT_H = 672;
 /** kişinin görseldeki yatay ortası, tepesi ve boyu (px) */
 const SIT_CX = 795;
 const SIT_TOP = 28;
 const SIT_PERSON_H = 632;
-/** oturma çizgisi (uyluk / eller) kişinin boyuna oranla */
-const SIT_SEAT = (410 - SIT_TOP) / SIT_PERSON_H;
-/** suda kayarken kişinin boyu (svg birimi) */
-const SIT_RIDE_H = 300; // suda kayarken de göbekteki boyunda: büyük ve net
-/** Akıntıdaki kişinin boyu (viewBox birimi) ve fotoğraftaki zemin çizgisi */
-const RIDE_S = 165;
+/* NEHİRDE KAYAN AVATAR — yol haritasındakiyle AYNI: yandan oturup kayan
+   kişi (zeynep-kayma.png), nehir aşağı (izleyiciye) akarken ekrana dönük
+   poz (zeynep-kayma-on.png). Göbeğe varınca oturan kişiye dönüşür. */
+const RIDE_SRC = "/images/zeynep-kayma.png";
+const RIDE_LEDGE = 0.95; // zemin çizgisi (kalça / eller = su yüzeyi)
+const RIDE_SEAT_X = 0.4; // kalçanın yatay yeri (genişliğe oran)
+const RIDE_TILT = 22; // kaydırak eğimi (derece) — yol haritasıyla aynı
+/** akıntıdaki kişinin boyu (viewBox birimi) */
+const RIDE_S = 150;
+const RIDE_W = (RIDE_S * 680) / 364;
+const RIDE_FRONT_SRC = "/images/zeynep-kayma-on.png";
+const RIDE_FRONT_LEDGE = 0.91;
+const RIDE_FRONT_S = 180;
+const RIDE_FRONT_W = (RIDE_FRONT_S * 360) / 457;
+/** ekrana dönme: ekranda aşağı eğim / yatay oranı bu aralıkta 0 → 1 */
+const RIDE_FRONT_FROM = 0.6;
+const RIDE_FRONT_RANGE = 0.8;
 
-/* NEHİR — yol haritasındaki suyla aynı dil: koyu taban, mavi su,
-   üstünde farklı hız ve kalınlıkta akan ışık çizgileri */
-const RIVER_W = 150;
-const RIVER_LANES = [
-  { dx: -42, dy: 10, w: 3, o: 0.35, dash: "260 180", dur: 2.2, c: "#46beff" },
-  { dx: -24, dy: 4, w: 1.4, o: 0.6, dash: "120 90", dur: 1.4, c: "#cfe6ff" },
-  { dx: -8, dy: 0, w: 5, o: 0.22, dash: "420 260", dur: 2.8, c: "#46beff" },
-  { dx: 8, dy: -2, w: 1.2, o: 0.7, dash: "80 120", dur: 1.1, c: "#eef5ff" },
-  { dx: 24, dy: -6, w: 2.4, o: 0.4, dash: "300 160", dur: 1.8, c: "#8cc4f2" },
-  { dx: 40, dy: -10, w: 1.6, o: 0.45, dash: "160 140", dur: 1.5, c: "#a9cdf5" },
-];
+/** nehrin genişliği (fan birimi) — yol haritasındaki nehirle ekranda
+    aynı genişlikte görünür */
+const RIVER_W = 250;
 
 const SCREW_ANGLES = [150, 210, 128, 232];
 
@@ -611,8 +765,6 @@ export default function ProjectsSection({
   const active = activeProp || finished;
   const [activeIndex, setActiveIndex] = useState(0);
   const [landed, setLanded] = useState(false);
-  // Fan oluşurken gösterilecek proje (fanın duracağı proje)
-  const [readyIndex, setReadyIndex] = useState<number | null>(null);
   const [prevActive, setPrevActive] = useState(active);
 
   /* section pasife dönünce her şeyi sıfırla (effect yerine render sırasında) */
@@ -620,12 +772,12 @@ export default function ProjectsSection({
     setPrevActive(active);
     if (!active) {
       setLanded(false);
-      setReadyIndex(null);
       setActiveIndex(0);
     }
   }
 
-  const screenIndex = landed ? activeIndex : readyIndex;
+  /* soldaki proje ekranı, fan dönüp seçili yaprağa OTURDUKTAN sonra açılır */
+  const screenIndex = landed ? activeIndex : null;
 
   /* DİKEY EKRAN (telefon / dikey tablet): ekran kartı alt yarıya iner,
      proje ekranı üst yarıda görünür kalır */
@@ -648,6 +800,28 @@ export default function ProjectsSection({
   const fit = portrait ? { cover: COVER_MAX, hubK: 0.85, tall: 1 } : deskFit;
   /* seçilen geometride kartın viewBox genişliği */
   const fitW = VIEW_W - fit.cover - HUB_R * (1 - fit.hubK);
+  /* DİKEY: sahne ekranın altında; nehir ekranın EN ÜSTÜNDEN gelsin diye
+     girişi, sahnenin üstünde kalan ekran yüksekliği kadar uzat */
+  const stagePx = Math.min(
+    vh * (PORTRAIT_FAN_MAX_H / 100),
+    (vw * (1 - 2 * PANEL_SIDE) * fitW) / VIEW_H,
+  );
+  /* kartın viewBox yüksekliği ve ekrandaki boyu → sağ köşe yarıçapı
+     (px cinsinden panelinkiyle aynı olsun diye birime çevrilir) */
+  const cardViewH = (VIEW_H - 2 * VIEW_PAD_Y) * fit.tall;
+  const cardPxH = portrait
+    ? (stagePx * VIEW_H) / fitW // dikeyde kartın boyu = panelin genişliği
+    : vh * (1 - 2 * PANEL_TOPBOT);
+  const rightR = cardPxH > 0 ? (PANEL_RADIUS * cardViewH) / cardPxH : 40;
+  /* proje ekranı kartın altına girmesin (kart artık şeffaf) */
+  const screenRight = portrait
+    ? 14
+    : vw * PANEL_SIDE + (fitW - 30) * (cardPxH / cardViewH) + 16;
+  const screenBottom = portrait ? vh * PANEL_TOPBOT + stagePx + 8 : 28;
+  const entryExtra =
+    portrait && stagePx > 0
+      ? Math.max(0, (vh - stagePx - 12) / (stagePx / fitW))
+      : 0;
   /* dikeyde fan yatay yarım daire olarak altta: ekran genişliğinden
      biraz taşar (yanlardaki köşeler kırpılır), fan büyük görünür.
      Sahne bir "size container": içindeki fan 100cqh ile ölçeklenir. */
@@ -655,12 +829,17 @@ export default function ProjectsSection({
     ? {
         containerType: "size",
         top: "auto",
-        bottom: 12, // alttaki kasa çerçevesi görünür kalsın
-        /* kartın sağ-sol kenarı ekran kenarına SIFIR: kartın boyu
-           (üst/alt boşluk hariç) = ekran genişliği */
-        height: `min(${PORTRAIT_FAN_MAX_H}svh, calc(100vw * ${(fitW / (VIEW_H - 2 * VIEW_PAD_Y)).toFixed(4)}))`,
+        /* kartın sağ kenarı (dikeyde alt) = cam panelin alt kenarı;
+           kartın boyu (dikeyde genişlik) = panelin genişliği */
+        bottom: `${PANEL_TOPBOT * 100}%`,
+        height: `min(${PORTRAIT_FAN_MAX_H}svh, calc(${(1 - 2 * PANEL_SIDE) * 100}vw * ${(fitW / VIEW_H).toFixed(4)}))`,
       }
-    : { containerType: "size", top: STAGE_INSET_TOP, height: STAGE_H };
+    : {
+        containerType: "size",
+        /* kartın üst/alt kenarı = cam panelin üst/alt kenarı */
+        top: `${PANEL_TOPBOT * 100}%`,
+        height: `${(1 - 2 * PANEL_TOPBOT) * 100}%`,
+      };
 
   return (
     <section className="relative size-full overflow-hidden">
@@ -673,15 +852,14 @@ export default function ProjectsSection({
             index={screenIndex}
             total={PROJECTS.length}
             portrait={portrait}
+            insetRight={screenRight}
+            insetBottom={screenBottom}
           />
         )}
       </SciFiBackground>
 
       {/* Sahne: section yüksekliği, ama görünür ekran yüksekliğini asla aşmaz */}
-      <div
-        className="absolute inset-x-0 z-20 overflow-hidden"
-        style={stageStyle}
-      >
+      <div className="absolute inset-x-0 z-20" style={stageStyle}>
         <ProjectFan
           projects={PROJECTS}
           activeIndex={activeIndex}
@@ -691,7 +869,6 @@ export default function ProjectsSection({
             setLanded(true);
             onComplete?.();
           }}
-          onReady={setReadyIndex}
           play={active}
           finished={finished}
           riderHidden={riderHidden}
@@ -699,6 +876,8 @@ export default function ProjectsSection({
           cover={fit.cover}
           tall={fit.tall}
           hubK={fit.hubK}
+          entryExtra={entryExtra}
+          rightR={rightR}
         />
       </div>
     </section>
@@ -718,28 +897,53 @@ function ProjectFan({
   cover = 0,
   hubK = 1,
   tall = 1,
+  entryExtra = 0,
+  rightR = CORNER_R_RIGHT,
 }: FanProps) {
   /* kart geometrisi; aşağıdaki JSX bu isimleri kullanır */
-  const card = useMemo(() => buildCard(cover, hubK, tall), [cover, hubK, tall]);
+  const card = useMemo(
+    () => buildCard(cover, hubK, tall, upright, entryExtra, rightR),
+    [cover, hubK, tall, upright, entryExtra, rightR],
+  );
   const {
     shroudLeft,
     shroudOuter,
     shroudPath,
     fanHole,
-    edgeUp,
-    edgeDown,
     ledPath,
-    cardWater,
     viewLeft,
     viewW,
     viewRight,
     viewTop,
     viewH,
     streamPath,
-    streamTop,
+    stream,
   } = card;
   /* kişinin nehirdeki konumu: yol uzunluğu tablosundan (DOM'a bakmadan) */
-  const streamLut = useMemo(() => buildStreamLut(streamTop), [streamTop]);
+  const streamLut = useMemo(() => buildStreamLut(stream), [stream]);
+  /* yol haritasındaki gibi şeritler: kenarlar, bantlar, akışlar, 0/1 */
+  const rmLanes = useMemo(() => {
+    const lane = (r: number) => laneFromLut(streamLut, r, RIVER_W);
+    return {
+      top: lane(0),
+      bottom: lane(1),
+      core: lane(0.375),
+      dark: RM_DARK_BANDS.map(lane),
+      soft: RM_SOFT_STREAMS.map(lane),
+      fine: RM_FINE_STREAMS.map((st) => lane(st.f)),
+      highlight: RM_HIGHLIGHTS.map(lane),
+      main: RM_STREAMS.map((st) => lane(st.f)),
+      binary: RM_BINARY_LANES.map(([r]) => lane(r)),
+    };
+  }, [streamLut]);
+  /* nehrin ucunun sivrilme boyu (yol oranı) — su ince bir uçla akar */
+  const streamTotal = streamLut[streamLut.length - 1].len || 1;
+  const TAPER = Math.min(0.08, (RIVER_W * 1.6) / streamTotal);
+  /* kişi göbeğin kenarına kadar suyun ucunda kayar */
+  const rideEnd = useMemo(
+    () => rideEndOf(streamLut, HUB_R * hubK + 40),
+    [streamLut, hubK],
+  );
 
   const hubT = `translate(${CX} ${CY}) scale(${hubK}) translate(${-CX} ${-CY})`;
   /* dikeyde tüm sahne 90° döner; avatar ve fotoğraflar ters dönerek dik kalır */
@@ -752,20 +956,15 @@ function ProjectFan({
   const step = 360 / count;
   const bladePath = useMemo(() => createBladePath(count), [count]);
 
-  const lastBladeEnd = BLADE_START + (count - 1) * BLADE_STAGGER + BLADE_DUR;
-
-  const realBodyStart = Math.max(BODY_START, lastBladeEnd - ms(200));
-  const realMaterialStart = Math.max(
-    MATERIAL_START,
-    realBodyStart + BODY_DUR - ms(200),
-  );
-  // Fotoğraflar yaprak çıkarken hemen belirir
-  const realPhotoStart = BLADE_START + BLADE_DUR * 0.35;
-
-  const lastPhotoEnd = realPhotoStart + (count - 1) * PHOTO_STAGGER + PHOTO_DUR;
+  /* fotoğraflar buz kararırken yaprak yaprak belirir */
+  const lastPhotoEnd = THAW_START + (count - 1) * PHOTO_STAGGER + PHOTO_DUR;
 
   const spinStart =
-    Math.max(lastPhotoEnd, realMaterialStart + MATERIAL_DUR) + STEP_DELAY;
+    Math.max(
+      lastPhotoEnd,
+      THAW_START + THAW_DUR,
+      BODY_FREEZE_START + BODY_FREEZE_DUR * 0.5 + BODY_THAW_DUR,
+    ) + STEP_DELAY;
   const spinEnd = spinStart + STEP_DUR;
   const buildEnd = spinEnd + 50;
 
@@ -828,10 +1027,7 @@ function ProjectFan({
       setT(Math.min(elapsed, buildEnd));
 
       // Proje fotoğrafı, avatar göbeğe oturduktan sonra açılsın
-      if (
-        !readyFired &&
-        elapsed >= Math.max(BLADE_START, RIDE_TRAVEL + SPIRAL_DUR * 1.2)
-      ) {
+      if (!readyFired && elapsed >= SEATED) {
         readyFired = true;
         onReadyRef.current?.((activeIndexRef.current + 1) % count);
       }
@@ -861,9 +1057,23 @@ function ProjectFan({
     return () => cancelAnimationFrame(raf);
   }, [play, finished, buildEnd, spinStart, spinEnd, count, step]);
 
-  const streamP = easeInOutCubic(phase(t, STREAM_START, STREAM_DUR));
-  /* Nehir, ekran kartının metali belirene kadar akmaya devam eder */
-  const streamOpacity = 1 - phase(t, realMaterialStart, MATERIAL_DUR * 0.8);
+  /* kişi suyun ucunda: su kişinin hemen önünde akar; kişi göbeğe
+     varınca su da göbeğe dolar */
+  const rideP = rideEnd * easeInOutCubic(phase(t, 0, ARRIVE));
+  const streamP =
+    t < ARRIVE
+      ? Math.min(1, rideP + 0.012)
+      : lerp(
+          rideEnd + 0.012,
+          1,
+          easeOutCubic(phase(t, ARRIVE, STREAM_TAIL_DUR)),
+        );
+  /* kişi göbeğe varınca nehrin kuyruğu da göbeğe çekilir (su fana dolar) */
+  const streamTail = easeInOutCubic(phase(t, ARRIVE + 200, 1000));
+  const streamOpacity = 1 - phase(t, ARRIVE + 1000, 250);
+  /* maskede görünen parça: kuyruk → baş */
+  const streamDash = `${Math.max(0, streamP - streamTail)} 3`;
+  const streamOffset = -streamTail;
 
   /* ==============================================================
      KİŞİ — suyla kayarak gelir, girdapta bir tur dönüp merkeze iner,
@@ -871,84 +1081,82 @@ function ProjectFan({
   ============================================================== */
   const pointOn = (f: number) => pointOnLut(streamLut, f);
 
-  /* 1) akıntıda kayma: yolun %86'sına kadar (göbeğin kenarı) */
-  const rideP = Math.min(streamP, RIDE_END); // suyun tam ucunda
-  /* 2) girdap: kenardan merkeze sarmal iniş */
-  const spiralP = phase(t, RIDE_TRAVEL, SPIRAL_DUR);
-  const spiralE = easeInOutCubic(spiralP);
-  const p0 = pointOn(RIDE_END);
-  const r0 = Math.hypot(p0.x - CX, p0.y - CY);
-  /* GİRDAP YOK: suyun ucundan akış yönünde yumuşak bir yayla
-     doğrudan göbeğin ortasına kayar */
-  const pPrev = pointOn(RIDE_END - 0.03);
-  const tx = p0.x - pPrev.x;
-  const ty = p0.y - pPrev.y;
-  const tl = Math.hypot(tx, ty) || 1;
-  const ctrl = {
-    x: p0.x + (tx / tl) * r0 * 0.55,
-    y: p0.y + (ty / tl) * r0 * 0.55,
-  };
-  const spiralAt = (e: number) => {
-    const u = 1 - e;
+  /* 1) akıntıda kayma: göbeğin kenarına kadar (rideP yukarıda) */
+  /* 2) ZIPLAMA: suyun ucundan sıçrar, yay çizerek göbeğin ortasına iner.
+     Önce hafifçe çöker (hazırlık), havada süzülür, inince yaylanır. */
+  const spiralP = phase(t, ARRIVE, SPIRAL_DUR);
+  const jumpE = easeInOutCubic(spiralP);
+  const p0 = pointOn(rideEnd);
+  /* ekranda "yukarı" yönü: masaüstünde -y, dikeyde (fan 90° dönük) -x */
+  const upX = upright ? -1 : 0;
+  const upY = upright ? 0 : -1;
+  const jumpAt = (e: number, raw: number) => {
+    const lift = Math.sin(Math.PI * clamp(raw)) * JUMP_H;
     return {
-      x: u * u * p0.x + 2 * u * e * ctrl.x + e * e * CX,
-      y: u * u * p0.y + 2 * u * e * ctrl.y + e * e * CY,
+      x: lerp(p0.x, CX, e) + upX * lift,
+      y: lerp(p0.y, CY, e) + upY * lift,
     };
   };
-  const personPos = spiralP > 0 ? spiralAt(spiralE) : pointOn(rideP);
+  const personPos = spiralP > 0 ? jumpAt(jumpE, spiralP) : pointOn(rideP);
   const ahead =
-    spiralP > 0 ? spiralAt(Math.min(1, spiralE + 0.04)) : pointOn(rideP + 0.02);
+    spiralP > 0
+      ? jumpAt(Math.min(1, jumpE + 0.04), Math.min(1, spiralP + 0.04))
+      : pointOn(rideP + 0.02);
   const headDx = ahead.x - personPos.x;
   const headDy = ahead.y - personPos.y;
-  const runLeft = headDx < -0.5;
+  /* köpük fan koordinatında; bakış yönü ve eğim EKRANA göre */
   const headAngle = Math.atan2(headDy, headDx);
+  const screenDx = upright ? -headDy : headDx;
+  const screenDy = upright ? headDx : headDy;
+  /* nehir ekranda aşağı (izleyiciye) akarken ekrana dönük poz (0..1);
+     zıplarken yandan poza döner */
+  const frontRatio = screenDy / (Math.abs(screenDx) || 0.001);
+  const facing =
+    clamp((frontRatio - RIDE_FRONT_FROM) / RIDE_FRONT_RANGE) *
+    (1 - Math.min(1, spiralP * 3));
 
-  const personIn = phase(t, STREAM_START, ms(300));
-  /* 3) dönüşüm: kayan kişi → yuvarlak portre */
-  const settleP = easeInOutCubic(
-    phase(t, RIDE_TRAVEL + SPIRAL_DUR * 0.45, SPIRAL_DUR * 0.8),
-  );
+  const personIn = phase(t, 0, 300);
+  /* 3) iniş: havadaki kayan avatar, yere değdiği an oturan kişiye döner */
+  const settleP = easeInOutCubic(phase(t, ARRIVE + SPIRAL_DUR * 0.82, 220));
+  /* sıçramadan önce çökme, inince yaylanma (dikey ölçek) */
+  const crouch = bump(phase(t, ARRIVE - 160, 220)) * 0.14;
+  const landSquash = bump(phase(t, ARRIVE + SPIRAL_DUR * 0.95, 320)) * 0.12;
   /* 4) oturma anı: halka kapanır, ışık dalgası yayılır */
-  const seatT = RIDE_TRAVEL + SPIRAL_DUR * 1.2;
+  const seatT = SEATED;
   const landPulse = phase(t, seatT, ms(900));
 
-  /* akıntıda sallanma ve gidiş yönüne eğilme (oturunca durur) */
-  const bob = Math.sin(t / 90) * 7 * (1 - settleP);
-  const tilt =
-    Math.max(-16, Math.min(16, Math.sin(headAngle) * (runLeft ? 12 : -12))) *
-    (1 - settleP);
+  /* akıntıda sallanma (zıplarken ve oturunca durur) ve gidiş yönüne eğilme */
+  const bob = Math.sin(t / 90) * 7 * (1 - Math.min(1, spiralP * 4));
   const ripple = (t % 520) / 520;
 
   const PF = PERSON_FINAL_SCALE;
 
-  /* kırpma dairesi: önce yok (çok büyük), sonra portre dairesine kapanır */
-  const clipR = lerp(SIT_RIDE_H * 1.4, AVATAR_R * PF, settleP);
-  const clipCy = lerp(-RIDE_S * 0.2, 0, settleP);
-  /* OTURAN KİŞİ: baştan sona aynı oturma pozu — suyun üstünde oturarak
-     kayar (oturduğu yer su çizgisinde, baldırları suya sarkar), girdapta
-     büyüyerek göbeğin ortasına yerleşir */
-  const sitH = lerp(SIT_RIDE_H, AVATAR_R * PF * 2 * 0.9, settleP);
-  const sitCy = lerp(-(SIT_SEAT - 0.5) * SIT_RIDE_H, 0, settleP);
-  const flipX = runLeft && settleP < 0.5 ? -1 : 1;
+  /* göbekteki oturan kişi: portre dairesinin içinde */
+  const clipR = AVATAR_R * PF;
+  const clipCy = 0;
+  const sitH = AVATAR_R * PF * 2 * 0.9;
 
   const hubP = easeOutCubic(phase(t, HUB_START, HUB_DUR));
-  const hubFlash = bump(phase(t, BLADE_START - ms(250), ms(700)));
+  const hubFlash = bump(phase(t, FREEZE_START - 150, 500));
 
-  const bodyP = easeInOutCubic(phase(t, realBodyStart, BODY_DUR));
-  const materialP = easeInOutCubic(phase(t, realMaterialStart, MATERIAL_DUR));
-  const binaryBodyOpacity = 1 - phase(t, realMaterialStart + ms(400), ms(800));
-
-  /* Gövde sudan katılaşır: göbekten dışa yayılan dalga cephesi kartı
-     açığa çıkarır, ardından metalin üstünden parlak bir ışık süzülür */
-  const waveP = easeOutCubic(
-    phase(t, realMaterialStart - ms(150), MATERIAL_DUR),
+  /* su göbekten fan yuvasına yayılır */
+  const fillP = easeOutCubic(phase(t, FILL_START, FILL_DUR));
+  const waterR = lerp(HUB_R * hubK, CUT_R, fillP);
+  /* buz cephesi: göbekten dışa — arkasında kalan yapraklar donmuştur */
+  const iceP = easeInOutCubic(phase(t, FREEZE_START, FREEZE_DUR));
+  const iceR = lerp(HUB_R * hubK * 0.8, CUT_R + 30, iceP);
+  /* buz kararıp koyu cama/metale döner */
+  const thawP = easeInOutCubic(phase(t, THAW_START, THAW_DUR));
+  const materialP = thawP;
+  /* kart gövdesi: aynı donma, fan deliğinin kenarından dışa */
+  const bodyIceP = easeInOutCubic(phase(t, BODY_FREEZE_START, BODY_FREEZE_DUR));
+  const bodyR = lerp(CUT_R, BODY_REACH, bodyIceP);
+  const bodyThaw = easeInOutCubic(
+    phase(t, BODY_FREEZE_START + BODY_FREEZE_DUR * 0.5, BODY_THAW_DUR),
   );
-  /* metal, su hatlarının etrafından dışa doğru büyür (hattın kalınlığı) */
-  const revealW = lerp(70, 1400, waveP);
-  const waveGlow = bump(waveP) * (1 - waveP * 0.3);
-  const shimmerP = easeInOutCubic(
-    phase(t, realMaterialStart + MATERIAL_DUR * 0.55, ms(1100)),
-  );
+  /* donma cephelerinin parlaklığı (ortada en güçlü) */
+  const iceFront = bump(iceP);
+  const bodyFront = bump(bodyIceP);
 
   const spinP = phase(t, spinStart, STEP_DUR);
   const spinEase = easeInOutCubic(spinP);
@@ -966,7 +1174,7 @@ function ProjectFan({
 
   return (
     <div
-      className="pointer-events-none absolute overflow-hidden"
+      className="pointer-events-none absolute"
       style={
         upright
           ? {
@@ -975,16 +1183,16 @@ function ProjectFan({
               left: "50%",
               top: "50%",
               width: "100cqh",
-              aspectRatio: `${VIEW_W} / ${VIEW_H}`,
+              aspectRatio: `${viewW} / ${viewH}`,
               transform: "translate(-50%, -50%) rotate(90deg)",
               visibility: play ? "visible" : "hidden",
             }
           : {
               top: 0,
               height: "100%",
-              right: STAGE_INSET_RIGHT,
-              /* kart her zaman tam boy; cover büyüdükçe daralır */
-              width: `calc(100cqh * ${(VIEW_W / VIEW_H).toFixed(4)})`,
+              /* kartın sağ kenarı = cam panelin sağ kenarı */
+              right: `${PANEL_SIDE * 100}%`,
+              width: `calc(100cqh * ${(viewW / viewH).toFixed(4)})`,
               visibility: play ? "visible" : "hidden",
             }
       }
@@ -1026,11 +1234,12 @@ function ProjectFan({
           <mask
             id={id("streamMask")}
             maskUnits="userSpaceOnUse"
-            x={-2000}
-            y={-2000}
-            width={5000}
-            height={5000}
+            x={-6000}
+            y={-6000}
+            width={12000}
+            height={12000}
           >
+            {/* gövde: uçtan biraz geride tam genişlik */}
             <path
               d={streamPath}
               fill="none"
@@ -1038,9 +1247,46 @@ function ProjectFan({
               strokeWidth={RIVER_W + 14}
               strokeLinecap="round"
               pathLength={1}
-              strokeDasharray={`${streamP} 2`}
+              strokeDasharray={`${Math.max(0, streamP - streamTail - (streamP < 1 ? TAPER : 0))} 3`}
+              strokeDashoffset={streamOffset}
             />
+            {/* uç: su öne doğru incelerek akar (sivri, yuvarlak burun) */}
+            {streamP < 1 &&
+              [0.78, 0.55, 0.32].map((w, k) => {
+                const a = Math.max(streamTail, streamP - TAPER * (1 - k / 3));
+                const b = Math.max(a, streamP - TAPER * (1 - (k + 1) / 3));
+                return (
+                  <path
+                    key={k}
+                    d={streamPath}
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth={(RIVER_W + 14) * w}
+                    strokeLinecap="round"
+                    pathLength={1}
+                    strokeDasharray={`${b - a + 0.004} 3`}
+                    strokeDashoffset={-a}
+                  />
+                );
+              })}
           </mask>
+
+          {/* yol haritası nehrinin renkleri */}
+          <linearGradient id={id("rmWater")} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#061f3a" />
+            <stop offset=".22" stopColor="#0a2c52" />
+            <stop offset=".46" stopColor="#0e3b6b" />
+            <stop offset=".66" stopColor="#0b3058" />
+            <stop offset=".84" stopColor="#072444" />
+            <stop offset="1" stopColor="#04162e" />
+          </linearGradient>
+          <linearGradient id={id("rmCore")} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={RM.steel} stopOpacity=".08" />
+            <stop offset=".38" stopColor={RM.edge} stopOpacity=".2" />
+            <stop offset=".55" stopColor={RM.ice} stopOpacity=".26" />
+            <stop offset=".74" stopColor={RM.steel} stopOpacity=".12" />
+            <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
+          </linearGradient>
 
           <linearGradient
             id={id("water")}
@@ -1056,72 +1302,29 @@ function ProjectFan({
             <stop offset="1" stopColor="#0b3058" />
           </linearGradient>
 
+          {/* kartın sağ kenarı: fanın sağ yarısı burada biter */}
+          <clipPath id={id("cardRight")}>
+            <rect x={-6000} y={-6000} width={6000 + viewRight} height={12000} />
+          </clipPath>
+
+          {/* donma cepheleri: göbekten dışa büyüyen daireler */}
+          <clipPath id={id("freeze")}>
+            <circle cx={CX} cy={CY} r={iceR} />
+          </clipPath>
+          <clipPath id={id("bodyFreeze")}>
+            <circle cx={CX} cy={CY} r={bodyR} />
+          </clipPath>
+
+          {/* buz: açık buz mavisi, yarı saydam */}
+          <linearGradient id={id("ice")} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#f2f8ff" stopOpacity=".85" />
+            <stop offset=".45" stopColor="#bcdcf6" stopOpacity=".6" />
+            <stop offset="1" stopColor="#5f9fd6" stopOpacity=".55" />
+          </linearGradient>
+
           <clipPath id={id("shroudClip")}>
             <path d={shroudPath} fillRule="evenodd" clipRule="evenodd" />
           </clipPath>
-
-          <mask
-            id={id("bodyReveal")}
-            maskUnits="userSpaceOnUse"
-            x={-2000}
-            y={-2000}
-            width={5000}
-            height={5000}
-          >
-            {cardWater.map((d, k) => (
-              <path
-                key={k}
-                d={d}
-                fill="none"
-                stroke="#fff"
-                strokeWidth={revealW}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-            <circle cx={CX} cy={CY} r={HUB_R + revealW / 2} fill="#fff" />
-          </mask>
-
-          {/* Büyüyen metalin ışıklı cephesi: biraz daha kalın hat − metal hattı */}
-          <mask
-            id={id("waveFront")}
-            maskUnits="userSpaceOnUse"
-            x={-2000}
-            y={-2000}
-            width={5000}
-            height={5000}
-          >
-            {cardWater.map((d, k) => (
-              <path
-                key={k}
-                d={d}
-                fill="none"
-                stroke="#fff"
-                strokeWidth={revealW + 34}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-            {cardWater.map((d, k) => (
-              <path
-                key={`b${k}`}
-                d={d}
-                fill="none"
-                stroke="#000"
-                strokeWidth={Math.max(0, revealW - 6)}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-          </mask>
-
-          <linearGradient id={id("shimmer")} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#fff" stopOpacity="0" />
-            <stop offset=".45" stopColor="#eef5ff" stopOpacity=".05" />
-            <stop offset=".5" stopColor="#ffffff" stopOpacity=".38" />
-            <stop offset=".55" stopColor="#ffe4aa" stopOpacity=".12" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
 
           <linearGradient id={id("holo")} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#eef5ff" stopOpacity=".9" />
@@ -1146,27 +1349,21 @@ function ProjectFan({
             <circle cx="0" cy={clipCy} r={clipR} />
           </clipPath>
 
-          <linearGradient id={id("gpuMetal")} x1="0" y1="0" x2="1" y2="1">
-            {/* NEHİR RENKLERİ (RoadmapSection rm-water): derin su laciverti,
-                aralarda nehrin camgöbeği ışığından parlak bantlar */}
-            <stop offset="0" stopColor="#3f8fd0" />
-            <stop offset=".12" stopColor="#0a2c52" />
-            <stop offset=".28" stopColor="#1d5f9a" />
-            <stop offset=".46" stopColor="#0b3058" />
-            <stop offset=".62" stopColor="#16507f" />
-            <stop offset=".8" stopColor="#072444" />
-            <stop offset="1" stopColor="#04162e" />
-          </linearGradient>
-
-          <pattern
-            id={id("brush")}
-            width="7"
-            height="4"
-            patternUnits="userSpaceOnUse"
+          {/* hero cam panelinin dolgusu (--panel-fill) — kartın kendi
+              ortasına göre: koyu orta → açık lacivert kenar */}
+          <radialGradient
+            id={id("panelFill")}
+            cx=".58"
+            cy=".5"
+            r=".72"
+            gradientTransform="translate(.58 .5) scale(1 .9) translate(-.58 -.5)"
           >
-            <rect width="7" height="1" fill="#fff" opacity=".055" />
-            <rect y="2" width="7" height="1" fill="#000" opacity=".09" />
-          </pattern>
+            <stop offset="0" stopColor="rgb(var(--c-010612,2,4,18))" />
+            <stop offset=".4" stopColor="rgb(var(--c-04142a,6,10,28))" />
+            <stop offset=".7" stopColor="rgb(var(--panel-3,14,24,48))" />
+            <stop offset=".9" stopColor="rgb(var(--panel-2,28,48,82))" />
+            <stop offset="1" stopColor="rgb(var(--panel-glow-1,48,80,120))" />
+          </radialGradient>
 
           <linearGradient id={id("blade")} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#16335a" />
@@ -1196,663 +1393,834 @@ function ProjectFan({
           ))}
         </defs>
 
-        {/* Akım yolu (görünmez; 0/1 yazıları bunu takip eder) */}
-        <path id={id("streamPath")} d={streamPath} fill="none" stroke="none" />
-
-        {/* NEHİR: 0 ve 1'lerden oluşan akım */}
+        {/* NEHİR — yol haritasındakiyle aynı: koyu taban, mavi su, iç cam,
+            akan ışık çizgileri ve küçük 0/1 yazıları; ucu sivri ve köpüklü */}
         {streamOpacity > 0 && (
           <g opacity={streamOpacity}>
+            {/* suyun çevresindeki hafif ışık */}
             <path
               d={streamPath}
               fill="none"
               stroke="#2f8fe0"
-              strokeWidth="170"
-              strokeOpacity=".1"
+              strokeWidth={RIVER_W + 90}
+              strokeOpacity=".05"
               strokeLinecap="round"
-              filter={url("soft")}
               pathLength={1}
-              strokeDasharray={`${streamP} 2`}
+              strokeDasharray={streamDash}
+              strokeDashoffset={streamOffset}
             />
 
-            {/* SU: koyu taban + mavi su + akan ışık çizgileri */}
             <g mask={url("streamMask")}>
+              {/* dere tabanı + su */}
               <path
                 d={streamPath}
                 fill="none"
-                stroke="#04142b"
+                stroke="#081c36"
                 strokeWidth={RIVER_W + 12}
                 strokeLinecap="round"
               />
               <path
                 d={streamPath}
                 fill="none"
-                stroke={url("water")}
+                stroke={url("rmWater")}
                 strokeWidth={RIVER_W}
                 strokeLinecap="round"
               />
+
+              {/* koyu derinlik bantları */}
+              {rmLanes.dark.map((d, i) => (
+                <path
+                  key={`d${i}`}
+                  d={d}
+                  fill="none"
+                  stroke="#04142b"
+                  strokeWidth={34 * RM_K}
+                  strokeOpacity=".2"
+                />
+              ))}
+
+              {/* iç cam */}
               <path
-                d={streamPath}
+                d={rmLanes.core}
                 fill="none"
-                stroke="#46beff"
+                stroke={url("rmCore")}
                 strokeWidth={RIVER_W * 0.45}
-                strokeOpacity=".12"
-                strokeLinecap="round"
+                strokeOpacity=".75"
+              />
+
+              {/* yumuşak akışlar */}
+              {rmLanes.soft.map((d, i) => {
+                const st: CSSVars = { "--d": `${7 + i}s` };
+                return (
+                  <path
+                    key={`s${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={RM.edge}
+                    strokeWidth={5 * RM_K}
+                    strokeOpacity=".25"
+                    strokeDasharray={`${(320 + i * 100) * RM_K} ${(280 + i * 70) * RM_K}`}
+                    strokeLinecap="round"
+                    className="pf-flow"
+                    style={st}
+                  />
+                );
+              })}
+
+              {/* ince akışlar */}
+              {rmLanes.fine.map((d, i) => {
+                const f = RM_FINE_STREAMS[i];
+                const st: CSSVars = { "--d": `${f.duration}s` };
+                return (
+                  <path
+                    key={`f${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={RM.iceSoft}
+                    strokeWidth={f.width}
+                    strokeOpacity={f.opacity}
+                    strokeDasharray={f.dash}
+                    strokeLinecap="round"
+                    className="pf-flow"
+                    style={st}
+                  />
+                );
+              })}
+
+              {/* parlak çizgiler */}
+              {rmLanes.highlight.map((d, i) => {
+                const st: CSSVars = { "--d": `${6 + i}s` };
+                return (
+                  <path
+                    key={`h${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={RM.ice}
+                    strokeWidth={1.2 * RM_K}
+                    strokeOpacity=".62"
+                    strokeDasharray={`${(500 + i * 150) * RM_K} ${(380 + i * 100) * RM_K}`}
+                    strokeLinecap="round"
+                    className="pf-flow"
+                    style={st}
+                  />
+                );
+              })}
+
+              {/* ana akışlar */}
+              {rmLanes.main.map((d, i) => {
+                const m = RM_STREAMS[i];
+                const st: CSSVars = { "--d": `${m.duration}s` };
+                return (
+                  <path
+                    key={`m${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={i % 3 === 0 ? RM.edge : RM.steel}
+                    strokeWidth={m.width}
+                    strokeOpacity={m.opacity}
+                    strokeDasharray={m.dash}
+                    strokeLinecap="round"
+                    className="pf-flow"
+                    style={st}
+                  />
+                );
+              })}
+
+              {/* 0/1 — yol haritasıyla aynı boyut ve renk */}
+              {rmLanes.binary.map((d, i) => (
+                <g key={`b${i}`}>
+                  <path id={id(`rmLane${i}`)} d={d} fill="none" />
+                  <text
+                    fontFamily={RM_MONO}
+                    fontSize={RM_BINARY_SIZE}
+                    letterSpacing={RM_BINARY_SPACING}
+                    fill={RM.ice}
+                    opacity={RM_BINARY_LANES[i][1]}
+                  >
+                    <textPath
+                      href={`#${id(`rmLane${i}`)}`}
+                      startOffset={RM_BINARY_LANES[i][2]}
+                    >
+                      {RM_BINARY[i]}
+                    </textPath>
+                  </text>
+                </g>
+              ))}
+
+              {/* dere kenarları */}
+              <path
+                d={rmLanes.top}
+                fill="none"
+                stroke={RM.steel}
+                strokeWidth="1.4"
+                strokeOpacity=".35"
+              />
+              <path
+                d={rmLanes.bottom}
+                fill="none"
+                stroke={RM.steelDim}
+                strokeWidth="1.4"
+                strokeOpacity=".3"
+              />
+            </g>
+
+            {/* akan ucun köpüğü: suyun önünde yumuşak ışık */}
+            {streamP < 1 &&
+              (() => {
+                const hp = pointOn(Math.max(0, streamP - TAPER * 0.15));
+                return (
+                  <g pointerEvents="none">
+                    <circle
+                      cx={hp.x}
+                      cy={hp.y}
+                      r={RIVER_W * 0.42}
+                      fill={RM.ice}
+                      opacity=".1"
+                    />
+                    <circle
+                      cx={hp.x}
+                      cy={hp.y}
+                      r={RIVER_W * 0.2}
+                      fill={RM.ice}
+                      opacity=".18"
+                    />
+                  </g>
+                );
+              })()}
+          </g>
+        )}
+
+        {/* NEHİR DIŞINDAKİ HER ŞEY kartın sağ kenarında kırpılır */}
+        <g clipPath={url("cardRight")}>
+          {/* MERKEZ / GİRDAP */}
+          {hubP > 0 && (
+            <g>
+              <circle
+                cx={CX}
+                cy={CY}
+                r={HUB_R * hubP * 1.15}
+                fill="#46beff"
+                opacity={0.08 + hubFlash * 0.16}
                 filter={url("soft")}
               />
-              <g filter={url("glow")}>
-                {RIVER_LANES.map((l, i) => {
-                  const style: CSSVars = { "--d": `${l.dur}s` };
 
+              <circle
+                cx={CX}
+                cy={CY}
+                r={HUB_R * hubP}
+                fill="#041a34"
+                stroke="#46beff"
+                strokeWidth="2"
+                strokeOpacity=".5"
+              />
+            </g>
+          )}
+
+          {/* FAN YUVASI — su göbekten yayılıp yuvayı doldurur; donunca
+            koyu zemine döner (arkadaki proje fotoğrafı görünmez) */}
+          {fillP > 0 && (
+            <g clipPath={cover > 0 ? url("fanHole") : undefined}>
+              <circle cx={CX} cy={CY} r={waterR} fill="#061f3a" />
+              <circle
+                cx={CX}
+                cy={CY}
+                r={waterR}
+                fill={url("water")}
+                opacity={0.9 * (1 - thawP)}
+              />
+              {/* suyun kenarı + yayılan halkalar */}
+              {iceP < 1 && (
+                <>
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={waterR}
+                    fill="none"
+                    stroke="#8cc4f2"
+                    strokeWidth="3"
+                    strokeOpacity={0.55 * (1 - iceP)}
+                  />
+                  {[0, 0.5].map((o) => {
+                    const q = (t / 900 + o) % 1;
+                    return (
+                      <circle
+                        key={o}
+                        cx={CX}
+                        cy={CY}
+                        r={lerp(HUB_R * hubK, waterR, q)}
+                        fill="none"
+                        stroke="#cfe6ff"
+                        strokeWidth="1.5"
+                        strokeOpacity={(1 - q) * 0.35 * (1 - iceP)}
+                      />
+                    );
+                  })}
+                </>
+              )}
+
+              {/* FAN YAPRAKLARI — buz cephesinin arkasında donmuş halde belirir */}
+              <g clipPath={url("freeze")}>
+                <g style={fanStyle}>
+                  {projects.map((project, i) => {
+                    const angle = i * step;
+                    const photoP = easeInOutCubic(
+                      phase(t, THAW_START + i * PHOTO_STAGGER, PHOTO_DUR),
+                    );
+                    const isActive = done && i === activeIndex;
+                    const imgRotation = -fanRotation - angle - rot;
+
+                    return (
+                      <g
+                        key={project.id}
+                        transform={`rotate(${angle} ${CX} ${CY})`}
+                        className={
+                          done ? "pointer-events-auto cursor-pointer" : ""
+                        }
+                        /* tıklayınca tarayıcının mavi odak çerçevesi çıkmasın
+                           (seçili yaprak zaten altın kenarla belli oluyor) */
+                        style={{ outline: "none" }}
+                        role="button"
+                        tabIndex={done ? 0 : -1}
+                        aria-label={project.title}
+                        aria-pressed={isActive}
+                        onClick={() => {
+                          if (done) onSelect(i);
+                        }}
+                        onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
+                          if (!done || !["Enter", " "].includes(event.key))
+                            return;
+                          event.preventDefault();
+                          onSelect(i);
+                        }}
+                      >
+                        {/* koyu cam (buz karardıkça) */}
+                        <path
+                          d={bladePath}
+                          fill={url("blade")}
+                          opacity={thawP}
+                        />
+
+                        {photoP > 0 && project.images[0] && (
+                          <g clipPath={url(`blade-${i}`)}>
+                            <image
+                              href={project.images[0]}
+                              x={BLADE_CENTER.x - 380}
+                              y={BLADE_CENTER.y - 380}
+                              width="760"
+                              height="760"
+                              preserveAspectRatio="xMidYMid slice"
+                              opacity={photoP}
+                              transform={`
+                            translate(${BLADE_CENTER.x} ${BLADE_CENTER.y})
+                            rotate(${imgRotation})
+                            scale(${1.08 - photoP * 0.08})
+                            translate(${-BLADE_CENTER.x} ${-BLADE_CENTER.y})
+                          `}
+                            />
+                          </g>
+                        )}
+
+                        {/* BUZ: açık mavi kristal + çatlak çizgileri, kararınca söner */}
+                        {thawP < 1 && (
+                          <>
+                            <path
+                              d={bladePath}
+                              fill={url("ice")}
+                              opacity={1 - thawP}
+                            />
+                            <g clipPath={url(`blade-${i}`)}>
+                              <path
+                                d={FROST_PATH}
+                                fill="none"
+                                stroke="#ffffff"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                                strokeOpacity={0.75 * (1 - thawP)}
+                              />
+                            </g>
+                            <path
+                              d={bladePath}
+                              fill="none"
+                              stroke="#eef5ff"
+                              strokeWidth="1.6"
+                              strokeOpacity={0.8 * (1 - thawP)}
+                            />
+                          </>
+                        )}
+
+                        <path
+                          d={bladePath}
+                          fill={url("glass")}
+                          opacity={materialP * (isActive ? 0.05 : 0.42)}
+                        />
+                        {/* pasif yapraklar karartılır → aktif olan öne çıkar */}
+                        {!isActive && (
+                          <path
+                            d={bladePath}
+                            fill="#020a18"
+                            opacity={materialP * (done ? 0.28 : 0)}
+                            style={{ transition: "opacity 400ms" }}
+                          />
+                        )}
+
+                        {/* aktif yaprak: altın parıltılı kalın kenar */}
+                        {isActive && (
+                          <path
+                            d={bladePath}
+                            fill="none"
+                            stroke={GOLD_LIGHT}
+                            strokeWidth="14"
+                            strokeOpacity=".35"
+                            strokeLinejoin="round"
+                            filter={url("soft")}
+                          />
+                        )}
+                        <path
+                          d={bladePath}
+                          fill="none"
+                          stroke={isActive ? GOLD_LIGHT : "#7fb6e8"}
+                          strokeWidth={isActive ? 4 : 1}
+                          strokeLinejoin="round"
+                          strokeOpacity={materialP * (isActive ? 1 : 0.2)}
+                        />
+                      </g>
+                    );
+                  })}
+                </g>
+              </g>
+
+              {/* buz cephesi: kristal dişli parlak halka */}
+              {iceP > 0 && iceP < 1 && (
+                <>
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={iceR}
+                    fill="none"
+                    stroke="#eef5ff"
+                    strokeWidth="26"
+                    strokeOpacity={0.4 * iceFront}
+                    strokeDasharray="2 9"
+                  />
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={iceR}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="3"
+                    strokeOpacity={0.9 * iceFront}
+                  />
+                </>
+              )}
+            </g>
+          )}
+
+          {/* FAN METAL MERKEZİ */}
+          {materialP > 0 && (
+            <g opacity={materialP} transform={hubT}>
+              <circle
+                cx={CX}
+                cy={CY}
+                r={HUB_R + 8}
+                fill="#010910"
+                opacity=".8"
+              />
+
+              <circle
+                cx={CX}
+                cy={CY}
+                r={HUB_R}
+                fill={url("hub")}
+                stroke="#8cc4f2"
+                strokeWidth="2"
+                strokeOpacity=".45"
+              />
+
+              {[0.79, 0.68, 0.55, 0.4, 0.26]
+                .map((k) => HUB_R * k)
+                .map((r, i) => (
+                  <circle
+                    key={r}
+                    cx={CX}
+                    cy={CY}
+                    r={r}
+                    fill="none"
+                    stroke={i % 2 ? "#000" : "#fff"}
+                    strokeWidth=".8"
+                    strokeOpacity={i % 2 ? 0.15 : 0.08}
+                  />
+                ))}
+
+              <circle
+                cx={CX}
+                cy={CY}
+                r={METAL_R}
+                fill="none"
+                stroke="#a9cdf5"
+                strokeWidth="2"
+                strokeOpacity=".35"
+                pathLength={1}
+                strokeDasharray=".07 .025"
+              />
+            </g>
+          )}
+
+          {/* SUDAN AYRILMA — kenara vardığı an suyun üstünde açılan halkalar */}
+          {spiralP > 0 && spiralP < 0.6 && (
+            <g transform={`translate(${p0.x} ${p0.y})`} pointerEvents="none">
+              {[0, 0.18].map((d, k) => {
+                const q = clamp((spiralP - d) / 0.42);
+                return (
+                  <ellipse
+                    key={k}
+                    rx={30 + q * 120}
+                    ry={10 + q * 40}
+                    fill="none"
+                    stroke="#cfe6ff"
+                    strokeWidth={2.5 - q * 2}
+                    strokeOpacity={(1 - q) * 0.8}
+                    filter={url("glow")}
+                  />
+                );
+              })}
+            </g>
+          )}
+
+          {/* KİŞİ: suyla kayar → yayla göbeğin ortasına süzülüp oturur */}
+          {personIn > 0 && (
+            <g
+              transform={`translate(${personPos.x} ${personPos.y + bob}) scale(${lerp(1, hubK, settleP)})`}
+              opacity={riderHidden ? 0 : personIn}
+            >
+              {/* arkasında köpük/sprey: gidişin tersine saçılan damlalar */}
+              {settleP < 0.9 &&
+                Array.from({ length: 9 }, (_, k) => {
+                  const back = 26 + k * 13 + ((t / 30 + k * 7) % 12);
+                  const side = Math.sin(t / 70 + k * 1.7) * (6 + k * 2.2);
+                  const bx =
+                    -Math.cos(headAngle) * back - Math.sin(headAngle) * side;
+                  const by =
+                    -Math.sin(headAngle) * back + Math.cos(headAngle) * side;
                   return (
-                    <path
-                      key={i}
-                      d={streamPath}
-                      transform={`translate(${l.dx} ${l.dy})`}
-                      fill="none"
-                      stroke={l.c}
-                      strokeWidth={l.w}
-                      strokeOpacity={l.o}
-                      strokeDasharray={l.dash}
-                      strokeLinecap="round"
-                      className="pf-flow"
-                      style={style}
+                    <circle
+                      key={k}
+                      cx={bx}
+                      cy={by}
+                      r={4.5 - k * 0.4}
+                      fill={k % 3 ? "#cfe6ff" : "#ffffff"}
+                      opacity={(1 - k / 9) * 0.85 * (1 - settleP)}
+                      filter={url("glow")}
                     />
                   );
                 })}
-              </g>
-            </g>
 
-            <g
-              mask={url("streamMask")}
-              filter={url("glow")}
-              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-              fontSize="16"
-              fontWeight="600"
-            >
-              {BINARY_LANES.map((lane, i) => (
-                <text
-                  key={i}
-                  fill={lane.color}
-                  fillOpacity={lane.opacity}
-                  letterSpacing="2"
-                >
-                  <textPath
-                    href={`#${id("streamPath")}`}
-                    startOffset={
-                      -1000 + (t / SPEED) * 0.25 * lane.speed + lane.shift
-                    }
-                  >
-                    <tspan dy={lane.dy}>{lane.bits}</tspan>
-                  </textPath>
-                </text>
-              ))}
-            </g>
-          </g>
-        )}
-
-        {/* MERKEZ / GİRDAP */}
-        {hubP > 0 && (
-          <g>
-            <circle
-              cx={CX}
-              cy={CY}
-              r={HUB_R * hubP * 1.15}
-              fill="#46beff"
-              opacity={0.08 + hubFlash * 0.16}
-              filter={url("soft")}
-            />
-
-            <circle
-              cx={CX}
-              cy={CY}
-              r={HUB_R * hubP}
-              fill="#041a34"
-              stroke="#46beff"
-              strokeWidth="2"
-              strokeOpacity=".5"
-            />
-          </g>
-        )}
-
-        {/* FAN YUVASININ ZEMİNİ — opak: arkadaki proje fotoğrafı yaprak
-            aralıklarından görünmesin. Yapraklar çıkmaya başlarken belirir. */}
-        <g clipPath={cover > 0 ? url("fanHole") : undefined}>
-          <circle
-            cx={CX}
-            cy={CY}
-            r={CUT_R}
-            fill="#061f3a"
-            opacity={easeOutCubic(phase(t, BLADE_START - ms(150), ms(300)))}
-          />
-
-          {/* FAN YAPRAKLARI */}
-          <g style={fanStyle}>
-            {projects.map((project, i) => {
-              const bladeP = easeOutCubic(
-                phase(t, BLADE_START + i * BLADE_STAGGER, BLADE_DUR),
-              );
-
-              if (bladeP <= 0) return null;
-
-              const angle = i * step;
-
-              const photoP = easeInOutCubic(
-                phase(t, realPhotoStart + i * PHOTO_STAGGER, PHOTO_DUR),
-              );
-
-              const isActive = done && i === activeIndex;
-              const radialR = lerp(INNER_R + 20, OUTER_R + 80, bladeP);
-              const imgRotation = -fanRotation - angle - rot;
-
-              return (
-                <g
-                  key={project.id}
-                  transform={`rotate(${angle} ${CX} ${CY})`}
-                  className={done ? "pointer-events-auto cursor-pointer" : ""}
-                  role="button"
-                  tabIndex={done ? 0 : -1}
-                  aria-label={project.title}
-                  aria-pressed={isActive}
-                  onClick={() => {
-                    if (done) onSelect(i);
-                  }}
-                  onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
-                    if (!done || !["Enter", " "].includes(event.key)) return;
-                    event.preventDefault();
-                    onSelect(i);
-                  }}
-                >
-                  <g clipPath={`circle(${radialR}px at ${CX}px ${CY}px)`}>
-                    {/* yaprak önce suyla dolar, sonra koyu cama döner */}
-                    <path
-                      d={bladePath}
-                      fill={url("water")}
-                      opacity={0.85 * (1 - materialP)}
-                    />
-                    <path
-                      d={bladePath}
-                      fill={url("blade")}
-                      opacity={materialP}
-                    />
-
-                    {/* suyun ilerleyen cephesi: yaprak boyunca dışa kayan ışık */}
-                    {bladeP < 1 && (
-                      <g clipPath={url(`blade-${i}`)}>
-                        <circle
-                          cx={CX}
-                          cy={CY}
-                          r={Math.max(0, radialR - 10)}
-                          fill="none"
-                          stroke="#cfe6ff"
-                          strokeWidth="16"
-                          strokeOpacity={(1 - bladeP) * 0.9}
-                          filter={url("glow")}
-                        />
-                      </g>
-                    )}
-
-                    {materialP < 1 && (
-                      <path
-                        d={bladePath}
-                        fill="none"
-                        stroke="#8cc4f2"
-                        strokeWidth="2"
-                        strokeOpacity={(1 - materialP) * 0.75}
-                        pathLength={1}
-                        strokeDasharray={`${bladeP} 2`}
-                        filter={url("glow")}
-                      />
-                    )}
-
-                    {photoP > 0 && project.images[0] && (
-                      <g clipPath={url(`blade-${i}`)}>
-                        <image
-                          href={project.images[0]}
-                          x={BLADE_CENTER.x - 380}
-                          y={BLADE_CENTER.y - 380}
-                          width="760"
-                          height="760"
-                          preserveAspectRatio="xMidYMid slice"
-                          opacity={photoP}
-                          transform={`
-                          translate(${BLADE_CENTER.x} ${BLADE_CENTER.y})
-                          rotate(${imgRotation})
-                          scale(${1.08 - photoP * 0.08})
-                          translate(${-BLADE_CENTER.x} ${-BLADE_CENTER.y})
-                        `}
-                        />
-                      </g>
-                    )}
-
-                    <path
-                      d={bladePath}
-                      fill={url("glass")}
-                      opacity={materialP * (isActive ? 0.08 : 0.42)}
-                    />
-
-                    <path
-                      d={bladePath}
+              {/* su halkaları + altındaki köpük ışığı (oturunca söner) */}
+              {settleP < 1 &&
+                [0, 0.5].map((off) => {
+                  const r = (ripple + off) % 1;
+                  return (
+                    <ellipse
+                      key={off}
+                      cx="0"
+                      cy="4"
+                      rx={30 + r * 70}
+                      ry={8 + r * 16}
                       fill="none"
-                      stroke={isActive ? GOLD_LIGHT : "#7fb6e8"}
-                      strokeWidth={isActive ? 2.5 : 1}
-                      strokeOpacity={materialP * (isActive ? 0.95 : 0.2)}
+                      stroke="#cfe6ff"
+                      strokeWidth="2"
+                      strokeOpacity={(1 - r) * 0.7 * (1 - settleP)}
+                      filter={url("glow")}
+                    />
+                  );
+                })}
+              <ellipse
+                cx="0"
+                cy="2"
+                rx="56"
+                ry="11"
+                fill="#cfe6ff"
+                opacity={0.2 * (1 - settleP)}
+                filter={url("soft")}
+              />
+
+              {/* oturma anı: dışa yayılan ışık dalgası */}
+              {landPulse > 0 && landPulse < 1 && (
+                <>
+                  <circle
+                    r={AVATAR_R * PF + landPulse * 260}
+                    fill="none"
+                    stroke="#cfe6ff"
+                    strokeWidth="3"
+                    strokeOpacity={1 - landPulse}
+                    filter={url("glow")}
+                  />
+                  <circle
+                    r={AVATAR_R * PF + landPulse * 150}
+                    fill="none"
+                    stroke="#ffe4aa"
+                    strokeWidth="2"
+                    strokeOpacity={(1 - landPulse) * 0.8}
+                    filter={url("glow")}
+                  />
+                </>
+              )}
+
+              {/* portre zemini: halka kapanırken belirir */}
+              <circle
+                data-hub-rider=""
+                r={AVATAR_R * PF + 6}
+                fill="#02142c"
+                opacity={0.85 * settleP}
+              />
+              <circle
+                r={AVATAR_R * PF}
+                fill={url("holo")}
+                opacity={0.3 * settleP}
+              />
+
+              {/* KAYAN AVATAR — yol haritasındakiyle aynı; göbekte söner */}
+              {settleP < 1 && (
+                <g opacity={1 - settleP} transform={`rotate(${-rot})`}>
+                  <g transform={`scale(1 ${1 - crouch})`}>
+                    {/* yandan: kaydırakta kayar gibi eğik, hep ileri bakar;
+                        ekrana dönerken daralarak söner */}
+                    <g
+                      opacity={1 - facing}
+                      transform={`rotate(${RIDE_TILT}) scale(${1 - 0.65 * facing} 1)`}
+                    >
+                      <image
+                        href={RIDE_SRC}
+                        x={-RIDE_W * RIDE_SEAT_X}
+                        y={-RIDE_S * RIDE_LEDGE}
+                        width={RIDE_W}
+                        height={RIDE_S}
+                        preserveAspectRatio="none"
+                      />
+                    </g>
+                    {/* ekrana dönük: genişleyerek belirir */}
+                    {facing > 0 && (
+                      <g
+                        opacity={facing}
+                        transform={`scale(${0.35 + 0.65 * facing} 1)`}
+                      >
+                        <image
+                          href={RIDE_FRONT_SRC}
+                          x={-RIDE_FRONT_W / 2}
+                          y={-RIDE_FRONT_S * RIDE_FRONT_LEDGE}
+                          width={RIDE_FRONT_W}
+                          height={RIDE_FRONT_S}
+                          preserveAspectRatio="none"
+                        />
+                      </g>
+                    )}
+                  </g>
+                </g>
+              )}
+
+              {/* OTURAN KİŞİ — göbeğin ortasında belirir, ayak sallar */}
+              {settleP > 0 && (
+                <g
+                  opacity={settleP}
+                  transform={`rotate(${-rot}) translate(0 ${AVATAR_R * PF * 0.9}) scale(${1 + landSquash * 0.6} ${1 - landSquash}) translate(0 ${-AVATAR_R * PF * 0.9})`}
+                >
+                  <g clipPath={url("riderClip")}>
+                    <SwingingLegs personH={sitH} cy={0} uid={id("legs")} />
+                    <rect
+                      x={-AVATAR_R}
+                      y={-AVATAR_R}
+                      width={AVATAR_R * 2}
+                      height={AVATAR_R * 2}
+                      fill={url("scan")}
                     />
                   </g>
                 </g>
-              );
-            })}
-          </g>
-        </g>
+              )}
 
-        {/* FAN METAL MERKEZİ */}
-        {materialP > 0 && (
-          <g opacity={materialP} transform={hubT}>
-            <circle cx={CX} cy={CY} r={HUB_R + 8} fill="#010910" opacity=".8" />
-
-            <circle
-              cx={CX}
-              cy={CY}
-              r={HUB_R}
-              fill={url("hub")}
-              stroke="#8cc4f2"
-              strokeWidth="2"
-              strokeOpacity=".45"
-            />
-
-            {[0.79, 0.68, 0.55, 0.4, 0.26]
-              .map((k) => HUB_R * k)
-              .map((r, i) => (
-                <circle
-                  key={r}
-                  cx={CX}
-                  cy={CY}
-                  r={r}
-                  fill="none"
-                  stroke={i % 2 ? "#000" : "#fff"}
-                  strokeWidth=".8"
-                  strokeOpacity={i % 2 ? 0.15 : 0.08}
-                />
-              ))}
-
-            <circle
-              cx={CX}
-              cy={CY}
-              r={METAL_R}
-              fill="none"
-              stroke="#a9cdf5"
-              strokeWidth="2"
-              strokeOpacity=".35"
-              pathLength={1}
-              strokeDasharray=".07 .025"
-            />
-          </g>
-        )}
-
-        {/* SUDAN AYRILMA — kenara vardığı an suyun üstünde açılan halkalar */}
-        {spiralP > 0 && spiralP < 0.6 && (
-          <g transform={`translate(${p0.x} ${p0.y})`} pointerEvents="none">
-            {[0, 0.18].map((d, k) => {
-              const q = clamp((spiralP - d) / 0.42);
-              return (
-                <ellipse
-                  key={k}
-                  rx={30 + q * 120}
-                  ry={10 + q * 40}
-                  fill="none"
-                  stroke="#cfe6ff"
-                  strokeWidth={2.5 - q * 2}
-                  strokeOpacity={(1 - q) * 0.8}
-                  filter={url("glow")}
-                />
-              );
-            })}
-          </g>
-        )}
-
-        {/* KİŞİ: suyla kayar → yayla göbeğin ortasına süzülüp oturur */}
-        {personIn > 0 && (
-          <g
-            transform={`translate(${personPos.x} ${personPos.y + bob}) scale(${lerp(1, hubK, settleP)})`}
-            opacity={riderHidden ? 0 : personIn}
-          >
-            {/* arkasında köpük/sprey: gidişin tersine saçılan damlalar */}
-            {settleP < 0.9 &&
-              Array.from({ length: 9 }, (_, k) => {
-                const back = 26 + k * 13 + ((t / 30 + k * 7) % 12);
-                const side = Math.sin(t / 70 + k * 1.7) * (6 + k * 2.2);
-                const bx =
-                  -Math.cos(headAngle) * back - Math.sin(headAngle) * side;
-                const by =
-                  -Math.sin(headAngle) * back + Math.cos(headAngle) * side;
-                return (
+              {/* halka: kişi merkeze inerken etrafında çizilerek kapanır */}
+              {settleP > 0 && (
+                <>
                   <circle
-                    key={k}
-                    cx={bx}
-                    cy={by}
-                    r={4.5 - k * 0.4}
-                    fill={k % 3 ? "#cfe6ff" : "#ffffff"}
-                    opacity={(1 - k / 9) * 0.85 * (1 - settleP)}
-                    filter={url("glow")}
-                  />
-                );
-              })}
-
-            {/* su halkaları + altındaki köpük ışığı (oturunca söner) */}
-            {settleP < 1 &&
-              [0, 0.5].map((off) => {
-                const r = (ripple + off) % 1;
-                return (
-                  <ellipse
-                    key={off}
-                    cx="0"
-                    cy="4"
-                    rx={30 + r * 70}
-                    ry={8 + r * 16}
+                    r={AVATAR_R * PF}
                     fill="none"
-                    stroke="#cfe6ff"
-                    strokeWidth="2"
-                    strokeOpacity={(1 - r) * 0.7 * (1 - settleP)}
+                    stroke="#46beff"
+                    strokeWidth="10"
+                    strokeOpacity={0.25 * settleP}
+                    filter={url("soft")}
+                  />
+                  <circle
+                    r={AVATAR_R * PF}
+                    fill="none"
+                    stroke={settleP < 1 ? "#ffe4aa" : "#cfe6ff"}
+                    strokeWidth="2.5"
+                    strokeOpacity={0.5 + settleP * 0.4}
+                    pathLength={1}
+                    strokeDasharray={`${settleP} 2`}
+                    transform="rotate(-90)"
                     filter={url("glow")}
                   />
-                );
-              })}
-            <ellipse
-              cx="0"
-              cy="2"
-              rx="56"
-              ry="11"
-              fill="#cfe6ff"
-              opacity={0.2 * (1 - settleP)}
-              filter={url("soft")}
-            />
-
-            {/* oturma anı: dışa yayılan ışık dalgası */}
-            {landPulse > 0 && landPulse < 1 && (
-              <>
-                <circle
-                  r={AVATAR_R * PF + landPulse * 260}
-                  fill="none"
-                  stroke="#cfe6ff"
-                  strokeWidth="3"
-                  strokeOpacity={1 - landPulse}
-                  filter={url("glow")}
-                />
-                <circle
-                  r={AVATAR_R * PF + landPulse * 150}
-                  fill="none"
-                  stroke="#ffe4aa"
-                  strokeWidth="2"
-                  strokeOpacity={(1 - landPulse) * 0.8}
-                  filter={url("glow")}
-                />
-              </>
-            )}
-
-            {/* portre zemini: halka kapanırken belirir */}
-            <circle
-              data-hub-rider=""
-              r={AVATAR_R * PF + 6}
-              fill="#02142c"
-              opacity={0.85 * settleP}
-            />
-            <circle
-              r={AVATAR_R * PF}
-              fill={url("holo")}
-              opacity={0.3 * settleP}
-            />
-
-            <g transform={`rotate(${tilt - rot})`}>
-              <g clipPath={url("riderClip")}>
-                <g transform={`scale(${flipX} 1)`}>
-                  {/* suyla kayarken de, göbekte otururken de aynı oturma pozu;
-                      ayaklar baştan sona sallanır */}
-                  <SwingingLegs personH={sitH} cy={sitCy} uid={id("legs")} />
-                </g>
-                <rect
-                  x={-AVATAR_R}
-                  y={-AVATAR_R}
-                  width={AVATAR_R * 2}
-                  height={AVATAR_R * 2}
-                  fill={url("scan")}
-                  opacity={settleP}
-                />
-              </g>
+                </>
+              )}
             </g>
+          )}
 
-            {/* halka: kişi merkeze inerken etrafında çizilerek kapanır */}
-            {settleP > 0 && (
-              <>
-                <circle
-                  r={AVATAR_R * PF}
+          {/* EKRAN KARTI GÖVDESİ — fan deliğinin kenarından dışa doğru donarak
+            oluşur: önce buz, sonra koyu lacivert metale döner */}
+          {bodyIceP > 0 && (
+            <g clipPath={url("bodyFreeze")}>
+              {/* GÖVDE — hero'daki cam panelin dolgusunun aynısı: ortası
+                  koyu, kenarlara doğru açılan lacivert (paletin --panel-*
+                  tonları), kartın kendi ortasına göre */}
+              <path d={shroudPath} fillRule="evenodd" fill={url("panelFill")} />
+
+              {/* panel kenarı: ince açık çizgi + içe doğru hafif ışık
+                  (hero panelindeki --panel-rim gibi) */}
+              <g clipPath={url("shroudClip")}>
+                <path
+                  d={shroudOuter}
                   fill="none"
-                  stroke="#46beff"
-                  strokeWidth="10"
-                  strokeOpacity={0.25 * settleP}
+                  stroke="rgb(var(--c-5fb8d0,161,196,217))"
+                  strokeWidth="46"
+                  strokeOpacity=".16"
                   filter={url("soft")}
                 />
-                <circle
-                  r={AVATAR_R * PF}
-                  fill="none"
-                  stroke={settleP < 1 ? "#ffe4aa" : "#cfe6ff"}
-                  strokeWidth="2.5"
-                  strokeOpacity={0.5 + settleP * 0.4}
-                  pathLength={1}
-                  strokeDasharray={`${settleP} 2`}
-                  transform="rotate(-90)"
-                  filter={url("glow")}
-                />
-              </>
-            )}
-          </g>
-        )}
-
-        {/* NEHİRDEN EKRAN KARTINA: su göbekten veri hattına, oradan kartın
-            dış hattına akar; akış çizgileri yürüyerek kartı "çizer",
-            sonra metal gövde belirince su çekilir */}
-
-        {bodyP > 0 && binaryBodyOpacity > 0 && (
-          <g>
-            {[edgeUp, edgeDown, RING_UP, RING_DOWN].map((path, i) => (
-              <RiverLine
-                key={i}
-                d={path}
-                progress={bodyP}
-                fade={binaryBodyOpacity}
-                width={i < 2 ? 84 : 64}
-                uid={id(`edge-${i}`)}
-                url={url}
-                t={t}
+              </g>
+              <path
+                d={shroudOuter}
+                fill="none"
+                stroke="rgb(var(--c-cfe6ff,200,226,240))"
+                strokeWidth="1.6"
+                strokeOpacity=".45"
               />
-            ))}
 
-            <circle
-              cx={CX}
-              cy={CY}
-              r={CUT_R}
-              fill="none"
-              stroke="#46beff"
-              strokeWidth="22"
-              strokeOpacity={0.14 * binaryBodyOpacity}
-              pathLength={1}
-              strokeDasharray={`${bodyP} 2`}
-              filter={url("soft")}
-            />
-            <circle
-              cx={CX}
-              cy={CY}
-              r={CUT_R}
-              fill="none"
-              stroke="#dbe9fb"
-              strokeWidth="2"
-              strokeOpacity={bodyP * binaryBodyOpacity}
-              pathLength={1}
-              strokeDasharray={`${bodyP} 2`}
-              filter={url("glow")}
-            />
-          </g>
-        )}
-
-        {/* GERÇEK EKRAN KARTI GÖVDESİ — göbekten yayılan dalgayla açığa çıkar */}
-        {waveP > 0 && (
-          <g mask={url("bodyReveal")}>
-            <path
-              d={shroudPath}
-              fillRule="evenodd"
-              fill="#000811"
-              opacity=".55"
-              transform="translate(12 16)"
-              filter={url("soft")}
-            />
-
-            <path d={shroudPath} fillRule="evenodd" fill={url("gpuMetal")} />
-
-            <path d={shroudPath} fillRule="evenodd" fill={url("brush")} />
-
-            <path
-              d={shroudPath}
-              fillRule="evenodd"
-              fill="none"
-              stroke="#46beff"
-              strokeWidth="2"
-              strokeOpacity=".55"
-            />
-
-            {/* parıltı: kartın dış kenarı boyunca turkuaz parçacıklar */}
-            <SparkleStroke
-              d={shroudOuter}
-              spread={16}
-              scale={2}
-              density={1.7}
-            />
-
-            {cover > 0 ? (
-              /* kapak fana kaydıysa halka, deliğin kesik hattını izler */
-              <>
-                <path
-                  d={fanHole}
-                  fill="none"
-                  stroke="#010811"
-                  strokeWidth="24"
-                  strokeOpacity=".75"
-                />
-                <path
-                  d={fanHole}
-                  fill="none"
-                  stroke="#0e3b6b"
-                  strokeWidth="8"
-                />
-                <path
-                  d={fanHole}
-                  fill="none"
-                  stroke="#46beff"
-                  strokeWidth="1.5"
-                  strokeOpacity=".7"
-                />
-              </>
-            ) : (
-              <>
-                <circle
-                  cx={CX}
-                  cy={CY}
-                  r={CUT_R - 8}
-                  fill="none"
-                  stroke="#010811"
-                  strokeWidth="24"
-                  strokeOpacity=".75"
-                />
-
-                <circle
-                  cx={CX}
-                  cy={CY}
-                  r={CUT_R + 4}
-                  fill="none"
-                  stroke="#0e3b6b"
-                  strokeWidth="18"
-                />
-
-                <circle
-                  cx={CX}
-                  cy={CY}
-                  r={CUT_R + 4}
-                  fill="none"
-                  stroke="#46beff"
-                  strokeWidth="1.5"
-                  strokeOpacity=".7"
-                />
-              </>
-            )}
-
-            {SCREW_ANGLES.map((angle) => {
-              const p = polar(CUT_R + 46, angle);
-              /* kapak kenarının dışında kalan vida çizilmez */
-              if (p.x < shroudLeft + 40) return null;
-
-              return (
-                <g key={angle} transform={`translate(${p.x} ${p.y})`}>
-                  <circle r="15" fill="#061428" />
-                  <circle
-                    r="10"
-                    fill="#7890b4"
-                    stroke="#b5c8e0"
-                    strokeWidth="1"
+              {cover > 0 ? (
+                /* kapak fana kaydıysa halka, deliğin kesik hattını izler */
+                <>
+                  <path
+                    d={fanHole}
+                    fill="none"
+                    stroke="#010811"
+                    strokeWidth="24"
+                    strokeOpacity=".75"
                   />
                   <path
-                    d="M -5 0 L 5 0 M 0 -5 L 0 5"
-                    stroke="#172f52"
-                    strokeWidth="2"
-                    strokeLinecap="round"
+                    d={fanHole}
+                    fill="none"
+                    stroke="rgb(var(--metal-1,44,72,112))"
+                    strokeWidth="8"
                   />
-                </g>
-              );
-            })}
+                  <path
+                    d={fanHole}
+                    fill="none"
+                    stroke="rgb(var(--c-46beff,70,190,255))"
+                    strokeWidth="1.2"
+                    strokeOpacity=".3"
+                  />
+                </>
+              ) : (
+                <>
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={CUT_R - 8}
+                    fill="none"
+                    stroke="#010811"
+                    strokeWidth="24"
+                    strokeOpacity=".75"
+                  />
 
-            <path
-              d={ledPath}
-              fill="none"
-              stroke="#46beff"
-              strokeWidth="8"
-              strokeOpacity=".18"
-              filter={url("soft")}
-            />
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={CUT_R + 4}
+                    fill="none"
+                    stroke="rgb(var(--metal-1,44,72,112))"
+                    strokeWidth="18"
+                  />
 
-            <path
-              d={ledPath}
-              fill="none"
-              stroke="#cfe6ff"
-              strokeWidth="2"
-              strokeOpacity=".8"
-            />
-          </g>
-        )}
-        {/* SU DONUYOR: metalin büyüyen kenarında parlak su cephesi */}
-        {waveP > 0 && waveP < 1 && (
-          <g clipPath={url("shroudClip")}>
-            <rect
-              x={viewLeft - 300}
-              y={viewTop - 300}
-              width={viewW + 600}
-              height={viewH + 600}
-              fill="#cfe6ff"
-              opacity={0.55 * waveGlow}
-              mask={url("waveFront")}
-              filter={url("glow")}
-            />
-          </g>
-        )}
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={CUT_R + 4}
+                    fill="none"
+                    stroke="rgb(var(--c-46beff,70,190,255))"
+                    strokeWidth="1.2"
+                    strokeOpacity=".3"
+                  />
+                </>
+              )}
 
-        {/* METAL PARLAMASI: katılaşınca üstünden bir kez ışık süzülür */}
-        {shimmerP > 0 && shimmerP < 1 && (
-          <g clipPath={url("shroudClip")}>
-            <rect
-              x={lerp(viewLeft - 700, viewRight + 200, shimmerP)}
-              y={viewTop - 200}
-              width="520"
-              height={viewH + 400}
-              fill={url("shimmer")}
-              transform={`rotate(18 ${CX} ${CY})`}
-            />
-          </g>
-        )}
+              {SCREW_ANGLES.map((angle) => {
+                const p = polar(CUT_R + 46, angle);
+                /* kapak kenarının dışında kalan vida çizilmez */
+                if (p.x < shroudLeft + 40) return null;
+
+                return (
+                  <g key={angle} transform={`translate(${p.x} ${p.y})`}>
+                    <circle r="15" fill="rgb(var(--c-04142a,6,12,30))" />
+                    <circle
+                      r="10"
+                      fill="rgb(var(--metal-1,44,72,112))"
+                      stroke="rgb(var(--c-46beff,70,190,255))"
+                      strokeOpacity=".35"
+                      strokeWidth="1"
+                    />
+                    <path
+                      d="M -5 0 L 5 0 M 0 -5 L 0 5"
+                      stroke="#172f52"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </g>
+                );
+              })}
+
+              <path
+                d={ledPath}
+                fill="none"
+                stroke="rgb(var(--c-46beff,70,190,255))"
+                strokeWidth="1.5"
+                strokeOpacity=".3"
+              />
+            </g>
+          )}
+          {/* gövdenin buz katmanı + donma cephesi */}
+          {bodyIceP > 0 && bodyThaw < 1 && (
+            <g clipPath={url("shroudClip")}>
+              <g clipPath={url("bodyFreeze")}>
+                <path
+                  d={shroudPath}
+                  fillRule="evenodd"
+                  fill={url("ice")}
+                  opacity={0.9 * (1 - bodyThaw)}
+                />
+              </g>
+              {bodyIceP < 1 && (
+                <>
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={bodyR}
+                    fill="none"
+                    stroke="#eef5ff"
+                    strokeWidth="30"
+                    strokeOpacity={0.35 * bodyFront}
+                    strokeDasharray="2 10"
+                  />
+                  <circle
+                    cx={CX}
+                    cy={CY}
+                    r={bodyR}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth="3"
+                    strokeOpacity={0.85 * bodyFront}
+                  />
+                </>
+              )}
+            </g>
+          )}
+        </g>
       </svg>
 
       <style>{`
@@ -1864,254 +2232,152 @@ function ProjectFan({
   );
 }
 
-/* KARTI OLUŞTURAN NEHİR KOLU — ana nehirle aynı görünüm:
-   koyu taban, mavi su, akan ışık çizgileri ve 0/1 yazıları.
-   progress: kolun ne kadar ilerlediği (0..1), fade: genel opaklık */
-function RiverLine({
-  d,
-  progress,
-  fade,
-  width,
-  uid,
-  url,
-  t,
-}: {
-  d: string;
-  progress: number;
-  fade: number;
-  width: number;
-  uid: string;
-  url: (name: string) => string;
-  t: number;
-}) {
-  const bits = useMemo(
-    () => binaryString(width * 31 + d.length, 220),
-    [width, d],
-  );
+/* Proje ekranı: cam panelin kenarlarından boşluk (px) — üstte port için
+   biraz daha fazla. Telefonda daha dar. */
+const SCREEN_GAP = "0 32px 28px 32px";
+const SCREEN_GAP_MOBILE = "0 14px 14px 14px";
+/** proje bilgisinin başladığı yer (px); fotoğraf bilginin hemen altından
+    başlayıp kalan alanı doldurur */
+const INFO_TOP = 24;
+const INFO_TOP_MOBILE = 44;
+const SCREEN_RADIUS = 18;
 
-  const flowLines = [
-    {
-      off: -width * 0.22,
-      w: 1.4,
-      o: ".7",
-      dash: "90 70",
-      dur: "0.9s",
-      c: "#eef5ff",
-    },
-    { off: 0, w: 3.5, o: ".3", dash: "260 140", dur: "1.6s", c: "#46beff" },
-    {
-      off: width * 0.22,
-      w: 1.2,
-      o: ".6",
-      dash: "50 90",
-      dur: "0.7s",
-      c: "#8cc4f2",
-    },
-  ];
-
-  return (
-    <g opacity={fade}>
-      <defs>
-        <path id={`${uid}-p`} d={d} />
-        <mask
-          id={`${uid}-m`}
-          maskUnits="userSpaceOnUse"
-          x={-2000}
-          y={-2000}
-          width={5000}
-          height={5000}
-        >
-          <path
-            d={d}
-            fill="none"
-            stroke="#fff"
-            strokeWidth={width + 16}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            pathLength={1}
-            strokeDasharray={`${progress} 2`}
-          />
-        </mask>
-      </defs>
-      <g mask={`url(#${uid}-m)`}>
-        <path
-          d={d}
-          fill="none"
-          stroke="#04142b"
-          strokeWidth={width + 10}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d={d}
-          fill="none"
-          stroke={url("water")}
-          strokeWidth={width}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d={d}
-          fill="none"
-          stroke="#46beff"
-          strokeWidth={width * 0.5}
-          strokeOpacity=".14"
-          filter={url("soft")}
-        />
-        {/* parıltı: suyun üstüne serpilmiş turkuaz parçacıklar */}
-        <SparkleStroke d={d} spread={width * 0.45} scale={1.8} density={1.8} />
-        {/* hareketli akış: filtresiz (performans) */}
-        <g>
-          {flowLines.map((l, k) => {
-            const style: CSSVars = { "--d": l.dur };
-
-            return (
-              <path
-                key={k}
-                d={d}
-                transform={`translate(${l.off} ${l.off})`}
-                fill="none"
-                stroke={l.c}
-                strokeWidth={l.w}
-                strokeOpacity={l.o}
-                strokeDasharray={l.dash}
-                strokeLinecap="round"
-                className="pf-flow"
-                style={style}
-              />
-            );
-          })}
-        </g>
-        <g
-          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-          fontSize="13"
-          fontWeight="600"
-        >
-          {[-width * 0.18, width * 0.2].map((dy, k) => (
-            <text
-              key={k}
-              fill={k ? "#8cc4f2" : "#e6f0ff"}
-              fillOpacity={k ? 0.55 : 0.75}
-              letterSpacing="2"
-            >
-              <textPath
-                href={`#${uid}-p`}
-                startOffset={-600 + (((t / SPEED) * (0.22 + k * 0.05)) % 600)}
-              >
-                <tspan dy={dy}>{bits}</tspan>
-              </textPath>
-            </text>
-          ))}
-        </g>
-      </g>
-    </g>
-  );
-}
-
-/* ================================================================
-   PROJE EKRANI — kart yok: proje fotoğrafı doğrudan arkadaki büyük cam
-   ekranda gösterilir (fanın solundaki alanın tamamı).
-   Açılış: ekran gibi "güç alır" — önce yatay ışık çizgisi, sonra dikey
-   açılır, tarama çizgisi bir kez üstten alta geçer. Proje değişince
-   görüntü kısa bir glitch ile yenisine geçer.
-================================================================ */
 function ProjectScreen({
   project,
   index,
   total,
   portrait = false,
+  insetRight,
+  insetBottom,
 }: {
   project: Project;
   index: number;
   total: number;
   portrait?: boolean;
+  /** ekranın sağ / alt kenarı (px) — fan kartının altına girmesin */
+  insetRight?: number;
+  insetBottom?: number;
 }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const [main] = project.images;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
-      {/* EKRAN ALANI: cam panelin TAMAMI (fan bunun önünde durur) */}
+      {/* EKRAN ALANI: cam panelin içinde, kenarlardan boşluklu bir ekran
+          (fan sağda bunun önünde durur) */}
+      {/* PROJE BİLGİSİ (üstte) + FOTOĞRAF EKRANI (altında, kalan tüm alan) */}
       <div
-        className="ps-screen absolute inset-0 overflow-hidden"
-        style={{ borderRadius: "inherit" }}
+        className="absolute flex flex-col"
+        style={{
+          inset: portrait ? SCREEN_GAP_MOBILE : SCREEN_GAP,
+          top: portrait ? INFO_TOP_MOBILE : INFO_TOP,
+          ...(insetRight !== undefined && { right: insetRight }),
+          ...(insetBottom !== undefined && { bottom: insetBottom }),
+        }}
       >
-        {/* Fotoğraf — proje değişince yeniden mount olur (glitch geçiş) */}
-        <div
-          key={project.id}
-          className="ps-img absolute inset-0"
-          style={
-            portrait
-              ? {
-                  /* dikeyde fotoğraf üst yarıda; alt kenarı fana doğru söner */
-                  bottom: "28%",
-                  WebkitMaskImage:
-                    "linear-gradient(180deg, #000 75%, transparent)",
-                  maskImage: "linear-gradient(180deg, #000 75%, transparent)",
-                }
-              : undefined
-          }
-        >
-          {main && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={main}
-              alt={project.title}
-              className="size-full object-cover"
-            />
-          )}
-          {/* glitch dilimleri: geçişte kısa an kayan şeritler */}
-          <div className="ps-glitch absolute inset-0" />
-        </div>
-
-        {/* Ekranın içine gömülü görünsün: kenarlar cama doğru söner */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(120% 110% at 40% 50%, transparent 60%, rgba(3,11,26,.35) 88%, rgba(3,11,26,.6) 100%)",
-          }}
-        />
-        {/* tarama çizgileri + mavi ekran tonu */}
-        <div className="absolute inset-0 bg-[repeating-linear-gradient(to_bottom,rgba(255,255,255,.03)_0_1px,transparent_1px_4px)]" />
-        <div
-          className="absolute inset-0 mix-blend-soft-light"
-          style={{
-            background:
-              "linear-gradient(160deg, rgba(70,190,255,.25), rgba(6,26,51,.35))",
-          }}
-        />
-        {/* bir kez geçen parlak tarama */}
-        <div
-          key={`scan-${project.id}`}
-          className="ps-scan absolute inset-x-0 h-[18%]"
-        />
-
-        {/* HUD: sol üst sayaç, sol alt başlık */}
-        <div
-          className={`absolute font-mono text-xs tracking-[.14em] text-[#a8eef6] [text-shadow:0_0_8px_rgba(79,216,255,.8)] ${portrait ? "top-12 left-8" : "top-16 left-12"}`}
-        >
-          [ PROJE {pad(index + 1)} / {pad(total)} ]
-        </div>
         <div
           key={`t-${project.id}`}
-          className={`ps-title absolute ${portrait ? "top-20 left-8" : "bottom-12 left-12"}`}
+          className="ps-title shrink-0"
+          style={{ maxWidth: portrait ? "100%" : "min(46vw, 640px)" }}
         >
-          <span className="font-mono text-[10px] tracking-[.2em] text-[#5fb8d0]">
-            SELECTED PROJECT
-          </span>
-          <h2 className="mt-1 text-2xl font-semibold text-[#c4f7fb] [text-shadow:0_2px_12px_rgba(0,0,0,.8)]">
+          <div className="font-mono text-xs tracking-[.14em] text-[#a8eef6]">
+            [ PROJE {pad(index + 1)} / {pad(total)} ]
+          </div>
+          <h2
+            className={`mt-1 font-semibold text-[#c4f7fb] ${portrait ? "text-xl" : "text-[28px] leading-tight"}`}
+            style={{ fontFamily: "var(--font-display), ui-sans-serif" }}
+          >
             {project.title}
           </h2>
+          {project.description && (
+            <p
+              className={`mt-1 line-clamp-2 text-[#a8eef6]/75 ${portrait ? "text-xs" : "text-sm"}`}
+            >
+              {project.description}
+            </p>
+          )}
+          {project.tags && project.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {project.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-[#a8eef6]/25 bg-[#a8eef6]/5 px-2.5 py-0.5 font-mono text-[10px] tracking-wider text-[#a8eef6]/85"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        {/* camın içinde: kenarlardan hafif mavi ışık */}
+
         <div
-          className="absolute inset-0"
+          className="ps-screen relative mt-3 min-h-0 flex-1 overflow-hidden"
           style={{
-            borderRadius: "inherit",
-            boxShadow: "inset 0 0 60px rgba(70,190,255,.18)",
+            borderRadius: SCREEN_RADIUS,
+            border: "1px solid rgba(var(--c-cfe6ff,207,230,255),.22)",
+            boxShadow: "0 18px 50px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.35)",
           }}
-        />
+        >
+          {/* Fotoğraf — proje değişince yeniden mount olur (glitch geçiş) */}
+          <div
+            key={project.id}
+            className="ps-img absolute inset-0"
+            style={
+              portrait
+                ? {
+                    /* dikeyde fotoğraf üst yarıda; alt kenarı fana doğru söner */
+                    bottom: "28%",
+                    WebkitMaskImage:
+                      "linear-gradient(180deg, #000 75%, transparent)",
+                    maskImage: "linear-gradient(180deg, #000 75%, transparent)",
+                  }
+                : undefined
+            }
+          >
+            {main && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={main}
+                alt={project.title}
+                className="size-full object-cover"
+              />
+            )}
+            {/* glitch dilimleri: geçişte kısa an kayan şeritler */}
+            <div className="ps-glitch absolute inset-0" />
+          </div>
+
+          {/* Ekranın içine gömülü görünsün: kenarlar cama doğru söner */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(120% 110% at 40% 50%, transparent 60%, rgba(3,11,26,.35) 88%, rgba(3,11,26,.6) 100%)",
+            }}
+          />
+          {/* tarama çizgileri + mavi ekran tonu */}
+          <div className="absolute inset-0 bg-[repeating-linear-gradient(to_bottom,rgba(255,255,255,.03)_0_1px,transparent_1px_4px)]" />
+          <div
+            className="absolute inset-0 mix-blend-soft-light"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(70,190,255,.25), rgba(6,26,51,.35))",
+            }}
+          />
+          {/* bir kez geçen parlak tarama */}
+          <div
+            key={`scan-${project.id}`}
+            className="ps-scan absolute inset-x-0 h-[18%]"
+          />
+
+          {/* camın içinde: kenarlardan hafif koyulaşma */}
+          <div
+            className="absolute inset-0"
+            style={{
+              borderRadius: "inherit",
+              boxShadow: "inset 0 0 50px rgba(3,11,26,.45)",
+            }}
+          />
+        </div>
       </div>
 
       <style>{`

@@ -1,8 +1,6 @@
 "use client";
 
-import { SparkleStroke } from "@/components/ui/Sparkle";
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -12,13 +10,12 @@ import {
 } from "react";
 import {
   BadgeCheck,
-  Boxes,
-  Brain,
   ChevronsUp,
   Database,
   Monitor,
-  PenTool,
   Server,
+  Smartphone,
+  Wrench,
 } from "lucide-react";
 import {
   GLASS_EDGE,
@@ -68,7 +65,8 @@ type Props = {
 };
 
 /* =========================================================
-   VARSAYILAN YETENEKLER — kendi listene göre düzenle
+   VARSAYILAN YETENEKLER — CV'deki "Technical Skills" bölümünden
+   (Zeynep_Deli_CV_EN). Kendi listene göre düzenle.
 ========================================================= */
 export const DEFAULT_CATEGORIES: SkillCategory[] = [
   {
@@ -76,11 +74,22 @@ export const DEFAULT_CATEGORIES: SkillCategory[] = [
     label: "FRONTEND",
     icon: Monitor,
     techs: [
-      { name: "React", note: "Hooks · Context · Performans" },
-      { name: "Next.js", note: "App Router · SSR · SSG" },
-      { name: "TypeScript", note: "Tip güvenli arayüzler" },
-      { name: "Tailwind CSS", note: "Tasarım sistemleri" },
-      { name: "Framer Motion", note: "Etkileşim & animasyon" },
+      { name: "React", note: "Yeniden kullanılabilir bileşenler" },
+      { name: "Next.js", note: "Full-stack web uygulamaları" },
+      { name: "Astro", note: "Hızlı, SEO dostu sayfalar" },
+      { name: "JavaScript · TypeScript", note: "Tip güvenli kod" },
+      { name: "HTML5 · CSS3 · SCSS", note: "Tailwind CSS · Bootstrap" },
+      { name: "Redux Toolkit · Zustand", note: "Context API · State yönetimi" },
+    ],
+  },
+  {
+    key: "mobile",
+    label: "MOBİL",
+    icon: Smartphone,
+    techs: [
+      { name: "React Native", note: "Web & mobil uygulamalar" },
+      { name: "Expo", note: "Hızlı mobil geliştirme" },
+      { name: "NativeWind", note: "Mobilde Tailwind" },
     ],
   },
   {
@@ -88,10 +97,13 @@ export const DEFAULT_CATEGORIES: SkillCategory[] = [
     label: "BACKEND",
     icon: Server,
     techs: [
-      { name: "Node.js", note: "Event loop · Streams" },
-      { name: "NestJS", note: "Modüler mimari · DI" },
-      { name: "Express", note: "REST API" },
-      { name: "GraphQL", note: "Şema & resolver tasarımı" },
+      { name: "Node.js", note: "Sunucu tarafı geliştirme" },
+      { name: "Express.js", note: "REST API" },
+      { name: "NestJS", note: "Modüler mimari" },
+      {
+        name: "REST API & Entegrasyon",
+        note: "Ürün · sipariş · ödeme sistemleri",
+      },
     ],
   },
   {
@@ -99,42 +111,25 @@ export const DEFAULT_CATEGORIES: SkillCategory[] = [
     label: "VERİTABANI",
     icon: Database,
     techs: [
-      { name: "PostgreSQL", note: "İlişkisel modelleme" },
-      { name: "MongoDB", note: "Doküman tabanlı" },
-      { name: "Prisma", note: "ORM · Migration" },
-      { name: "Redis", note: "Cache · Kuyruk" },
+      { name: "PostgreSQL", note: "İlişkisel veritabanı" },
+      { name: "Prisma ORM", note: "Şema · migration" },
+      { name: "Firebase", note: "Bulut veritabanı" },
+      { name: "NoSQL", note: "Doküman tabanlı" },
     ],
   },
   {
-    key: "devops",
-    label: "DEVOPS",
-    icon: Boxes,
+    key: "tools",
+    label: "ARAÇLAR & YETKİNLİKLER",
+    icon: Wrench,
     techs: [
-      { name: "Docker", note: "Container · Compose" },
-      { name: "Git", note: "GitHub · Akışlar" },
-      { name: "CI/CD", note: "GitHub Actions" },
-      { name: "Vercel / AWS", note: "Dağıtım & barındırma" },
-    ],
-  },
-  {
-    key: "ai",
-    label: "YAPAY ZEKA",
-    icon: Brain,
-    techs: [
-      { name: "Python", note: "Veri & otomasyon" },
-      { name: "LLM & RAG", note: "Ajanlar · Değerlendirme" },
-      { name: "LangChain", note: "Orkestrasyon" },
-      { name: "OpenAI / Claude API", note: "Entegrasyon" },
-    ],
-  },
-  {
-    key: "design",
-    label: "TASARIM",
-    icon: PenTool,
-    techs: [
-      { name: "Figma", note: "Prototip · Bileşenler" },
-      { name: "UI / UX", note: "Kullanıcı akışları" },
-      { name: "Design Systems", note: "Token · Tutarlılık" },
+      { name: "Git", note: "Versiyon kontrolü" },
+      { name: "UI Tasarım (kod ile)", note: "Ayrı tasarım aracı olmadan" },
+      { name: "Responsive Web Tasarım", note: "Her ekrana uyumlu arayüzler" },
+      { name: "Performans Optimizasyonu", note: "Hızlı, optimize sayfalar" },
+      {
+        name: "Güvenli Geliştirme (OWASP)",
+        note: "Kimlik doğrulama · API güvenliği",
+      },
     ],
   },
 ];
@@ -225,6 +220,19 @@ export default function CollectedSkillsPanel({
   const yOf = (i: number) =>
     H * PAD_Y + ((H * (1 - PAD_Y * 2)) / Math.max(1, list.length - 1)) * i;
   const knobY = yOf(activeIndex);
+
+  /* Sağ içeriğin gerçek yüksekliği — içerik topuzun hizasına ortalanır,
+     sabit tahmin (H - 470) yerine ölçülen yükseklikle sınırlanır;
+     böylece alttaki bölümler (ör. ARAÇLAR) yukarı kaçmaz */
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentH, setContentH] = useState(0);
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setContentH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [activeIndex, compact]);
 
   /* ---------- Tekerlek / klavye ile gezinme ---------- */
   const lock = useRef(0);
@@ -480,18 +488,6 @@ export default function CollectedSkillsPanel({
             strokeDasharray="1 5"
           />
 
-          {/* PARILTI — dik çubuk boyunca posterdeki gibi turkuaz parçacıklar
-              (koyu lacivert çizginin üstünde); bükülme bölgesi maskeli */}
-          <g mask="url(#tlFade)">
-            <g mask="url(#tlGapWide)">
-              <SparkleStroke
-                d={`M ${LINE_X} 0 L ${LINE_X} ${H}`}
-                spread={7}
-                density={1.7}
-              />
-            </g>
-          </g>
-
           {/* Düz ana çizgi (bükülme bölgesi maskeli) */}
           <line
             x1={LINE_X}
@@ -537,12 +533,6 @@ export default function CollectedSkillsPanel({
             className="tl-move"
             style={{ transform: `translateY(${knobY}px)` }}
           >
-            {/* bükülmede de parıltı */}
-            <SparkleStroke
-              d={bulgePath(LINE_X, BULGE, BULGE_H)}
-              spread={7}
-              density={1.7}
-            />
             {/* yumuşak altın hale */}
             <path
               d={bulgePath(LINE_X, BULGE, BULGE_H)}
@@ -641,13 +631,18 @@ export default function CollectedSkillsPanel({
         ================================================= */}
         <div
           key={active.key}
+          ref={contentRef}
           className="absolute"
           style={{
             left: CONTENT_X,
             right: compact ? 12 : 24,
-            top: compact
-              ? Math.min(Math.max(knobY - 60, 50), H - 380)
-              : Math.min(Math.max(knobY - 90, 84), H - 470),
+            top: Math.max(
+              compact ? 50 : 84,
+              Math.min(
+                knobY - contentH / 2,
+                H - contentH - (compact ? 12 : 24),
+              ),
+            ),
             animation: "tlContentIn 520ms cubic-bezier(.16,1,.3,1) both",
           }}
         >
@@ -686,21 +681,6 @@ export default function CollectedSkillsPanel({
             />
           </div>
 
-          {/* Büyük dönen sayı: kategorideki teknoloji sayısı */}
-          <div className="flex items-end gap-3">
-            <RollingNumber
-              value={active.techs.length}
-              digits={2}
-              size={compact ? 52 : 76}
-            />
-          </div>
-          <div
-            className="mb-6 font-mono text-[12px] tracking-[.12em]"
-            style={{ color: `rgba(${ICE_DIM},0.8)` }}
-          >
-            TEKNOLOJİ / TECHNOLOGY
-          </div>
-
           {/* Teknoloji listesi */}
           <TechList techs={active.techs} />
         </div>
@@ -723,75 +703,6 @@ function bulgePath(x: number, b: number, h: number) {
 }
 
 /* =========================================================
-   DÖNEN SAYI — her basamak bir şerit gibi kayar
-   (referanstaki kayan/kırpılmış rakam etkisi)
-========================================================= */
-function RollingNumber({
-  value,
-  digits,
-  size = 76,
-}: {
-  value: number;
-  digits: number;
-  size?: number;
-}) {
-  const str = String(Math.max(0, value)).padStart(digits, "0");
-  const [shown, setShown] = useState("0".repeat(str.length));
-
-  /* İlk açılışta ve değer değişince 0'dan hedefe kaydır */
-  useEffect(() => {
-    const t = setTimeout(() => setShown(str), 40);
-    return () => clearTimeout(t);
-  }, [str]);
-
-  return (
-    <div
-      className="flex font-mono leading-none font-semibold"
-      style={{
-        fontSize: size,
-        height: size,
-        color: `rgb(${ICE})`,
-        textShadow: `0 0 18px rgba(${EDGE},0.45)`,
-        letterSpacing: "0.02em",
-      }}
-      aria-label={str}
-    >
-      {str.split("").map((_, i) => {
-        const d = Number(shown[i] ?? 0);
-        return (
-          <span
-            key={i}
-            className="relative inline-block overflow-hidden"
-            style={{
-              height: size,
-              width: "0.62em",
-              WebkitMaskImage:
-                "linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%)",
-              maskImage:
-                "linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%)",
-            }}
-          >
-            <span
-              className="absolute top-0 left-0 flex flex-col"
-              style={{
-                transform: `translateY(${-d * size}px)`,
-                transition: `transform ${900 + i * 180}ms cubic-bezier(.16,1,.3,1)`,
-              }}
-            >
-              {Array.from({ length: 10 }).map((__, n) => (
-                <span key={n} style={{ height: size, lineHeight: `${size}px` }}>
-                  {n}
-                </span>
-              ))}
-            </span>
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-/* =========================================================
    TEKNOLOJİ LİSTESİ — cam kartlar, sırayla belirir
 ========================================================= */
 function TechList({ techs }: { techs: Tech[] }) {
@@ -808,16 +719,6 @@ function TechList({ techs }: { techs: Tech[] }) {
             animation: `tlRowIn .4s ease-out ${150 + i * 70}ms both`,
           }}
         >
-          <span
-            className="mr-3 flex size-6 shrink-0 items-center justify-center rounded-full text-[9px]"
-            style={{
-              border: `1px solid rgba(${GOLD},0.55)`,
-              color: `rgb(${GOLD_LIGHT})`,
-              background: `rgba(${GOLD},0.08)`,
-            }}
-          >
-            {String(i + 1).padStart(2, "0")}
-          </span>
           <div className="min-w-0 flex-1">
             <div
               className="truncate text-[13px]"

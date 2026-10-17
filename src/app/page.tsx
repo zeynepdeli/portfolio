@@ -5,9 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import HeroSection from "@/components/sections/HeroSection";
 import RoadmapSection from "@/components/sections/RoadmapSection";
 import ProjectsSection from "@/components/sections/ProjectsSection";
-import FooterSection from "@/components/sections/Footersection";
+
 import SiteAvatar from "@/components/ui/SiteAvatar";
 import { ThemeStyles } from "@/components/ui/Theme";
+import FooterSection from "@/components/sections/FooterSection";
 
 /* =========================================================
    ANA SAYFA — Hero → Roadmap → Projects → Footer
@@ -18,9 +19,47 @@ import { ThemeStyles } from "@/components/ui/Theme";
      çizmez, içindeki animasyonlar ekranı yormaz.
 ========================================================= */
 
-const HERO_TO_ROADMAP_MS = 2100;
-const ROADMAP_TO_PROJECTS_MS = 2100;
-const FOOTER_SLIDE_MS = 1100;
+const HERO_TO_ROADMAP_MS = 2200;
+const ROADMAP_TO_PROJECTS_MS = 2200;
+
+/* SAYFA GEÇİŞİ — yeni sayfa alttan, üst kenarına düşen gölgeyle
+   yükselir; eski sayfa ondan YAVAŞ yukarı kayar (derinlik / paralaks)
+   ve kararır. */
+/** eski sayfanın yukarı kayması (yeni sayfanın yolunun oranı) */
+const PARALLAX = 0.3;
+/** eski sayfanın en fazla kararması */
+const OUT_DIM = 0.55;
+
+/** geçiş sırasında yükselen sayfanın üst kenarındaki gölge */
+const riseShadow = (t: number) =>
+  t > 0 && t < 1
+    ? `0 -26px 70px rgba(0,0,0,${(0.6 * Math.sin(Math.PI * t)).toFixed(3)})`
+    : "none";
+/** geçiş sırasında geride kalan sayfanın kararması */
+const outFilter = (t: number) =>
+  t > 0 && t < 1 ? `brightness(${(1 - OUT_DIM * t).toFixed(3)})` : "none";
+
+/* =========================================================
+   FOOTER GEÇİŞİ — denemek için yalnızca bunu değiştir:
+   "curtain"  : PERDE — proje sayfası bir kapak gibi yukarı kalkar,
+                footer altından ortaya çıkar (proje kenarına gölge düşer)
+   "recede"   : GERİ ÇEKİLME — footer yükselirken üstte kalan proje
+                sayfası kararır, bulanıklaşır, hafifçe küçülür
+   "poweroff" : EKRAN KAPANIR — proje ekranı eski monitör gibi tek bir
+                yatay çizgiye inip söner, sonra footer yükselir
+========================================================= */
+type FooterMode = "curtain" | "recede" | "poweroff";
+const FOOTER_MODE: FooterMode = "recede";
+
+/** geçiş süreleri (ms) */
+const FOOTER_MS: Record<FooterMode, number> = {
+  curtain: 1300,
+  recede: 1200,
+  poweroff: 2000,
+};
+/** projeler bitince footer KENDİLİĞİNDEN açılır (ms sonra).
+    null: yalnızca aşağı kaydırınca açılır */
+const FOOTER_AUTO_MS: number | null = 1800;
 
 /* yumuşak başlayıp yumuşak biten geçiş (easeInOutCubic) */
 const easeInOut = (v: number) =>
@@ -28,16 +67,29 @@ const easeInOut = (v: number) =>
 
 /** duration boyunca 0→1 ilerleme üretir, her karede apply çağırır */
 function tween(duration: number, apply: (p: number) => void) {
+  return tweenTo(0, 1, duration, apply);
+}
+
+/** from → to arası (geri dönüşte de) yumuşak geçiş */
+function tweenTo(
+  from: number,
+  to: number,
+  duration: number,
+  apply: (p: number) => void,
+) {
   let raf = 0;
   const start = performance.now();
+  const dur = Math.max(1, duration * Math.abs(to - from));
   const tick = (now: number) => {
-    const raw = Math.min(1, (now - start) / duration);
-    apply(easeInOut(raw));
+    const raw = Math.min(1, (now - start) / dur);
+    apply(from + (to - from) * easeInOut(raw));
     if (raw < 1) raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
   return () => cancelAnimationFrame(raf);
 }
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 const show = (el: HTMLElement | null, on: boolean) => {
   if (el) el.style.visibility = on ? "visible" : "hidden";
@@ -53,29 +105,98 @@ export default function Home() {
   const heroRef = useRef<HTMLElement>(null);
   const roadmapRef = useRef<HTMLElement>(null);
   const projectsRef = useRef<HTMLElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
+  /** EKRAN KAPANIR modunda proje ekranının kapanırken bıraktığı ışık çizgisi */
+  const crtRef = useRef<HTMLDivElement>(null);
+  /** GERİ ÇEKİLME modunda proje panelini karartıp bulanıklaştıran katman */
+  const recedeRef = useRef<HTMLDivElement>(null);
   /** geçiş ilerlemeleri (render tetiklemez) */
-  const prog = useRef({ hero: 0, projects: 0 });
+  const prog = useRef({ hero: 0, projects: 0, footer: 0 });
+  /** footer bir kez açıldı mı (sonra kapatılırsa ipucu görünür) */
+  const [footerSeen, setFooterSeen] = useState(false);
+  /** footer geçişi BİTTİ mi: avatar ancak footer yerine oturunca düşer */
+  const [footerArrived, setFooterArrived] = useState(false);
+  if (!footerOpen && footerArrived) setFooterArrived(false);
 
   /* tüm bölümlerin stilini mevcut ilerlemeye göre yazar */
   const paint = useCallback(() => {
-    const { hero: h, projects: p } = prog.current;
+    const { hero: h, projects: p, footer: f } = prog.current;
     const hero = heroRef.current;
     const road = roadmapRef.current;
     const proj = projectsRef.current;
+    const foot = footerRef.current;
+    const crt = crtRef.current;
+    const dim = recedeRef.current;
     if (hero) {
-      hero.style.opacity = String(1 - h);
+      /* geride kalır: yavaşça yukarı kayar ve kararır */
+      hero.style.transform = `translate3d(0, ${-PARALLAX * h * 100}%, 0)`;
+      hero.style.filter = outFilter(h);
       hero.style.pointerEvents = h < 0.5 ? "auto" : "none";
       show(hero, h < 1);
     }
     if (road) {
-      road.style.transform = `translate3d(0, ${(1 - h) * 100 - p * 100}%, 0)`;
+      /* alttan gölgeyle yükselir; sonra projelere yer açarken geride kalır */
+      road.style.transform = `translate3d(0, ${(1 - h) * 100 - PARALLAX * p * 100}%, 0)`;
+      road.style.boxShadow = riseShadow(h);
+      road.style.filter = outFilter(p);
       road.style.pointerEvents = h > 0.5 && p < 0.5 ? "auto" : "none";
       show(road, h > 0 && p < 1);
     }
     if (proj) {
-      proj.style.transform = `translate3d(0, ${(1 - p) * 100}%, 0)`;
-      proj.style.pointerEvents = p > 0.5 ? "auto" : "none";
-      show(proj, p > 0);
+      let transform = `translate3d(0, ${(1 - p) * 100}%, 0)`;
+      let filter = "none";
+      let shadow = riseShadow(p);
+      let visible = p > 0;
+
+      if (FOOTER_MODE === "curtain") {
+        /* proje sayfası footer'ın boyu kadar yukarı kalkar */
+        const fh = foot?.offsetHeight ?? 0;
+        transform = `translate3d(0, calc(${(1 - p) * 100}% - ${f * fh}px), 0)`;
+        if (f > 0)
+          shadow = `0 ${18 + 22 * f}px ${50 + 30 * f}px rgba(0,0,0,${0.75 * f})`;
+      } else if (FOOTER_MODE === "recede") {
+        /* derinliğe çekilir: yalnızca ORTADAKİ lacivert panel kararıp
+           bulanıklaşır (recedeRef). Sayfa küçülmez: kenarlardaki zemin
+           sitenin normal arka planı olarak kalır */
+      } else {
+        /* eski monitör kapanışı: önce dikeyde ince bir çizgiye iner
+           (parlayarak), sonra çizgi yatayda noktaya küçülüp söner */
+        const c = clamp01(f / 0.5);
+        const sy = c < 0.6 ? 1 - 0.994 * easeInOut(c / 0.6) : 0.006;
+        const sx = c < 0.6 ? 1 : 1 - easeInOut((c - 0.6) / 0.4);
+        transform += ` scale(${Math.max(sx, 0.0001)}, ${sy})`;
+        if (f > 0) filter = `brightness(${1 + 2.5 * c})`;
+        visible = visible && c < 1;
+      }
+
+      proj.style.transform = transform;
+      proj.style.filter = filter;
+      proj.style.boxShadow = shadow;
+      proj.style.pointerEvents = p > 0.5 && f < 0.5 ? "auto" : "none";
+      show(proj, visible);
+    }
+
+    if (dim) dim.style.opacity = FOOTER_MODE === "recede" ? String(f) : "0";
+
+    if (crt) {
+      /* kapanırken ortada kalan parlak çizgi / nokta */
+      const c = clamp01(f / 0.5);
+      const on = FOOTER_MODE === "poweroff" && c > 0.45 && c < 1.15 && f < 0.7;
+      crt.style.opacity = on
+        ? String(Math.sin(Math.PI * clamp01((c - 0.45) / 0.7)))
+        : "0";
+      crt.style.transform = `translate(-50%, -50%) scaleX(${c < 0.6 ? 1 : Math.max(0.02, 1 - (c - 0.6) / 0.4)})`;
+    }
+
+    if (foot) {
+      let ty = (1 - f) * 105; // yüzde
+      if (FOOTER_MODE === "curtain") ty = (1 - f) * 18; // altta bekler, hafifçe yükselir
+      if (FOOTER_MODE === "poweroff") ty = (1 - clamp01((f - 0.5) / 0.5)) * 105;
+      foot.style.transform = `translate3d(0, ${ty}%, 0)`;
+      foot.style.opacity =
+        FOOTER_MODE === "curtain" ? String(0.4 + 0.6 * f) : "1";
+      foot.style.pointerEvents = f > 0.5 ? "auto" : "none";
+      show(foot, FOOTER_MODE === "poweroff" ? f > 0.5 : f > 0);
     }
   }, []);
 
@@ -100,11 +221,29 @@ export default function Home() {
     });
   }, [roadmapComplete, paint]);
 
+  /* PROJECTS → FOOTER geçişi (açılırken ve kapanırken) */
+  useEffect(() => {
+    const target = footerOpen ? 1 : 0;
+    return tweenTo(prog.current.footer, target, FOOTER_MS[FOOTER_MODE], (v) => {
+      prog.current.footer = v;
+      paint();
+      if (target === 1 && v >= 1) setFooterArrived(true);
+    });
+  }, [footerOpen, paint]);
+
+  /* projeler bitince footer kendiliğinden açılır */
+  useEffect(() => {
+    if (!projectsComplete || FOOTER_AUTO_MS === null) return;
+    const t = window.setTimeout(() => setFooterOpen(true), FOOTER_AUTO_MS);
+    return () => window.clearTimeout(t);
+  }, [projectsComplete]);
+
+  if (footerOpen && !footerSeen) setFooterSeen(true);
+
   /* =========================================================
      PROJECTS → FOOTER
-     Projeler bitince sayfa projelerde KALIR. Footer yalnızca
-     kullanıcı aşağı kaydırınca (ya da ipucuna tıklayınca) alttan
-     açılır; yukarı kaydırınca kapanır. Footer'ın kendi
+     Projeler bitince footer kendiliğinden açılır (FOOTER_AUTO_MS).
+     Aşağı kaydırınca açılır, yukarı kaydırınca kapanır. Footer'ın kendi
      içinde kayan alanı (mobil) varsa önce o kayar.
   ========================================================= */
   useEffect(() => {
@@ -167,7 +306,11 @@ export default function Home() {
   const onRoadmapDone = useCallback(() => setRoadmapComplete(true), []);
   const onProjectsDone = useCallback(() => setProjectsComplete(true), []);
 
-  const hero = useMemo(() => <HeroSection powered={powered} />, [powered]);
+  /* avatar gizlenince fiş sokette takılı kalsın (sayfa geçişinde de) */
+  const hero = useMemo(
+    () => <HeroSection powered={powered} plugged={heroTransitioning} />,
+    [powered, heroTransitioning],
+  );
   const roadmap = useMemo(
     () => (
       <RoadmapSection active={heroTransitioning} onComplete={onRoadmapDone} />
@@ -185,9 +328,18 @@ export default function Home() {
     [roadmapComplete, onProjectsDone, footerOpen],
   );
   const footer = useMemo(
-    () => <FooterSection open={footerOpen} />,
-    [footerOpen],
+    () => (
+      <FooterSection
+        open={footerArrived}
+        topFade={FOOTER_MODE === "curtain" ? 0 : undefined}
+      />
+    ),
+    [footerArrived],
   );
+
+  /* ipucu: footer kapatılınca (ya da otomatik açılma kapalıysa) */
+  const hintOn =
+    projectsComplete && !footerOpen && (footerSeen || FOOTER_AUTO_MS === null);
 
   return (
     <main className="fixed inset-0 overflow-hidden">
@@ -215,20 +367,53 @@ export default function Home() {
         style={{ transform: "translate3d(0, 100%, 0)", visibility: "hidden" }}
       >
         {projects}
+
+        {/* GERİ ÇEKİLME: yalnızca cam panelin içi kararır / bulanıklaşır
+            (ScifiBackground'daki panel yeriyle aynı: sol/sağ %1, üst/alt %1.5) */}
+        {FOOTER_MODE === "recede" && (
+          <div
+            ref={recedeRef}
+            aria-hidden
+            className="pointer-events-none absolute z-50"
+            style={{
+              left: "1%",
+              right: "1%",
+              top: "1.5%",
+              bottom: "1.5%",
+              borderRadius: "var(--glass-radius, 14px)",
+              opacity: 0,
+              background:
+                "linear-gradient(180deg, rgba(2,6,20,.35), rgba(2,6,20,.6))",
+              backdropFilter: "blur(5px) saturate(.75)",
+              WebkitBackdropFilter: "blur(5px) saturate(.75)",
+            }}
+          />
+        )}
       </section>
 
-      {/* FOOTER — projelerin altından kayarak açılır */}
+      {/* EKRAN KAPANIR: proje ekranının söndüğü yerde kalan ışık çizgisi */}
+      {FOOTER_MODE === "poweroff" && (
+        <div
+          ref={crtRef}
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 z-25 h-0.75 w-[80vw] rounded-full"
+          style={{
+            opacity: 0,
+            background:
+              "linear-gradient(90deg, transparent, rgb(var(--c-a8eef6,168,238,246)) 20%, #fff 50%, rgb(var(--c-a8eef6,168,238,246)) 80%, transparent)",
+            boxShadow:
+              "0 0 18px rgba(var(--c-a8eef6,168,238,246),.9), 0 0 60px rgba(var(--c-a8eef6,168,238,246),.5)",
+          }}
+        />
+      )}
+
+      {/* FOOTER — geçişi FOOTER_MODE belirler (paint) */}
       <section
-        className="absolute inset-x-0 bottom-0 z-30"
-        style={{
-          transform: `translate3d(0, ${footerOpen ? 0 : 105}%, 0)`,
-          /* kapanınca kayma bittikten sonra gizlenir */
-          visibility: footerOpen ? "visible" : "hidden",
-          transition: `transform ${FOOTER_SLIDE_MS}ms cubic-bezier(.22,1,.36,1), visibility 0s linear ${
-            footerOpen ? 0 : FOOTER_SLIDE_MS
-          }ms`,
-          pointerEvents: footerOpen ? "auto" : "none",
-        }}
+        ref={footerRef}
+        className={`absolute inset-x-0 bottom-0 will-change-transform ${
+          FOOTER_MODE === "curtain" ? "z-15" : "z-30"
+        }`}
+        style={{ transform: "translate3d(0, 105%, 0)", visibility: "hidden" }}
       >
         {footer}
       </section>
@@ -241,8 +426,8 @@ export default function Home() {
         className="absolute left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
         style={{
           bottom: 22,
-          opacity: projectsComplete && !footerOpen ? 0.85 : 0,
-          pointerEvents: projectsComplete && !footerOpen ? "auto" : "none",
+          opacity: hintOn ? 0.85 : 0,
+          pointerEvents: hintOn ? "auto" : "none",
           transition: "opacity .6s ease",
           textShadow: "0 0 8px rgba(79,216,255,.8)",
         }}

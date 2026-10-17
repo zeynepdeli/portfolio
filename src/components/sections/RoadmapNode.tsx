@@ -13,6 +13,7 @@ const ICE_DIM = "95,184,208"; // pasif metin
 const GOLD_LIGHT = "255,228,170";
 
 type RoadmapNodeProps = {
+  /** Sıra numarası (artık ekranda yazılmıyor; sıralama için tutuluyor) */
   nodeNumber: number;
   icon: LucideIcon;
   title: string;
@@ -29,7 +30,6 @@ type RoadmapNodeProps = {
  *   (menüdeki aktif buton ve çip çizgileriyle aynı dil)
  */
 export default function RoadmapNode({
-  nodeNumber,
   icon: Icon,
   title,
   tags,
@@ -94,18 +94,8 @@ export default function RoadmapNode({
         />
       </div>
 
-      {/* Metin */}
+      {/* Metin — sıra numarası ([NODE 01]) kaldırıldı */}
       <div className="flex min-w-0 flex-col">
-        <span
-          className={`font-mono tracking-[.12em] ${compact ? "text-[9px]" : "text-[11px]"}`}
-          style={{
-            color: collected
-              ? `rgba(${GLASS_EDGE_GOLD},0.9)`
-              : `rgba(${ICE_DIM},0.7)`,
-          }}
-        >
-          [NODE {String(nodeNumber).padStart(2, "0")}]
-        </span>
         <span
           className={`font-mono font-bold ${compact ? "text-[13px] leading-tight" : "text-lg"}`}
           style={{
@@ -117,8 +107,13 @@ export default function RoadmapNode({
           {title}
         </span>
         <span
-          className={`font-mono ${compact ? "text-[10px] leading-tight" : "text-sm"}`}
-          style={{ color: `rgba(${ICE_DIM},0.85)` }}
+          className={`font-mono ${compact ? "text-[10px] leading-tight" : "text-sm leading-snug"}`}
+          style={{
+            color: `rgba(${ICE_DIM},0.85)`,
+            /* uzun yetenek listesi en fazla bu genişlikte, alt satıra geçer */
+            whiteSpace: "normal",
+            maxWidth: compact ? 200 : 330,
+          }}
         >
           {tags}
         </span>

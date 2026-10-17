@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-import { Code2, Container, Palette, Brain } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-import RoadmapNode from "@/components/sections/RoadmapNode";
-import CollectedSkillsPanel from "@/components/sections/CollectedSkillsPanel";
+import CollectedSkillsPanel, {
+  DEFAULT_CATEGORIES,
+} from "@/components/sections/CollectedSkillsPanel";
+import RoadmapPerch, { PERCH_ASPECT } from "@/components/sections/RoadmapPerch"
 import SciFiBackground from "../ui/ScifiBackground";
 
 /* ================================================================
@@ -15,8 +17,6 @@ import SciFiBackground from "../ui/ScifiBackground";
 const W = 2576;
 const H = 1093;
 const STEPS = 16;
-
-const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 type CSSVars = CSSProperties & Record<`--${string}`, string | number>;
 
@@ -44,15 +44,42 @@ const C = {
 ================================================================ */
 
 /* Yürümez: fotoğraftaki çömelme pozuyla nehrin üstünde oturup kayar */
-const SIT_SRC = "/images/zeynep-comelme.png";
-const SIT_LEDGE = 0.954; // fotoğrafta zemin çizgisi
+/* Oturup bacakları önde, nehirde kayan poz (public/images/zeynep-kayma.png) */
+const SIT_SRC = "/images/zeynep-kayma.png";
+const SIT_LEDGE = 0.95; // fotoğrafta zemin çizgisi (kalça / eller = su yüzeyi)
 /** Kişinin boyu (ekran px) */
-const AV_H = 64;
-const AV_W = Math.round((AV_H * 242) / 240);
+const AV_H = 58;
+const AV_W = Math.round((AV_H * 680) / 364); // görselin oranı
+/** kaydırak eğimi (derece): büyüdükçe ayaklar daha aşağı, gövde daha yukarı */
+const SLIDE_TILT = 22;
+/** görselde kalçanın yatay yeri (genişliğe oran) — eğim bu noktanın etrafında */
+const SEAT_X = 0.4;
+/** true: nehir sola kıvrılınca kişi de sola döner. false: hep sağa bakar */
+const FLIP_ON_LEFT = false;
 /** Hız (ekran px / sn) */
-const WALK_SPEED = 1150;
+/* YOL HARİTASI HIZI — 1 = eski hız; büyüdükçe kayma, yetenek toplama,
+   ışık topu ve panelin yanması aynı oranda YAVAŞLAR */
+const RM_SLOW = 2.4;
+const WALK_SPEED = 1150 / RM_SLOW;
 /** Her yetenekte eğilip alma süresi (ms) — kısa ve tok */
-const PICKUP_MS = 60;
+/* EKRANA DÖNÜK POZ — nehir aşağı (izleyiciye doğru) aktığı kıvrımlarda
+   kişi ekrana döner (public/images/zeynep-kayma-on.png) */
+const FRONT_SRC = "/images/zeynep-kayma-on.png";
+const FRONT_LEDGE = 0.91; // fotoğrafta zemin çizgisi (eller)
+const FRONT_H = 70;
+const FRONT_W = Math.round((FRONT_H * 360) / 457);
+/** ekrana dönme eşiği: nehrin aşağı eğimi / yatay hareket oranı
+    (ENTER'ı geçince döner, EXIT'in altına inince yana döner) */
+const FRONT_ENTER = 1.1;
+const FRONT_EXIT = 0.6;
+/** GİRİŞ: kişi ekrana ilk geldiğinde ÖNE DÖNÜK durur; nehir sağa
+    kıvrılana kadar (bu nehir noktasına kadar) hep ekrana bakar,
+    sonra kıvrımda yana döner */
+const FRONT_INTRO_UNTIL = 8 * STEPS;
+
+/** Kişi nehrin sonuna varınca, sayfa geçişinden önce bekleme (ms):
+    panel yanmış haldeyken sayfa sakin biter */
+const END_HOLD_MS = 1000; // eskiden 2600: sayfa geçişi ~1.6 sn önce başlar
 /** Alırken saçılan altın kıvılcımlar */
 const PICK_SPARKS: [number, number][] = [
   [-18, -46],
@@ -73,21 +100,18 @@ const TRAIL_LINES: [number, number, number, number][] = [
 ];
 
 /** Yetenek ışık topunun panele uçuş süresi (ms) */
-const ORB_MS = 620;
+const ORB_MS = Math.round(620 * RM_SLOW);
 
 /** Tüm yetenekler toplandıktan sonra panelin yanmasına kadar bekleme (ms) */
-const PANEL_ON_DELAY = 350;
+const PANEL_ON_DELAY = Math.round(600 * RM_SLOW); // son yetenekten sonra panel
+
+/** Karttaki kişi: sağ kenardan boşluk (genişlik oranı) ve dikey ortası (yükseklik oranı)
+    — daha sağa: PERCH_RIGHT'ı küçült, daha yukarı: PERCH_Y'yi küçült */
+const PERCH_RIGHT = 0.05;
+const PERCH_Y = 0.36;
 
 /** Yetenekler panelinin kapladığı alanın sağ kenarı (px) */
 const PANEL_AREA = (w: number) => w * 0.02 + 610 + 60;
-
-/** Node kartının yaklaşık sol kenarı (kart ~220px genişliğinde varsayılır) */
-const cardLeft = (anchorX: number, side: Side, gap: number) =>
-  side === "right"
-    ? anchorX + gap
-    : side === "left"
-      ? anchorX - gap - 220
-      : anchorX - 110;
 
 /*
  * Scroll derinlik efekti.
@@ -122,8 +146,6 @@ type Pt = {
   x: number;
   y: number;
 };
-
-type Side = "above" | "below" | "left" | "right";
 
 type RoadmapSectionProps = {
   active?: boolean;
@@ -296,34 +318,29 @@ const HIGHLIGHTS = [0.28, 0.5, 0.68];
 const DARK_BANDS = [0.3, 0.62, 0.85];
 
 /* ================================================================
-   BINARY
+   BINARY — nehrin içinde akan çok küçük ve sık 0/1 dizileri
+   [nehir genişliğine oran, opaklık, başlangıç kayması]
 ================================================================ */
 
-const BINARY_LANES: [number, number, number, number, string][] = [
-  [0.85, 9, 1, 0.38, "0%"],
-  [0.62, 12, 2, 0.5, "55%"],
-  [0.8, 14, 3, 0.45, "60%"],
-];
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+/** yazı boyu (nehir koordinatlarında; ekranda ~8px) */
+const BINARY_SIZE = 11;
+/** karakter arası boşluk */
+const BINARY_SPACING = 1.1;
 
-const DIGITS: [number, number, number, string][] = [
-  [0.76, 0.52, 20, "0"],
-  [0.78, 0.6, 20, "1"],
-  [0.8, 0.58, 20, "1"],
-  [0.82, 0.55, 24, "0"],
-  [0.835, 0.52, 22, "1"],
-  [0.85, 0.5, 24, "0"],
-  [0.865, 0.48, 22, "1"],
-  [0.88, 0.46, 26, "1"],
-  [0.9, 0.5, 24, "1"],
-  [0.92, 0.48, 26, "0"],
-  [0.95, 0.58, 26, "1"],
-  [0.975, 0.72, 24, "0"],
+const BINARY_LANES: [number, number, string][] = [
+  [0.14, 0.3, "0%"],
+  [0.26, 0.36, "3%"],
+  [0.38, 0.4, "1%"],
+  [0.5, 0.44, "4%"],
+  [0.62, 0.4, "2%"],
+  [0.74, 0.34, "0%"],
+  [0.86, 0.28, "3%"],
 ];
 
 /*
  * Rastgele görünen ama her render'da (ve sunucu/istemcide) aynı çıkan
- * ikilik diziler. Math.random render sırasında saf olmadığı için
- * tohumlu basit bir üreteç kullanılıyor.
+ * ikilik diziler (tohumlu üreteç: Math.random render'da saf değil).
  */
 function seededBinary(length: number, seed: number): string {
   let s = Math.imul(seed + 1, 2654435761) >>> 0;
@@ -337,64 +354,30 @@ function seededBinary(length: number, seed: number): string {
   return out;
 }
 
-const BINARY = BINARY_LANES.map((_, i) => seededBinary(420, i));
-
-/* Çip çevresindeki küçük noktalar */
-const CHIP_DOTS: P[] = [
-  [900, 840],
-  [920, 852],
-  [940, 862],
-  [960, 850],
-  [1000, 880],
-  [1030, 870],
-  [1060, 890],
-  [1120, 850],
-  [1150, 830],
-  [1170, 842],
-];
+/** nehir boyunca yetecek uzunlukta */
+const BINARY = BINARY_LANES.map((_, i) => seededBinary(1200, i + 3));
 
 /* ================================================================
    ROADMAP
 ================================================================ */
 
-const NODES = [
-  {
-    number: 1,
-    icon: Code2,
-    title: "Early AI Projects",
-    tags: "Python, TensorFlow",
-    target: { x: 470, y: 245 },
-    side: "above" as Side,
-    gap: 30,
-  },
-  {
-    number: 2,
-    icon: Container,
-    title: "Systems Architecture",
-    tags: "Docker, Git",
-    target: { x: 1225, y: 480 },
-    side: "right" as Side,
-    gap: 110,
-  },
-  {
-    number: 3,
-    icon: Palette,
-    title: "UI/UX Design",
-    tags: "Figma, Sketch",
-    target: { x: 1600, y: 775 },
-    side: "below" as Side,
-    gap: 90,
-  },
-  {
-    number: 4,
-    icon: Brain,
-    title: "Leading Creative AI Projects",
-    tags: "LLM, Team Lead",
-    target: { x: 2150, y: 880 },
-    side: "above" as Side,
-    gap: 130,
-  },
-];
+/* Nehir boyunca YETENEKLER — soldaki yetenekler panelindeki listenin
+   TAMAMI, tek tek (CollectedSkillsPanel > DEFAULT_CATEGORIES). Nehrin iki
+   kıyısına sırayla dizilir: bir üst kıyı, bir alt kıyı. Panelde yetenek
+   eklenip çıkarılırsa yol da kendiliğinden güncellenir. */
+const NODES = DEFAULT_CATEGORIES.flatMap((cat, ci) =>
+  cat.techs.map((tech) => ({
+    cat: ci,
+    icon: cat.icon as LucideIcon, // paneldeki kategori ikonuyla aynı
+    name: tech.name,
+  })),
+).map((n, i) => ({ ...n, number: i + 1 }));
+
+/** yeteneklerin dizildiği bölüm (nehir koordinatında x aralığı) */
+const SKILL_FROM_X = 470;
+const SKILL_TO_X = 1880;
+/** kıyıdan uzaklık (px) */
+const BANK_GAP = 10;
 
 /* ================================================================
    SPLINE
@@ -457,17 +440,37 @@ function buildGeometry() {
 
   const middle = lane(0.5, false);
 
-  const indexAt = (value: number) => Math.round(value * (top.length - 1));
-
-  const nearest = (point: Pt) =>
-    middle.reduce(
-      (best, current, i) =>
-        Math.hypot(current.x - point.x, current.y - point.y) <
-        Math.hypot(middle[best].x - point.x, middle[best].y - point.y)
-          ? i
-          : best,
-      0,
+  /* yetenekler: seçili bölümde yol uzunluğuna göre EŞİT aralıklı */
+  const acc = [0];
+  for (let i = 1; i < middle.length; i++)
+    acc.push(
+      acc[i - 1] +
+        Math.hypot(
+          middle[i].x - middle[i - 1].x,
+          middle[i].y - middle[i - 1].y,
+        ),
     );
+  const iFrom = Math.max(
+    0,
+    middle.findIndex((p) => p.x >= SKILL_FROM_X),
+  );
+  let iTo = middle.length - 1;
+  while (iTo > iFrom && middle[iTo].x > SKILL_TO_X) iTo--;
+  const s0 = acc[iFrom];
+  const s1 = acc[iTo];
+  const nodeIndexes = NODES.map((_, k) => {
+    const target = s0 + ((k + 0.5) / NODES.length) * (s1 - s0);
+    let i = iFrom;
+    while (i < iTo && acc[i] < target) i++;
+    return i;
+  });
+  /* her yeteneğin kıyı noktası ve kıyıdan dışa doğru yön */
+  const banks = nodeIndexes.map((i, k) => {
+    const edge = (k % 2 === 0 ? top : bottom)[i];
+    const m = middle[i];
+    const len = Math.hypot(edge.x - m.x, edge.y - m.y) || 1;
+    return { at: edge, nx: (edge.x - m.x) / len, ny: (edge.y - m.y) / len };
+  });
 
   return {
     middle,
@@ -477,12 +480,8 @@ function buildGeometry() {
     top: line(top),
     bottom: line(bottom),
     lane: (ratio: number) => line(lane(ratio)),
-    digits: DIGITS.map(([t, ratio, fontSize, char]) => ({
-      ...lane(ratio)[indexAt(t)],
-      fontSize,
-      char,
-    })),
-    nodeIndexes: NODES.map((node) => nearest(node.target)),
+    nodeIndexes,
+    banks,
   };
 }
 
@@ -525,36 +524,6 @@ const pointAt = (points: Pt[], value: number): Pt => {
 /* DİKEY: nehrin başından sonuna dikey açıklığı ekran yüksekliğine sığar */
 const computeScale = (w: number, h: number, portrait: boolean) =>
   portrait ? (h * 0.96) / (RIVER_END.y + 80) : Math.max(w / W, h / H);
-
-/* ================================================================
-   NODE POSITION
-================================================================ */
-
-/*
- * Ekran daraldığında (nehir "slice" ile kırpılınca) kenara yakın
- * node kartları ekrandan taşmasın diye yatayda içeri kaydırılır.
- */
-const EDGE_ROOM = 240; // kartın yarı genişliği için ayrılan pay (px)
-
-const sideTransform = (
-  side: Side,
-  gap: number,
-  anchorX = 0,
-  width = Infinity,
-) => {
-  const nearRight = anchorX > width - EDGE_ROOM;
-  const nearLeft = anchorX < EDGE_ROOM;
-  const x = nearRight ? "calc(-100% + 40px)" : nearLeft ? "-40px" : "-50%";
-
-  return {
-    above: `translate(${x}, calc(-100% - ${gap}px))`,
-    below: `translate(${x}, ${gap}px)`,
-    left: `translate(calc(-100% - ${gap}px), -50%)`,
-    right: nearRight
-      ? `translate(calc(-100% - ${gap}px), -50%)`
-      : `translate(${gap}px, -50%)`,
-  }[side];
-};
 
 /* ================================================================
    SCROLL PARENT
@@ -637,7 +606,7 @@ const ROADMAP_CSS = `
   .rm-panel.is-on {
     opacity: 1;
     pointer-events: auto;
-    animation: rmPanelOn .7s cubic-bezier(.16,1,.3,1) both;
+    animation: rmPanelOn ${(1.1 * RM_SLOW).toFixed(2)}s cubic-bezier(.16,1,.3,1) both;
   }
 
   .rm-flow {
@@ -746,6 +715,9 @@ export default function RoadmapSection({
 }: RoadmapSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const orbTimers = useRef<number[]>([]);
+  /* sayfa sonu beklemesi: ekran boyutu değişse de iptal olmaz */
+  const endTimerRef = useRef(0);
 
   const avatarRef = useRef(0);
   const completedRef = useRef(false);
@@ -753,7 +725,6 @@ export default function RoadmapSection({
 
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  const [stopIndex, setStopIndex] = useState(finished ? NODES.length : 0);
   const [avatarIndex, setAvatarIndex] = useState(0);
 
   /* Avatar: en son vardığı durak (-1 = henüz başlamadı), hareket ediyor mu,
@@ -761,13 +732,13 @@ export default function RoadmapSection({
   const [arrived, setArrived] = useState(finished ? NODES.length : -1);
   const [moving, setMoving] = useState(false);
   const [facingLeft, setFacingLeft] = useState(false);
+  /* nehir aşağı (izleyiciye doğru) akarken kişi ekrana döner */
+  /* ilk göründüğünde öne dönük */
+  const [facingScreen, setFacingScreen] = useState(true);
 
   /* Alınan yetenek kartı altın bir ışık topuna dönüşüp sol taraftaki
      yetenekler panelinin yerine uçar (panel sonunda bunlarla yanar) */
   const [orbs, setOrbs] = useState<Orb[]>([]);
-
-  /* Bütün yetenekler toplandıktan sonra nehrin çıkışına gidiyoruz. */
-  const [leaving, setLeaving] = useState(finished);
 
   /* Yetenek, kişi o durağa VARINCA alınmış sayılır */
   const allCollected = arrived >= NODES.length;
@@ -794,9 +765,8 @@ export default function RoadmapSection({
     setPrevMode(mode);
 
     if (mode === 0) {
-      setStopIndex(0);
       setAvatarIndex(0);
-      setLeaving(false);
+      setFacingScreen(true);
       setArrived(-1);
       setMoving(false);
       setOrbs([]);
@@ -835,8 +805,6 @@ export default function RoadmapSection({
   useEffect(() => {
     if (!active || arrived < 1 || arrived > NODES.length) return;
 
-    let timer = 0;
-
     const frame = requestAnimationFrame(() => {
       const card = cardRefs.current[arrived - 1];
       const box = containerRef.current;
@@ -844,29 +812,43 @@ export default function RoadmapSection({
 
       const r = card.getBoundingClientRect();
       const b = box.getBoundingClientRect();
+      /* paneldeki kategori satırı (CollectedSkillsPanel ile aynı yerleşim) */
+      const ph = Math.min(Math.max(b.height * 0.86, 560), 820);
+      const nCat = DEFAULT_CATEGORIES.length;
+      const cat = NODES[arrived - 1].cat;
 
       const orb: Orb = {
         id: arrived,
         x: r.left + r.width / 2 - b.left,
         y: r.top + r.height / 2 - b.top,
-        /* panelin kategori sütunu civarı */
         tx: b.width * 0.02 + 140,
-        ty: b.height * (0.3 + arrived * 0.1),
+        ty:
+          b.height / 2 -
+          ph / 2 +
+          ph * (0.12 + (0.76 * cat) / Math.max(1, nCat - 1)),
       };
 
       setOrbs((o) => [...o.filter((x) => x.id !== orb.id), orb]);
 
-      timer = window.setTimeout(
-        () => setOrbs((o) => o.filter((x) => x.id !== orb.id)),
-        ORB_MS + 150,
+      /* top uçuşunu bitirince silinir (sonraki yetenek gelse de iptal olmaz) */
+      orbTimers.current.push(
+        window.setTimeout(
+          () => setOrbs((o) => o.filter((x) => x.id !== orb.id)),
+          ORB_MS + 150,
+        ),
       );
     });
 
-    return () => {
-      cancelAnimationFrame(frame);
-      window.clearTimeout(timer);
-    };
+    return () => cancelAnimationFrame(frame);
   }, [active, arrived]);
+
+  useEffect(
+    () => () => {
+      orbTimers.current.forEach((t) => window.clearTimeout(t));
+      window.clearTimeout(endTimerRef.current);
+    },
+    [],
+  );
 
   /* ==============================================================
      PANEL GECİKMESİ
@@ -961,97 +943,52 @@ export default function RoadmapSection({
   }, []);
 
   /* ==============================================================
-     NODE İLERLEMESİ
+     KİŞİ HAREKETİ
+     Kişi nehrin başından sonuna DURMADAN kayar; kıyıdaki her yeteneğin
+     hizasından geçerken onu toplar (yetenek altın yanıp panele uçar).
+     Bütün yetenekler toplanınca panel yanar, kişi nehrin sonundan çıkar.
   ============================================================== */
 
   useEffect(() => {
     if (!active) return;
-
-    /* Kişi bulunduğu durağa varmadan bir sonrakine geçme */
-    if (arrived !== stopIndex) return;
-
-    /*
-     * Önce bütün yetenekleri sırayla topluyoruz:
-     * durağa var → eğilip al (PICKUP_MS) → sonrakine geç
-     */
-    if (stopIndex < NODES.length) {
-      const timer = window.setTimeout(
-        () => setStopIndex((value) => value + 1),
-        stopIndex === 0 ? 60 : PICKUP_MS,
-      );
-
-      return () => window.clearTimeout(timer);
-    }
-
-    /* Son yetenek alındı → nehrin sonuna doğru ilerle ve çık. */
-    if (!leaving) {
-      const timer = window.setTimeout(() => setLeaving(true), PICKUP_MS);
-
-      return () => window.clearTimeout(timer);
-    }
-  }, [active, stopIndex, leaving, arrived]);
-
-  /* ==============================================================
-     IŞIK / KİŞİ HAREKETİ
-  ============================================================== */
-
-  useEffect(() => {
-    if (!active) return;
-
-    const stops = [0, ...GEO.nodeIndexes];
 
     const from = avatarRef.current;
+    const to = GEO.middle.length - 1;
 
-    /* Normal: node'lara git. leaving: nehrin en sonuna git. */
-    const to = leaving
-      ? GEO.middle.length - 1
-      : stops[Math.min(stopIndex, stops.length - 1)];
+    if (from >= to - 0.001) return;
 
-    /* Aynı noktadaysak yeni animasyon başlatmıyoruz. */
-    if (Math.abs(from - to) < 0.001) {
-      if (leaving) return;
-
-      const frame = requestAnimationFrame(() => setArrived(stopIndex));
-
-      return () => cancelAnimationFrame(frame);
-    }
-
-    /* Süre yola göre: sabit adımla ilerlesin (kayıyormuş gibi olmasın) */
+    /* süre yol uzunluğuna göre: sabit hızla kayar */
     const sc = computeScale(size.w, size.h, portrait) || 1;
-
     let pathLen = 0;
-    const lo = Math.floor(Math.min(from, to));
-    const hi = Math.ceil(Math.max(from, to));
-
-    for (let i = lo; i < hi && i + 1 < GEO.middle.length; i++) {
+    for (let i = Math.floor(from); i < to; i++) {
       pathLen += Math.hypot(
         GEO.middle[i + 1].x - GEO.middle[i].x,
         GEO.middle[i + 1].y - GEO.middle[i].y,
       );
     }
-
     pathLen *= sc;
 
     const start = performance.now();
-
-    /* telefonda nehir küçük ölçekte: yürüyüş biraz yavaş, kamera rahat izlesin */
+    /* telefonda nehir küçük ölçekte: biraz daha yavaş, kamera rahat izlesin */
     const duration =
-      Math.max(180, (pathLen / WALK_SPEED) * 1000) * (portrait ? 1.6 : 1);
+      Math.max(600, (pathLen / WALK_SPEED) * 1000) * (portrait ? 1.6 : 1);
 
     let lastLeft: boolean | null = null;
-    let started = false;
+    /* başlangıçta öne dönük (giriş pozu) */
+    let lastFront: boolean | null = from < FRONT_INTRO_UNTIL ? true : null;
+    let lastPassed = -1;
     let frame = 0;
 
-    const animate = (now: number) => {
-      if (!started) {
-        started = true;
-        setMoving(true);
-      }
+    const kick = requestAnimationFrame(() => {
+      setMoving(true);
+      setArrived((a) => Math.max(a, 0));
+    });
 
+    const animate = (now: number) => {
       const progress = Math.min(1, (now - start) / duration);
 
-      /* Sabit hız; sadece ilk/son %8'de yumuşak kalkış-duruş */
-      const k = 0.08;
+      /* sabit hız; yalnızca başta ve sonda yumuşak kalkış-duruş */
+      const k = 0.06;
       const ease =
         progress < k
           ? (progress * progress) / (2 * k * (1 - k))
@@ -1061,17 +998,40 @@ export default function RoadmapSection({
 
       const current = from + (to - from) * ease;
 
-      /* Yön: nehir sola kıvrılınca kişi de sola döner */
+      /* yön: sola kıvrılınca sol; aşağı (izleyiciye) akarken ekrana döner */
       const a = pointAt(GEO.middle, current);
-      const b = pointAt(GEO.middle, current + (to > from ? 0.6 : -0.6));
+      const b = pointAt(GEO.middle, Math.min(to, current + 1.2));
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
 
-      if (Math.abs(b.x - a.x) > 0.4) {
-        const left = b.x < a.x;
-
+      if (Math.abs(dx) > 0.4) {
+        const left = dx < 0;
         if (left !== lastLeft) {
           lastLeft = left;
           setFacingLeft(left);
         }
+      }
+
+      /* nehir aşağı akarken ekrana döner (histerezis: titreme olmasın) */
+      const ratio = dy / (Math.abs(dx) || 0.001);
+      const front =
+        current < FRONT_INTRO_UNTIL ||
+        (lastFront ? ratio > FRONT_EXIT : ratio > FRONT_ENTER);
+      if (front !== lastFront) {
+        lastFront = front;
+        setFacingScreen(front);
+      }
+
+      /* geçtiği yetenekler toplanır */
+      let passed = 0;
+      while (
+        passed < GEO.nodeIndexes.length &&
+        GEO.nodeIndexes[passed] <= current + 0.5
+      )
+        passed++;
+      if (passed !== lastPassed) {
+        lastPassed = passed;
+        setArrived((a) => Math.max(a, passed));
       }
 
       avatarRef.current = current;
@@ -1083,20 +1043,26 @@ export default function RoadmapSection({
       }
 
       setMoving(false);
+      setArrived(NODES.length);
 
-      if (!leaving) setArrived(stopIndex);
-
-      /* Nehrin çıkışına ulaştık. */
-      if (leaving && !completedRef.current) {
+      /* nehrin çıkışına ulaştık: panel yanmış haldeyken biraz bekle,
+         sonra sayfa geçişi */
+      if (!completedRef.current) {
         completedRef.current = true;
-        onCompleteRef.current?.();
+        endTimerRef.current = window.setTimeout(
+          () => onCompleteRef.current?.(),
+          END_HOLD_MS,
+        );
       }
     };
 
     frame = requestAnimationFrame(animate);
 
-    return () => cancelAnimationFrame(frame);
-  }, [active, stopIndex, leaving, portrait, size.w, size.h]);
+    return () => {
+      cancelAnimationFrame(kick);
+      cancelAnimationFrame(frame);
+    };
+  }, [active, portrait, size.w, size.h]);
 
   /* ==============================================================
      KAMERA
@@ -1126,9 +1092,56 @@ export default function RoadmapSection({
     top: panY + pt.y * scale,
   });
 
-  const nodePositions = NODES.map((_, i) =>
-    toPx(GEO.middle[GEO.nodeIndexes[i]]),
-  );
+  /* OTURAN KİŞİ: yetenekler panelinin karşısındaki boş alanın ortasında */
+  const perchFree = size.w - PANEL_AREA(size.w);
+  const perchW = Math.min(perchFree * 0.62, 440, size.h * 0.46);
+  const perchH = perchW * PERCH_ASPECT;
+  /* yalnızca roadmap sayfası doğrudan açılınca (finished) — akış sırasında yok */
+  const showPerch = finished && !compactPanel && !portrait && perchW >= 180;
+
+  /* KIYIDAKİ YETENEK ETİKETLERİ — her biri kendi kıyı noktasından dışa
+     doğru yerleşir; başka bir etiketle çakışırsa biraz daha dışa itilir */
+  const chipFont = portrait ? 10 : 11.5;
+  const chipPositions: { left: number; top: number }[] = [];
+  {
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    GEO.banks.forEach(({ at, nx, ny }, i) => {
+      const p = toPx(at);
+      const w = 36 + NODES[i].name.length * chipFont * 0.63;
+      const h = chipFont + 13;
+      const base = BANK_GAP + Math.abs(nx) * (w / 2) + Math.abs(ny) * (h / 2);
+      const hits = (cx: number, cy: number) =>
+        placed.some(
+          (r) =>
+            cx - w / 2 < r.x1 + 6 &&
+            cx + w / 2 > r.x0 - 6 &&
+            cy - h / 2 < r.y1 + 4 &&
+            cy + h / 2 > r.y0 - 4,
+        );
+      /* önce kıyıya en yakın boş yer: dışa doğru it, gerekirse kıyı
+         boyunca biraz kaydır */
+      let cx = p.left + nx * base;
+      let cy = p.top + ny * base;
+      search: for (let push = 0; push <= 120; push += 10) {
+        for (const slide of [0, 24, -24, 48, -48, 72, -72]) {
+          const x = p.left + nx * (base + push) - ny * slide;
+          const y = p.top + ny * (base + push) + nx * slide;
+          if (!hits(x, y)) {
+            cx = x;
+            cy = y;
+            break search;
+          }
+        }
+      }
+      placed.push({
+        x0: cx - w / 2,
+        y0: cy - h / 2,
+        x1: cx + w / 2,
+        y1: cy + h / 2,
+      });
+      chipPositions.push({ left: cx, top: cy });
+    });
+  }
 
   return (
     <div
@@ -1275,7 +1288,7 @@ export default function RoadmapSection({
               <stop offset="1" stopColor="#051328" />
             </linearGradient>
 
-            {/* BINARY FADE */}
+            {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
 
             <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0" stopColor="white" stopOpacity="0" />
@@ -1425,17 +1438,17 @@ export default function RoadmapSection({
               />
             ))}
 
-            {/* BINARY */}
+            {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
 
-            {BINARY_LANES.map(
-              ([ratio, fontSize, spacing, opacity, offset], i) => (
+            <g mask="url(#rm-mask)">
+              {BINARY_LANES.map(([ratio, opacity, offset], i) => (
                 <g key={ratio}>
                   <path id={`rm-lane-${i}`} d={GEO.lane(ratio)} fill="none" />
 
                   <text
                     fontFamily={MONO}
-                    fontSize={fontSize}
-                    letterSpacing={spacing}
+                    fontSize={BINARY_SIZE}
+                    letterSpacing={BINARY_SPACING}
                     fill={C.ice}
                     opacity={opacity}
                   >
@@ -1444,25 +1457,8 @@ export default function RoadmapSection({
                     </textPath>
                   </text>
                 </g>
-              ),
-            )}
-
-            {/* BÜYÜK BINARY */}
-
-            {GEO.digits.map((digit, i) => (
-              <text
-                key={i}
-                x={digit.x}
-                y={digit.y}
-                textAnchor="middle"
-                fontFamily={MONO}
-                fontSize={digit.fontSize}
-                fill={C.ice}
-                opacity=".68"
-              >
-                {digit.char}
-              </text>
-            ))}
+              ))}
+            </g>
           </g>
 
           {/* DERE KENARLARI */}
@@ -1482,60 +1478,6 @@ export default function RoadmapSection({
             strokeWidth="1"
             opacity=".3"
           />
-
-          {/* CHIP */}
-
-          <g className="rm-pulse">
-            <polygon
-              points="1005,780 1065,812 1005,845 945,812"
-              fill={C.gold}
-              opacity=".3"
-              filter="url(#rm-soft)"
-            />
-
-            <polygon
-              points="1005,784 1060,812 1005,840 950,812"
-              fill="#0a2446"
-              stroke={C.edge}
-              strokeWidth="1.5"
-            />
-
-            <polygon
-              points="1005,796 1036,812 1005,828 974,812"
-              fill={C.gold}
-              opacity=".55"
-            />
-
-            <path
-              d="M1062 830 L1110 830 L1135 818 L1185 818"
-              fill="none"
-              stroke={C.gold}
-              strokeWidth="1"
-              opacity=".6"
-            />
-
-            {CHIP_DOTS.map(([x, y]) => (
-              <circle
-                key={`${x}-${y}`}
-                cx={x}
-                cy={y}
-                r="2"
-                fill={C.goldLight}
-                opacity=".7"
-              />
-            ))}
-
-            <text
-              x="1003"
-              y="772"
-              textAnchor="middle"
-              fontFamily={MONO}
-              fontSize="16"
-              fill={C.goldLight}
-            >
-              1 0 1
-            </text>
-          </g>
         </svg>
 
         {/* ====================================================
@@ -1545,6 +1487,63 @@ export default function RoadmapSection({
             devam ederek ekranın sağ-alt çıkışına gidiyor.
         ==================================================== */}
 
+        {/* (nehirle aynı katmanda: eğim ve kayma birebir aynı)
+            KIYIDAKİ YETENEKLER — her biri geçilince altın yanıp söner */}
+        {size.w > 0 &&
+          NODES.map((node, i) => {
+            const pos = chipPositions[i];
+            const collected = arrived >= node.number;
+            const Icon = node.icon;
+
+            return (
+              <div
+                key={node.number}
+                ref={(el) => {
+                  cardRefs.current[i] = el;
+                }}
+                className="absolute z-10 w-max"
+                style={{
+                  left: pos.left,
+                  top: pos.top,
+                  transform: "translate(-50%, -50%)",
+                }}
+              >
+                <div
+                  className="flex items-center gap-1.5 rounded-full font-mono"
+                  style={{
+                    padding: "4px 9px 4px 7px",
+                    lineHeight: "15px",
+                    fontSize: chipFont,
+                    letterSpacing: ".02em",
+                    color: collected
+                      ? C.goldLight
+                      : "rgb(var(--c-a8eef6,168,238,246))",
+                    background: "rgba(6,22,46,.72)",
+                    border: `1px solid ${collected ? C.goldLight : "rgba(207,230,255,.28)"}`,
+                    boxShadow: collected
+                      ? `0 0 14px rgba(${C.goldRGB},.8)`
+                      : `0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)`,
+                    opacity: collected ? 0 : 1,
+                    transform: collected
+                      ? "scale(.4) translateY(-14px)"
+                      : "scale(1)",
+                    filter: collected ? "blur(4px) brightness(1.8)" : "none",
+                    transition: collected
+                      ? "opacity 320ms ease-in 140ms, transform 320ms cubic-bezier(.5,0,.8,.4) 140ms, filter 320ms ease-in 140ms, color 120ms, border-color 120ms, box-shadow 120ms"
+                      : "none",
+                  }}
+                >
+                  <Icon
+                    size={portrait ? 11 : 13}
+                    strokeWidth={1.6}
+                    style={{ opacity: 0.85, flexShrink: 0 }}
+                  />
+                  {node.name}
+                </div>
+              </div>
+            );
+          })}
+
         {size.w > 0 &&
           arrived >= 0 &&
           !finished &&
@@ -1553,13 +1552,8 @@ export default function RoadmapSection({
               pos={toPx(pointAt(GEO.middle, avatarIndex))}
               moving={moving}
               facingLeft={facingLeft}
-              collecting={
-                !moving &&
-                !leaving &&
-                arrived === stopIndex &&
-                stopIndex >= 1 &&
-                stopIndex <= NODES.length
-              }
+              facingScreen={facingScreen}
+              collecting={moving && arrived >= 1 && arrived <= NODES.length}
               pickKey={arrived}
             />
           )}
@@ -1597,68 +1591,17 @@ export default function RoadmapSection({
           />
         </div>
 
-        {size.w > 0 &&
-          NODES.map((node, i) => {
-            const pos = nodePositions[i];
-            const collected = arrived >= node.number;
-
-            /* Panel yanınca, panelin altında kalan node'lar söner */
-            const underPanel =
-              panelOn &&
-              (compactPanel ||
-                cardLeft(pos.left, node.side, node.gap) < PANEL_AREA(size.w));
-
-            return (
-              <div
-                key={node.number}
-                ref={(el) => {
-                  cardRefs.current[i] = el;
-                }}
-                className="pointer-events-auto absolute z-10 w-max"
-                style={{
-                  left: pos.left,
-                  top: pos.top,
-                  transform: sideTransform(
-                    node.side,
-                    portrait ? Math.round(node.gap * 0.5) : node.gap,
-                    pos.left,
-                    size.w,
-                  ),
-                  opacity: underPanel ? 0 : 1,
-                  /* görünmez (panelin altında kalmış ya da toplanmış) node'lar
-                     tıklamayı engellemesin: altındaki yetenek etiketleri seçilebilsin */
-                  pointerEvents: collected || underPanel ? "none" : "auto",
-                  transition: "opacity 600ms ease",
-                }}
-              >
-                {/* Yetenek alınınca: kısa bir an altın yanar, sonra
-                    küçülüp bulanıklaşarak ekrandan silinir */}
-                <div
-                  className="hover:scale-105"
-                  style={{
-                    opacity: collected ? 0 : 1,
-                    transform: collected
-                      ? "scale(.3) translateY(18px)"
-                      : "scale(1)",
-                    filter: collected ? "blur(6px) brightness(1.8)" : "none",
-                    pointerEvents: collected ? "none" : undefined,
-                    transition: collected
-                      ? "opacity 260ms ease-in 120ms, transform 260ms cubic-bezier(.5,0,.8,.4) 120ms, filter 260ms ease-in 120ms"
-                      : "transform 300ms",
-                  }}
-                >
-                  <RoadmapNode
-                    nodeNumber={node.number}
-                    icon={node.icon}
-                    title={node.title}
-                    tags={node.tags}
-                    collected={collected}
-                    compact={portrait}
-                  />
-                </div>
-              </div>
-            );
-          })}
+        {showPerch && (
+          <RoadmapPerch
+            instant
+            width={perchW}
+            left={Math.max(
+              PANEL_AREA(size.w),
+              size.w - perchW - size.w * PERCH_RIGHT,
+            )}
+            top={Math.max(40, size.h * PERCH_Y - perchH / 2)}
+          />
+        )}
       </div>
 
       {/* ======================================================
@@ -1706,12 +1649,14 @@ function WalkingAvatar({
   pos,
   moving,
   facingLeft,
+  facingScreen,
   collecting,
   pickKey,
 }: {
   pos: { left: number; top: number };
   moving: boolean;
   facingLeft: boolean;
+  facingScreen: boolean;
   collecting: boolean;
   pickKey: number;
 }) {
@@ -1759,7 +1704,8 @@ function WalkingAvatar({
       <div
         className="absolute inset-0"
         style={{
-          transform: facingLeft ? "scaleX(-1)" : "none",
+          /* hep ileriye (sağa) bakar; nehir sola kıvrılsa da geri dönmez */
+          transform: facingLeft && FLIP_ON_LEFT ? "scaleX(-1)" : "none",
           transition: "transform 220ms",
         }}
       >
@@ -1767,7 +1713,7 @@ function WalkingAvatar({
         <div
           className="absolute"
           style={{
-            right: AV_W * 0.55,
+            right: AV_W * 0.8, // sırtının arkasında
             top: AV_H * 0.3,
             width: 60,
             height: AV_H * 0.6,
@@ -1792,19 +1738,50 @@ function WalkingAvatar({
           ))}
         </div>
 
-        {/* Oturmuş kişi (fotoğraf): eller ve dizler suyun üstünde */}
+        {/* Oturmuş kişi (fotoğraf): kaydırakta kayar gibi eğik — kalçası
+            suda, gövdesi yukarıda, ayakları aşağıda (önde) */}
+        <div
+          className="absolute inset-0"
+          style={{
+            /* ekrana dönerken yan poz daralarak söner (dönüyormuş gibi) */
+            transform: `rotate(${SLIDE_TILT}deg) scaleX(${facingScreen ? 0.35 : 1})`,
+            transformOrigin: `${SEAT_X * 100}% 100%`,
+            opacity: facingScreen ? 0 : 1,
+            transition: "transform 320ms ease, opacity 260ms ease",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={SIT_SRC}
+            alt=""
+            draggable={false}
+            className="absolute left-0 max-w-none"
+            style={{
+              width: AV_W,
+              height: AV_H,
+              top: AV_H * (1 - SIT_LEDGE),
+              transformOrigin: `${SEAT_X * 100}% ${SIT_LEDGE * 100}%`,
+              animation: "rmAvBob .9s ease-in-out infinite",
+            }}
+          />
+        </div>
+
+        {/* EKRANA DÖNÜK POZ — yandan pozdan genişleyerek belirir */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={SIT_SRC}
+          src={FRONT_SRC}
           alt=""
           draggable={false}
-          className="absolute left-0 max-w-none"
+          className="absolute max-w-none"
           style={{
-            width: AV_W,
-            height: AV_H,
-            top: AV_H * (1 - SIT_LEDGE),
-            transformOrigin: `50% ${SIT_LEDGE * 100}%`,
-            animation: "rmAvBob .9s ease-in-out infinite",
+            width: FRONT_W,
+            height: FRONT_H,
+            left: AV_W * SEAT_X - FRONT_W / 2,
+            top: AV_H - FRONT_H * FRONT_LEDGE,
+            transformOrigin: `50% ${FRONT_LEDGE * 100}%`,
+            transform: `scaleX(${facingScreen ? 1 : 0.35})`,
+            opacity: facingScreen ? 1 : 0,
+            transition: "transform 320ms ease, opacity 260ms ease",
           }}
         />
       </div>

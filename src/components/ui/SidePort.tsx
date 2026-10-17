@@ -117,11 +117,15 @@ export default function SidePort({
     );
   }
 
-  // AUDIO PORT — renkler GlowConnector ile aynı (gövde #1e3454–#3d6290,
-  // ışık 200,235,255 / #f4f8fd). Üst silindir sabit; fiş takılınca SADECE alt gövde
+  // AUDIO PORT — renkler GlowConnector ile AYNI DEĞİŞKENLERDEN gelir
+  // (data-part="connector": palet konnektörle aynı ışık rengini verir,
+  // ör. abyss'te kırık beyaz). Üst silindir sabit; fiş takılınca SADECE alt gövde
   // sola oynar (yukarı kalkmaz) ve delikten TEK bir ışık hüzmesi hedefe uzanır
   return (
-    <div className="relative flex justify-start overflow-visible">
+    <div
+      data-part="connector"
+      className="relative flex justify-start overflow-visible"
+    >
       <Socket>
         <div className="relative z-10 flex flex-col items-center">
           {/* 1. Üst Mavi Silindir Parça — SABİT (panele bağlı kısım) */}
@@ -129,10 +133,10 @@ export default function SidePort({
             className="z-30 -mb-px h-3 w-6 rounded-t-xs transition-all duration-700"
             style={{
               background: lit
-                ? "linear-gradient(90deg, #1e3454 0%, #f4f8fd 50%, #1e3454 100%)"
-                : "linear-gradient(90deg, #1b2e4a 0%, #3d6290 50%, #192b46 100%)",
+                ? "linear-gradient(90deg, rgb(var(--c-1e3454,30,52,84)) 0%, rgb(var(--c-f4f8fd,244,248,253)) 50%, rgb(var(--c-1e3454,30,52,84)) 100%)"
+                : "linear-gradient(90deg, rgb(var(--c-1b2e4a,27,46,74)) 0%, rgb(var(--c-3d6290,61,98,144)) 50%, rgb(var(--c-192b46,25,43,70)) 100%)",
               boxShadow: lit
-                ? "0 0 12px rgba(200,235,255,0.9), inset 0 1px 1px rgba(255,255,255,0.8)"
+                ? "0 0 8px rgba(var(--c-c8ebff,200,235,255),0.45), inset 0 1px 1px rgba(var(--c-f5fbff,255,255,255),0.6)"
                 : "inset 0 1px 1px rgba(255,255,255,0.4)",
             }}
           />
@@ -153,16 +157,16 @@ export default function SidePort({
               className="relative flex h-12 w-11 items-center justify-center rounded-xs transition-all duration-700"
               style={{
                 background: lit
-                  ? "linear-gradient(105deg, #3d6290 0%, #253f64 50%, #1b2f4c 100%)"
-                  : "linear-gradient(105deg, #2d4c74 0%, #213958 45%, #192b46 100%)",
+                  ? "linear-gradient(105deg, rgb(var(--c-3d6290,61,98,144)) 0%, rgb(var(--c-253f64,37,63,100)) 50%, rgb(var(--c-1b2f4c,27,47,76)) 100%)"
+                  : "linear-gradient(105deg, rgb(var(--c-2d4c74,45,76,116)) 0%, rgb(var(--c-213958,33,57,88)) 45%, rgb(var(--c-192b46,25,43,70)) 100%)",
                 border: lit
-                  ? "1px solid rgba(200, 235, 255, 0.85)"
-                  : "1px solid rgba(200, 235, 255, 0.45)",
+                  ? "1px solid rgba(var(--c-c8ebff,200,235,255),0.6)"
+                  : "1px solid rgba(var(--c-c8ebff,200,235,255),0.45)",
                 boxShadow: lit
                   ? `
-                    inset 1px 1px 3px rgba(255,255,255,0.6),
+                    inset 1px 1px 3px rgba(var(--c-f5fbff,255,255,255),0.45),
                     inset -2px -2px 4px rgba(0,0,0,0.5),
-                    0 0 14px 3px rgba(200,235,255,0.6)
+                    0 0 10px 2px rgba(var(--c-c8ebff,200,235,255),0.3)
                   `
                   : `
                     inset 1px 1px 2px rgba(255,255,255,0.4),
@@ -176,11 +180,11 @@ export default function SidePort({
                 className="relative flex size-6 items-center justify-center rounded-full"
                 style={{
                   background: lit
-                    ? "linear-gradient(135deg, #f4f8fd 0%, #33557e 100%)"
-                    : "linear-gradient(135deg, #3d6290 0%, #1b2e4a 100%)",
+                    ? "linear-gradient(135deg, rgb(var(--c-f4f8fd,244,248,253)) 0%, rgb(var(--c-33557e,51,85,126)) 100%)"
+                    : "linear-gradient(135deg, rgb(var(--c-3d6290,61,98,144)) 0%, rgb(var(--c-1b2e4a,27,46,74)) 100%)",
                   border: "1px solid rgba(255,255,255,0.5)",
                   boxShadow: lit
-                    ? "0 0 10px rgba(200,235,255,0.9), 0 1px 3px rgba(0,0,0,0.5)"
+                    ? "0 0 7px rgba(var(--c-c8ebff,200,235,255),0.45), 0 1px 3px rgba(0,0,0,0.5)"
                     : "0 1px 3px rgba(0,0,0,0.5)",
                 }}
               >
@@ -188,7 +192,7 @@ export default function SidePort({
                 <div
                   className="relative flex size-3.5 items-center justify-center rounded-full"
                   style={{
-                    background: "#122034",
+                    background: "rgb(var(--c-122034,18,32,52))",
                     boxShadow: "inset 0 0 4px #000",
                   }}
                 >
@@ -197,9 +201,9 @@ export default function SidePort({
                       className="absolute inset-0 rounded-full"
                       style={{
                         background:
-                          "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(200,235,255,0.9) 60%, transparent 100%)",
+                          "radial-gradient(circle, rgb(var(--pin-light,255,255,255)) 0%, rgba(var(--c-c8ebff,200,235,255),0.8) 60%, transparent 100%)",
                         boxShadow:
-                          "0 0 12px #ffffff, 0 0 20px rgba(200,235,255,0.9)",
+                          "0 0 8px rgba(var(--pin-light,255,255,255),0.7), 0 0 14px rgba(var(--c-c8ebff,200,235,255),0.45)",
                       }}
                     />
                   )}
@@ -207,13 +211,13 @@ export default function SidePort({
               </div>
 
               {/* Alt Çentikler */}
-              <div className="absolute bottom-1 left-1.5 size-1 rounded-xs bg-[#122034]" />
-              <div className="absolute right-1.5 bottom-1 size-1 rounded-xs bg-[#122034]" />
+              <div className="absolute bottom-1 left-1.5 size-1 rounded-xs bg-[rgb(var(--c-122034,18,32,52))]" />
+              <div className="absolute right-1.5 bottom-1 size-1 rounded-xs bg-[rgb(var(--c-122034,18,32,52))]" />
             </div>
 
             {/* 3. TEK ışık hüzmesi — gövdenin ALT UCUNDAN (üstten 47px) çıkar,
                 hedefe doğru döner.
-                GlowConnector ışığıyla aynı: beyazdan çok açık maviye. */}
+                GlowConnector ışığıyla AYNI değişkenler ve yoğunluk. */}
             <div
               className="pointer-events-none absolute top-12 left-1/2"
               style={{
@@ -223,7 +227,7 @@ export default function SidePort({
                 transformOrigin: "50% 0%",
                 transform: `rotate(${beamAngle}deg)`,
                 background:
-                  "linear-gradient(180deg, rgba(215, 238, 255, 0.5) 0%, rgba(190, 225, 250, 0.22) 22%, rgba(180, 220, 250, 0.07) 62%, transparent 100%)",
+                  "linear-gradient(180deg, rgba(var(--c-d7eeff,215,238,255),0.3) 0%, rgba(var(--c-bee1fa,190,225,250),0.13) 22%, rgba(var(--c-b4dcfa,180,220,250),0.04) 62%, transparent 100%)",
                 /* ışık gövdenin alt kenarının ORTA NOKTASINDAN çıkar (tek nokta);
                    hangi açıya dönerse dönsün başlangıç aynı noktada kalır */
                 clipPath: `polygon(${50 - (6 / beamWidth) * 100}% 0, ${50 + (6 / beamWidth) * 100}% 0, 100% 100%, 0 100%)`,

@@ -2,7 +2,15 @@
 
 import { Fragment, type CSSProperties } from "react";
 
-import { CHIP } from "./ChipLayout";
+import {
+  CHIP,
+  chipLead,
+  chipThick,
+  pinSpan,
+  PIN_W,
+  PIN_GAP,
+  PIN_LEN,
+} from "./ChipLayout";
 
 type CSSVars = CSSProperties & Record<`--${string}`, string | number>;
 
@@ -36,46 +44,24 @@ const ICE_LIGHT = "var(--c-cfe6ff,207,230,255)"; // buz beyazı yansıma
 const FRAME = "var(--c-0b3058,11,48,88)"; // iç çerçeve
 const GOLD = "var(--c-a9cdf5,169,205,245)"; // pinler: açık buz mavisi
 
-const { thick, lead, innerZ } = CHIP;
+const { innerZ } = CHIP;
 
 /* Çip panelin içine gömülü değil, üstünde kabarık durur: altına gölge düşer.
    Gövde düz (cam değil): mat, opak koyu lacivert yüzey. */
 
 /* =========================================================
-   BAKIR PİNLER — gerçekçi
-
-   - Her bacak ayrı: aralarında koyu boşluk (mask ile gerçekten boş)
-   - Bacağın enine silindirik gölge: koyu kenar → parlak orta çizgi
-   - Boyuna: gövdeye yakın kısım gölgede, uçlar lehimli (açık kalay tonu)
-
+   BAKIR PİNLER — SocialChip'teki pinlerin BİREBİR aynısı
+   Aynı eleman (span), aynı ölçü (2px × 7px, 3px boşluk), aynı renk
+   geçişi ve köşe yuvarlaklığı. Çipin her kenarı boyunca dizilir.
+   Pinin gövde kalınlığından aşağı inen kısmı (etek) aynı adımla çizilir.
    Hiçbir animasyon yok → GPU'yu yormaz.
 ========================================================= */
 
-const PIN_PERIOD = 6; // px: bir bacak + bir boşluk
-const PIN_W = 3.6; // px: bacak kalınlığı
-
-const copperAcross = (dir: string) =>
-  `repeating-linear-gradient(${dir},
-    rgb(var(--c-3a2012,58,32,18)) 0 0.35px,
-    rgb(var(--c-8c5232,140,82,50)) 0.35px 0.9px,
-    rgb(var(--c-b87333,184,115,51)) 0.9px 1.5px,
-    rgb(var(--c-f3d2b6,243,210,182)) 1.5px 1.9px,
-    rgb(var(--c-c8865a,200,134,90)) 1.9px 2.5px,
-    rgb(var(--c-8a4f2c,138,79,44)) 2.5px 3.1px,
-    rgb(var(--c-3a2012,58,32,18)) 3.1px ${PIN_W}px,
-    rgb(var(--c-1b0d06,27,13,6)) ${PIN_W}px ${PIN_PERIOD}px)`;
-
-const copperAlong = (toBody: string) =>
-  `linear-gradient(${toBody},
-    rgb(var(--c-cfd3d6,207,211,214)) 0%,
-    rgb(var(--c-9aa0a6,154,160,166)) 9%,
-    rgb(var(--c-ffffff,255,255,255)) 12%,
-    rgb(var(--c-f2f2f2,242,242,242)) 55%,
-    rgb(var(--c-8f8f8f,143,143,143)) 88%,
-    rgb(var(--c-3c3c3c,60,60,60)) 100%)`;
-
-const pinMask = (dir: string) =>
-  `repeating-linear-gradient(${dir}, rgb(var(--c-000000,0,0,0)) 0 ${PIN_W}px, transparent ${PIN_W}px ${PIN_PERIOD}px)`;
+/** SocialChip PinRow ile aynı bakır renkleri */
+const PIN_ACROSS = (dir: string) =>
+  `linear-gradient(${dir}, rgb(var(--c-6b3a1f,107,58,31)), rgb(var(--c-e2a679,226,166,121)) 45%, rgb(var(--c-b87333,184,115,51)) 60%, rgb(var(--c-5a2f18,90,47,24)))`;
+const PIN_ALONG = (toBody: string) =>
+  `linear-gradient(${toBody}, rgb(var(--c-ffffff,255,255,255)) 0%, rgb(var(--c-dddddd,221,221,221)) 30%, rgb(var(--c-555555,85,85,85)) 100%)`;
 
 const TO_BODY: Record<Side, string> = {
   top: "to bottom",
@@ -84,78 +70,127 @@ const TO_BODY: Record<Side, string> = {
   right: "to left",
 };
 
-const acrossOf = (side: Side) =>
-  side === "top" || side === "bottom" ? "90deg" : "180deg";
-
-function copperLead(side: Side, powered: boolean): CSSProperties {
-  const across = acrossOf(side);
-
-  return {
-    backgroundImage: `${copperAlong(TO_BODY[side])}, ${copperAcross(across)}`,
-    backgroundBlendMode: "multiply",
-    WebkitMaskImage: pinMask(across),
-    maskImage: pinMask(across),
-    filter: powered
-      ? "brightness(1.08) saturate(1.05)"
-      : "brightness(.82) saturate(.85)",
-    transition: "filter 700ms",
-  };
-}
-
-function copperSkirt(side: Side): CSSProperties {
-  const across = acrossOf(side);
-
-  return {
-    backgroundImage: `linear-gradient(${TO_BODY[side]}, rgb(var(--c-777777,119,119,119)) 0%, rgb(var(--c-444444,68,68,68)) 100%), ${copperAcross(across)}`,
-    backgroundBlendMode: "multiply",
-    WebkitMaskImage: pinMask(across),
-    maskImage: pinMask(across),
-  };
-}
+const horizontal = (side: Side) => side === "top" || side === "bottom";
 
 const SIDES: Side[] = ["top", "right", "bottom", "left"];
 
-const LEAD_STYLE: Record<Side, CSSProperties> = {
-  top: { left: "7%", right: "7%", bottom: "100%", height: lead },
-  bottom: { left: "7%", right: "7%", top: "100%", height: lead },
-  left: { top: "7%", bottom: "7%", right: "100%", width: lead },
-  right: { top: "7%", bottom: "7%", left: "100%", width: lead },
-};
+/** Pin sırasının kenardaki yeri (plakaya göre %) */
+function spanEdges() {
+  const { from, to } = pinSpan();
+  return {
+    a: `${(from * 100).toFixed(3)}%`,
+    b: `${((1 - to) * 100).toFixed(3)}%`,
+  };
+}
 
-const SKIRT_STYLE: Record<Side, CSSProperties> = {
-  top: {
-    left: "7%",
-    right: "7%",
-    bottom: "100%",
-    height: thick,
-    transformOrigin: "bottom",
-    transform: "rotateX(90deg)",
-  },
-  bottom: {
-    left: "7%",
-    right: "7%",
-    top: "100%",
-    height: thick,
-    transformOrigin: "top",
-    transform: "rotateX(-90deg)",
-  },
-  left: {
-    top: "7%",
-    bottom: "7%",
-    right: "100%",
-    width: thick,
-    transformOrigin: "right",
-    transform: "rotateY(-90deg)",
-  },
-  right: {
-    top: "7%",
-    bottom: "7%",
-    left: "100%",
-    width: thick,
-    transformOrigin: "left",
-    transform: "rotateY(90deg)",
-  },
-};
+/** Bir kenardaki pin sırası — sosyal PinRow'un aynısı, kenar boyunca */
+function PinRow({
+  side,
+  plate,
+  thick,
+  powered,
+}: {
+  side: Side;
+  plate: number;
+  thick: number;
+  powered: boolean;
+}) {
+  const { from, to } = pinSpan();
+  const len = plate * (to - from);
+  const count = Math.max(1, Math.floor((len + PIN_GAP) / (PIN_W + PIN_GAP)));
+  const { a, b } = spanEdges();
+  const h = horizontal(side);
+  const box: CSSProperties = {
+    top: h ? { left: a, right: b, bottom: "100%", height: PIN_LEN } : {},
+    bottom: h ? { left: a, right: b, top: "100%", height: PIN_LEN } : {},
+    left: !h ? { top: a, bottom: b, right: "100%", width: PIN_LEN } : {},
+    right: !h ? { top: a, bottom: b, left: "100%", width: PIN_LEN } : {},
+  }[side];
+
+  return (
+    <div
+      data-chip-pins
+      style={{
+        position: "absolute",
+        display: "flex",
+        ...box,
+        flexDirection: h ? "row" : "column",
+        gap: PIN_GAP,
+        transform: `translateZ(${-thick}px)`,
+        filter: powered
+          ? "brightness(1.08) saturate(1.05)"
+          : "brightness(.82) saturate(.85)",
+        transition: "filter 700ms",
+      }}
+    >
+      {Array.from({ length: count }, (_, i) => (
+        /* span DEĞİL div: sayfanın açılış (build) CSS'i span'leri
+           gizleyebiliyor — pinler her durumda görünsün */
+        <div
+          key={i}
+          style={{
+            display: "block",
+            flexShrink: 0,
+            width: h ? PIN_W : PIN_LEN,
+            height: h ? PIN_LEN : PIN_W,
+            borderRadius: 0.5,
+            background: `${PIN_ACROSS(h ? "to right" : "to bottom")}, ${PIN_ALONG(TO_BODY[side])}`,
+            backgroundBlendMode: "multiply",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Pinin çip kalınlığı boyunca inen kısmı (etek) — aynı 2px/5px adım */
+function skirtStyle(side: Side, thick: number): CSSProperties {
+  const { a, b } = spanEdges();
+  const across = horizontal(side) ? "90deg" : "180deg";
+  const pitch = PIN_W + PIN_GAP;
+  const mask = `repeating-linear-gradient(${across}, #000 0 ${PIN_W}px, transparent ${PIN_W}px ${pitch}px)`;
+  const look: CSSProperties = {
+    backgroundImage: `linear-gradient(${TO_BODY[side]}, rgb(var(--c-777777,119,119,119)) 0%, rgb(var(--c-444444,68,68,68)) 100%), repeating-linear-gradient(${across}, rgb(var(--c-6b3a1f,107,58,31)) 0, rgb(var(--c-e2a679,226,166,121)) ${PIN_W * 0.45}px, rgb(var(--c-b87333,184,115,51)) ${PIN_W * 0.6}px, rgb(var(--c-5a2f18,90,47,24)) ${PIN_W}px, transparent ${PIN_W}px ${pitch}px)`,
+    backgroundBlendMode: "multiply",
+    WebkitMaskImage: mask,
+    maskImage: mask,
+  };
+  const geo: CSSProperties = {
+    top: {
+      left: a,
+      right: b,
+      bottom: "100%",
+      height: thick,
+      transformOrigin: "bottom",
+      transform: "rotateX(90deg)",
+    },
+    bottom: {
+      left: a,
+      right: b,
+      top: "100%",
+      height: thick,
+      transformOrigin: "top",
+      transform: "rotateX(-90deg)",
+    },
+    left: {
+      top: a,
+      bottom: b,
+      right: "100%",
+      width: thick,
+      transformOrigin: "right",
+      transform: "rotateY(-90deg)",
+    },
+    right: {
+      top: a,
+      bottom: b,
+      left: "100%",
+      width: thick,
+      transformOrigin: "left",
+      transform: "rotateY(90deg)",
+    },
+  }[side];
+  return { ...geo, ...look };
+}
 
 /* Fotoğraf yokken görünen köşe vidaları */
 const CORNER_SCREWS: CSSProperties[] = [
@@ -164,9 +199,6 @@ const CORNER_SCREWS: CSSProperties[] = [
   { left: "5%", bottom: "5%" },
   { right: "5%", bottom: "5%" },
 ];
-
-/* Taban kenarındaki katmanlar (2px'lik) */
-const SLAB_COUNT = thick / 2;
 
 const slabBackground = (photo: boolean, i: number, last: boolean) => {
   if (photo) {
@@ -197,6 +229,11 @@ export default function ChipPlatform({
 }: ChipPlatformProps) {
   const plate = size * CHIP.plateRatio;
   const ringR = plate * CHIP.ringRatio;
+  /* çip boyutuna ORANLI pin ve kalınlık (ekran küçülünce birlikte küçülür) */
+  const lead = chipLead(size);
+  const thick = chipThick(size);
+  /* Taban kenarındaki katmanlar (2px'lik) */
+  const SLAB_COUNT = thick / 2;
 
   /* Kabarık çipin gölgesi: ekranda aşağı kayar */
   const shadowAngle = ((45 + spin) * Math.PI) / 180;
@@ -225,191 +262,191 @@ export default function ChipPlatform({
           height: plate,
           transform: `translate(-50%, -50%) rotateY(${turn}deg) rotateZ(${spin}deg) rotateX(${tilt}deg) rotateZ(45deg)`,
           transformStyle: "preserve-3d",
-          WebkitMaskImage: holeMask,
-          maskImage: holeMask,
         }}
       >
-        {/* Çipin altına düşen gölge */}
-        <div
-          className="absolute rounded-[26px]"
-          style={{
-            inset: -lead * 0.4,
-            transform: `translateZ(${-thick - 6}px) translate(${shadowDx.toFixed(1)}px, ${shadowDy.toFixed(1)}px)`,
-            background: "rgba(var(--c-060c18,6,12,24),0.6)",
-            filter: "blur(24px)",
-          }}
-        />
-
         {SIDES.map((s) => (
           <Fragment key={`lead-${s}`}>
-            <div
-              className="absolute"
-              style={{
-                ...LEAD_STYLE[s],
-                transform: `translateZ(${-thick}px)`,
-                ...copperLead(s, powered),
-              }}
-            />
-
-            <div
-              className="absolute"
-              style={{ ...SKIRT_STYLE[s], ...copperSkirt(s) }}
-            />
+            <PinRow side={s} plate={plate} thick={thick} powered={powered} />
+            <div className="absolute" style={skirtStyle(s, thick)} />
           </Fragment>
         ))}
 
-        {Array.from({ length: SLAB_COUNT }, (_, i) => {
-          const last = i === SLAB_COUNT - 1;
-
-          return (
-            <div
-              key={`slab-${i}`}
-              className="absolute inset-0 rounded-xl"
-              style={{
-                transform: `translateZ(${-(i + 1) * 2}px)`,
-                background: slabBackground(Boolean(photo), i, last),
-                border: `1px solid rgba(${ICE},${photo ? 0.12 : last ? 0.25 : 0.32})`,
-              }}
-            />
-          );
-        })}
-
-        {/* DÜZ ÇİP GÖVDESİ — cam değil: mat, opak KOYU LACİVERT yüzey,
-            ince buzlu beyaz kenar; iç üst ışık + alt gölge ile kabarık */}
+        {/* GÖVDE — ortadaki delik maskesi YALNIZCA burada. Pinler bu
+            kutunun dışına taştığı için maskenin dışında kalmalı; maske
+            tüm kaba uygulanınca pinler tamamen siliniyordu. */}
         <div
-          className="absolute inset-0 overflow-hidden rounded-xl"
+          className="absolute inset-0"
           style={{
-            background: `
+            transformStyle: "preserve-3d",
+            WebkitMaskImage: holeMask,
+            maskImage: holeMask,
+          }}
+        >
+          {/* Çipin altına düşen gölge */}
+          <div
+            className="absolute rounded-[26px]"
+            style={{
+              inset: -lead * 0.4,
+              transform: `translateZ(${-thick - 6}px) translate(${shadowDx.toFixed(1)}px, ${shadowDy.toFixed(1)}px)`,
+              background: "rgba(var(--c-060c18,6,12,24),0.6)",
+              filter: "blur(24px)",
+            }}
+          />
+
+          {Array.from({ length: SLAB_COUNT }, (_, i) => {
+            const last = i === SLAB_COUNT - 1;
+
+            return (
+              <div
+                key={`slab-${i}`}
+                className="absolute inset-0 rounded-xl"
+                style={{
+                  transform: `translateZ(${-(i + 1) * 2}px)`,
+                  background: slabBackground(Boolean(photo), i, last),
+                  border: `1px solid rgba(${ICE},${photo ? 0.12 : last ? 0.25 : 0.32})`,
+                }}
+              />
+            );
+          })}
+
+          {/* DÜZ ÇİP GÖVDESİ — cam değil: mat, opak KOYU LACİVERT yüzey,
+            ince buzlu beyaz kenar; iç üst ışık + alt gölge ile kabarık */}
+          <div
+            className="absolute inset-0 overflow-hidden rounded-xl"
+            style={{
+              background: `
               repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 7px),
               repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 1px, transparent 1px 11px),
               linear-gradient(145deg, rgb(var(--substrate-1,28,34,56)) 0%, rgb(var(--substrate-2,18,23,40)) 60%, rgb(var(--substrate-3,12,16,30)) 100%)
             `,
-            border: `1px solid rgba(${ICE},${powered ? 0.35 : 0.22})`,
-            boxShadow: `inset 0 1px 0 rgba(var(--c-ffffff,255,255,255),0.08), inset 0 -10px 22px rgba(var(--c-000000,0,0,0),0.35), 0 0 ${powered ? 22 : 8}px rgba(${ICE},${powered ? 0.18 : 0.08})`,
-            transition: "box-shadow 700ms, border-color 700ms",
-          }}
-        >
-          {!photo && (
-            <div
-              className="absolute rounded-2xl"
-              style={{
-                inset: "3.5%",
-                border: `1px solid rgba(${ICE_LIGHT},0.28)`,
-              }}
-            />
-          )}
-
-          {!photo &&
-            CORNER_SCREWS.map((pos, i) => (
+              border: `1px solid rgba(${ICE},${powered ? 0.35 : 0.22})`,
+              boxShadow: `inset 0 1px 0 rgba(var(--c-ffffff,255,255,255),0.08), inset 0 -10px 22px rgba(var(--c-000000,0,0,0),0.35), 0 0 ${powered ? 22 : 8}px rgba(${ICE},${powered ? 0.18 : 0.08})`,
+              transition: "box-shadow 700ms, border-color 700ms",
+            }}
+          >
+            {!photo && (
               <div
-                key={i}
-                className="absolute size-3 rounded-full"
+                className="absolute rounded-2xl"
                 style={{
-                  ...pos,
-                  background: "rgba(var(--c-020305,2,3,5),0.8)",
-                  border: `1px solid rgba(${ICE_LIGHT},0.55)`,
-                  boxShadow: "inset 0 2px 3px rgba(var(--c-000000,0,0,0),0.6)",
+                  inset: "3.5%",
+                  border: `1px solid rgba(${ICE_LIGHT},0.28)`,
                 }}
               />
-            ))}
-        </div>
+            )}
 
-        {photo ? (
-          <PhotoDie
-            plate={plate}
-            rotation={45 + spin}
-            photo={photo}
-            position={photoPosition}
-            zoom={photoZoom}
-            tone={photoTone}
-            shift={photoShift}
-            powered={powered}
-            delay={assembleDelay}
-          />
-        ) : (
-          <>
-            {[2, 4].map((z) => (
+            {!photo &&
+              CORNER_SCREWS.map((pos, i) => (
+                <div
+                  key={i}
+                  className="absolute size-3 rounded-full"
+                  style={{
+                    ...pos,
+                    background: "rgba(var(--c-020305,2,3,5),0.8)",
+                    border: `1px solid rgba(${ICE_LIGHT},0.55)`,
+                    boxShadow:
+                      "inset 0 2px 3px rgba(var(--c-000000,0,0,0),0.6)",
+                  }}
+                />
+              ))}
+          </div>
+
+          {photo ? (
+            <PhotoDie
+              plate={plate}
+              rotation={45 + spin}
+              photo={photo}
+              position={photoPosition}
+              zoom={photoZoom}
+              tone={photoTone}
+              shift={photoShift}
+              powered={powered}
+              delay={assembleDelay}
+            />
+          ) : (
+            <>
+              {[2, 4].map((z) => (
+                <div
+                  key={`inner-${z}`}
+                  className="absolute rounded-[14px]"
+                  style={{
+                    inset: "12%",
+                    transform: `translateZ(${z}px)`,
+                    background: "rgba(var(--c-0a0c10,10,12,16),0.9)",
+                    border: `1px solid rgba(${FRAME},0.6)`,
+                  }}
+                />
+              ))}
+
               <div
-                key={`inner-${z}`}
-                className="absolute rounded-[14px]"
+                className="absolute overflow-hidden rounded-[14px]"
                 style={{
                   inset: "12%",
-                  transform: `translateZ(${z}px)`,
-                  background: "rgba(var(--c-0a0c10,10,12,16),0.9)",
-                  border: `1px solid rgba(${FRAME},0.6)`,
+                  transform: `translateZ(${innerZ}px)`,
+                  background: `radial-gradient(ellipse at 50% 30%, rgba(var(--c-0e1016,14,16,22),0.95), rgba(var(--c-040508,4,5,8),0.97))`,
+                  border: `2px solid rgba(${RIVER_EDGE},0.55)`,
+                  boxShadow: `0 0 12px rgba(${RIVER_EDGE},0.35), inset 0 0 10px rgba(${RIVER_EDGE},0.2), inset 0 1px 0 rgba(var(--c-ffffff,255,255,255),0.4)`,
                 }}
-              />
-            ))}
+              >
+                <div
+                  className="absolute"
+                  style={{
+                    inset: "5%",
+                    backgroundImage: `radial-gradient(circle, rgba(${GOLD},${
+                      powered ? 0.75 : 0.55
+                    }) 1.1px, transparent 1.7px)`,
+                    backgroundSize: "8px 8px",
+                    WebkitMaskImage:
+                      "radial-gradient(circle, transparent 47%, black 49%, black 70%, rgba(var(--c-000000,0,0,0),0.5) 100%)",
+                    maskImage:
+                      "radial-gradient(circle, transparent 47%, black 49%, black 70%, rgba(var(--c-000000,0,0,0),0.5) 100%)",
+                    transition: "background-image 700ms",
+                  }}
+                />
+              </div>
 
-            <div
-              className="absolute overflow-hidden rounded-[14px]"
-              style={{
-                inset: "12%",
-                transform: `translateZ(${innerZ}px)`,
-                background: `radial-gradient(ellipse at 50% 30%, rgba(var(--c-0e1016,14,16,22),0.95), rgba(var(--c-040508,4,5,8),0.97))`,
-                border: `2px solid rgba(${RIVER_EDGE},0.55)`,
-                boxShadow: `0 0 12px rgba(${RIVER_EDGE},0.35), inset 0 0 10px rgba(${RIVER_EDGE},0.2), inset 0 1px 0 rgba(var(--c-ffffff,255,255,255),0.4)`,
-              }}
-            >
               <div
-                className="absolute"
+                className="absolute top-1/2 left-1/2 rounded-full"
                 style={{
-                  inset: "5%",
-                  backgroundImage: `radial-gradient(circle, rgba(${GOLD},${
-                    powered ? 0.75 : 0.55
-                  }) 1.1px, transparent 1.7px)`,
-                  backgroundSize: "8px 8px",
-                  WebkitMaskImage:
-                    "radial-gradient(circle, transparent 47%, black 49%, black 70%, rgba(var(--c-000000,0,0,0),0.5) 100%)",
-                  maskImage:
-                    "radial-gradient(circle, transparent 47%, black 49%, black 70%, rgba(var(--c-000000,0,0,0),0.5) 100%)",
-                  transition: "background-image 700ms",
+                  width: (ringR + 16) * 2,
+                  height: (ringR + 16) * 2,
+                  transform: `translate(-50%,-50%) translateZ(${innerZ + 0.5}px)`,
+                  border: `1px solid rgba(${ICE},0.45)`,
                 }}
               />
-            </div>
 
-            <div
-              className="absolute top-1/2 left-1/2 rounded-full"
-              style={{
-                width: (ringR + 16) * 2,
-                height: (ringR + 16) * 2,
-                transform: `translate(-50%,-50%) translateZ(${innerZ + 0.5}px)`,
-                border: `1px solid rgba(${ICE},0.45)`,
-              }}
-            />
+              <div
+                className="absolute top-1/2 left-1/2 rounded-full"
+                style={{
+                  width: (ringR + 7) * 2,
+                  height: (ringR + 7) * 2,
+                  transform: `translate(-50%,-50%) translateZ(${innerZ + 1}px)`,
+                  border: `7px solid rgba(${RIVER_EDGE},${powered ? 0.75 : 0.5})`,
+                  boxShadow: powered
+                    ? `0 0 26px rgba(${ICE},0.9), inset 0 0 14px rgba(${ICE_LIGHT},0.7)`
+                    : `0 0 12px rgba(${ICE},0.5), inset 0 0 8px rgba(${ICE},0.4)`,
+                  transition: "box-shadow 700ms, border-color 700ms",
+                }}
+              />
 
-            <div
-              className="absolute top-1/2 left-1/2 rounded-full"
-              style={{
-                width: (ringR + 7) * 2,
-                height: (ringR + 7) * 2,
-                transform: `translate(-50%,-50%) translateZ(${innerZ + 1}px)`,
-                border: `7px solid rgba(${RIVER_EDGE},${powered ? 0.75 : 0.5})`,
-                boxShadow: powered
-                  ? `0 0 26px rgba(${ICE},0.9), inset 0 0 14px rgba(${ICE_LIGHT},0.7)`
-                  : `0 0 12px rgba(${ICE},0.5), inset 0 0 8px rgba(${ICE},0.4)`,
-                transition: "box-shadow 700ms, border-color 700ms",
-              }}
-            />
-
-            <div
-              className="absolute top-1/2 left-1/2 rounded-full"
-              style={{
-                width: ringR * 2,
-                height: ringR * 2,
-                transform: `translate(-50%,-50%) translateZ(${innerZ + 0.5}px)`,
-                background: `
+              <div
+                className="absolute top-1/2 left-1/2 rounded-full"
+                style={{
+                  width: ringR * 2,
+                  height: ringR * 2,
+                  transform: `translate(-50%,-50%) translateZ(${innerZ + 0.5}px)`,
+                  background: `
                   radial-gradient(circle at 50% 50%,
                     rgba(${ICE},${powered ? 0.35 : 0.18}) 0%,
                     rgba(var(--c-0a0c10,10,12,16),0.92) 55%,
                     rgba(var(--c-020305,2,3,5),0.95) 100%)
                 `,
-                boxShadow: "inset 0 0 22px rgba(var(--c-000000,0,0,0),0.8)",
-                transition: "background 700ms",
-              }}
-            />
-          </>
-        )}
+                  boxShadow: "inset 0 0 22px rgba(var(--c-000000,0,0,0),0.8)",
+                  transition: "background 700ms",
+                }}
+              />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

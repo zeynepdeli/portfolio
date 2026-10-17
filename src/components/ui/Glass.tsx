@@ -10,7 +10,7 @@ import type { CSSProperties } from "react";
 /** Cam kalınlığının rengi (canlı camgöbeği / teal) */
 export const GLASS_EDGE = "215,226,240"; // buzlu beyaz (tozlu mavi paleti; aktif vurgu GLASS_EDGE_GOLD)
 /** Aktif durum için daha parlak altın cam kenarı */
-export const GLASS_EDGE_GOLD = "90,143,208";
+export const GLASS_EDGE_GOLD = "var(--glass-gold,90,143,208)";
 
 /** true: İNCE CAM — kalınlık bandı, alttan/yanlardan yayılan renkli
  *  parlama ve iç renkli ışık sızması yok. Sadece üst kenar yansıması,
@@ -120,22 +120,33 @@ export function glassSpecular(
             speküler parlama yok (footer'daki kasa parçaları gibi)
    "glass": önceki cam görünüm
 ===================================================== */
-export const UI_STYLE: "metal" | "glass" = "metal";
+export const UI_STYLE: "metal" | "glass" = "glass";
 
-/** Fırçalanmış lacivert metal yüzey */
+/** Fırçalanmış metal yüzey.
+ *  Renkler panel çerçevesiyle AYNI palet değişkenlerinden gelir; böylece
+ *  menü ve sosyal butonlar seçili paletin tonunu alır (palet yoksa eski
+ *  lacivert metal birebir). `light` > 0 açar, < 0 koyulaştırır. */
 export function metalSurface(light = 0): string {
-  const c = (r: number, g: number, b: number) =>
-    `rgb(${r + light},${g + light},${b + light})`;
+  const c = (v: string, fb: string) => {
+    const base = `rgb(var(${v},${fb}))`;
+    if (!light) return base;
+    const pct = Math.min(100, Math.abs(light) / 2.55).toFixed(1);
+    return `color-mix(in srgb, ${base}, ${light > 0 ? "white" : "black"} ${pct}%)`;
+  };
   return `
     repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px),
-    linear-gradient(180deg, ${c(18, 61, 110)} 0%, ${c(10, 40, 80)} 50%, ${c(6, 26, 56)} 100%)
+    linear-gradient(180deg, ${c("--c-123d6e", "18,61,110")} 0%, ${c("--c-0a2850", "10,40,80")} 50%, ${c("--c-061a38", "6,26,56")} 100%)
   `;
 }
 
 /** Metal gövde gölgesi: üstte ince ışık, altta koyu kenar, altına düşen gölge */
-export function metalShadow({ lit = false, glow = "79,216,255" } = {}): string {
+export function metalShadow({
+  lit = false,
+  /* palet değişkeninden gelir; paletsiz klasik görünümde eski camgöbeği */
+  glow = "var(--c-4fd8ff,79,216,255)",
+} = {}): string {
   return [
-    "inset 0 1px 0 rgba(207,230,255,0.35)",
+    "inset 0 1px 0 rgba(var(--c-cfe6ff,207,230,255),0.35)",
     "inset 0 -2px 0 rgba(0,0,0,0.4)",
     "0 10px 22px rgba(0,0,0,0.45)",
     ...(lit ? [`0 0 16px rgba(${glow},0.35)`] : []),

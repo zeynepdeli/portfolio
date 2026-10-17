@@ -139,8 +139,8 @@ export default function TypewriterText({
         /* Tozlu mavi zeminde beyaz metin + buzlu hale (renk prop ile değişir) */
         color,
         textShadow: `
-          0 0 6px rgba(79,216,255,0.45),
-          0 0 16px rgba(79,216,255,0.22)
+          0 0 6px rgba(var(--c-4fd8ff,79,216,255),0.45),
+          0 0 16px rgba(var(--c-4fd8ff,79,216,255),0.22)
         `,
         whiteSpace: "pre",
       }}
@@ -156,8 +156,8 @@ export default function TypewriterText({
               : view.state[i] === 1
                 ? {
                     /* çözülen harf: açık buz, hafif parlak */
-                    color: "#e1f8ff",
-                    textShadow: "0 0 8px rgba(110,245,232,.9)",
+                    color: "rgb(var(--c-e1f8ff,225,248,255))",
+                    textShadow: "0 0 8px rgba(var(--c-6ef5e8,110,245,232),.9)",
                   }
                 : undefined
           }
@@ -169,10 +169,10 @@ export default function TypewriterText({
       <span
         className={`ml-0.5 inline-block font-bold ${view.done ? "animate-pulse" : ""}`}
         style={{
-          color: "#6ef5e8",
+          color: "rgb(var(--c-6ef5e8,110,245,232))",
           textShadow: `
-            0 0 8px rgba(79,216,255,0.9),
-            0 0 16px rgba(79,216,255,0.5)
+            0 0 8px rgba(var(--c-4fd8ff,79,216,255),0.9),
+            0 0 16px rgba(var(--c-4fd8ff,79,216,255),0.5)
           `,
         }}
       >

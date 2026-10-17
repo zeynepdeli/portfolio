@@ -81,7 +81,7 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
               width: "380px",
 
               background:
-                "linear-gradient(90deg, rgba(var(--c-d7eeff,215,238,255),0.4) 0%, rgba(var(--c-bee1fa,190,225,250),0.17) 30%, rgba(var(--c-b4dcfa,180,220,250),0.05) 65%, transparent 100%)",
+                "linear-gradient(90deg, rgba(var(--c-d7eeff,215,238,255),0.24) 0%, rgba(var(--c-bee1fa,190,225,250),0.1) 30%, rgba(var(--c-b4dcfa,180,220,250),0.03) 65%, transparent 100%)",
 
               clipPath: "polygon(0 0, 100% 15%, 100% 85%, 0 100%)",
 
@@ -100,7 +100,7 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
               width: "250px",
 
               background:
-                "linear-gradient(90deg, rgba(var(--c-d7eeff,215,238,255),0.5), rgba(var(--c-bee1fa,190,225,250),0.22), transparent)",
+                "linear-gradient(90deg, rgba(var(--c-d7eeff,215,238,255),0.28), rgba(var(--c-bee1fa,190,225,250),0.12), transparent)",
 
               clipPath: "polygon(0 0, 100% 25%, 100% 75%, 0 100%)",
 
@@ -119,7 +119,7 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
               width: "70px",
 
               background:
-                "radial-gradient(ellipse at left, rgba(var(--c-d7eeff,215,238,255),0.35), rgba(var(--c-bee1fa,190,225,250),0.2) 40%, transparent 80%)",
+                "radial-gradient(ellipse at left, rgba(var(--c-d7eeff,215,238,255),0.2), rgba(var(--c-bee1fa,190,225,250),0.1) 40%, transparent 80%)",
 
               filter: "blur(10px)",
             }}
@@ -135,9 +135,9 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
         style={{
           filter: lit
             ? `
-              brightness(1.25)
-              saturate(1.2)
-              ${SHOW_BEAMS ? "drop-shadow(0 0 14px rgba(var(--c-c8ebff,200,235,255),0.7))" : ""}
+              brightness(1.08)
+              saturate(1.05)
+              ${SHOW_BEAMS ? "drop-shadow(0 0 10px rgba(var(--c-c8ebff,200,235,255),0.35))" : ""}
             `
             : `
               brightness(0.95)
@@ -173,7 +173,7 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
               `,
 
             border: lit
-              ? "1px solid rgba(var(--c-c8ebff,200,235,255),0.85)"
+              ? "1px solid rgba(var(--c-c8ebff,200,235,255),0.6)"
               : "1px solid rgba(var(--c-c8ebff,200,235,255),0.45)",
 
             boxShadow: lit
@@ -201,9 +201,9 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
                 linear-gradient(
                   105deg,
                   transparent 0%,
-                  rgba(var(--c-ffffff,255,255,255),0.14) 30%,
+                  rgba(var(--c-ffffff,255,255,255),0.1) 30%,
                   transparent 45%,
-                  rgba(var(--c-c8ebff,200,235,255),0.2) 80%,
+                  rgba(var(--c-c8ebff,200,235,255),0.12) 80%,
                   transparent 100%
                 )
               `
@@ -300,7 +300,7 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
                     ? `
                       linear-gradient(
                         90deg,
-                        rgb(var(--c-ffffff,255,255,255)) 0%,
+                        rgb(var(--pin-light,var(--c-f4f8fd,244,248,253))) 0%,
                         rgb(var(--c-f4f8fd,244,248,253)) 35%,
                         rgb(var(--c-d7e2f0,215,226,240)) 70%,
                         rgb(var(--c-253f64,37,63,100)) 100%
@@ -317,9 +317,9 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
 
                   boxShadow: lit
                     ? `
-                      0 0 5px rgb(var(--c-f4f8fd,244,248,253)),
-                      0 0 9px rgba(var(--c-c8ebff,200,235,255),0.9),
-                      0 0 14px rgba(var(--c-c8ebff,200,235,255),0.6)
+                      0 0 4px rgba(var(--c-f4f8fd,244,248,253),0.7),
+                      0 0 8px rgba(var(--c-c8ebff,200,235,255),0.45),
+                      0 0 12px rgba(var(--c-c8ebff,200,235,255),0.25)
                     `
                     : `
                       0 0 2px rgba(var(--c-c8ebff,200,235,255),0.3)
@@ -348,8 +348,8 @@ export default function GlowConnector({ lit = false }: GlowConnectorProps) {
             transform: "translateY(-50%)",
             background: "rgba(var(--c-0e1828,14,24,40),0.96)",
             borderTop: "1px solid rgba(var(--c-000000,0,0,0),0.7)",
-            borderBottom: `1px solid rgba(${lit ? "245,251,255,0.45" : "200,235,255,0.3"})`,
-            borderRight: `1px solid rgba(${lit ? "200,235,255,0.85" : "200,235,255,0.45"})`,
+            borderBottom: `1px solid rgba(${lit ? "var(--c-f5fbff,245,251,255),0.45" : "var(--c-c8ebff,200,235,255),0.3"})`,
+            borderRight: `1px solid rgba(${lit ? "var(--c-c8ebff,200,235,255),0.6" : "var(--c-c8ebff,200,235,255),0.45"})`,
             borderRadius: "0 2px 2px 0",
             boxShadow: "inset 2px 0 4px rgba(var(--c-000000,0,0,0),0.8)",
             transition: "border-color 700ms",

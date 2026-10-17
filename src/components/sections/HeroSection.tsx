@@ -19,8 +19,9 @@ import { POWER_LIGHT_MS, POWER_FADE_MS } from "@/components/ui/GlowConnector";
 import ChipPlatform from "@/components/ui/ChipPlatform";
 import CircuitTraces from "@/components/ui/CircuitTraces";
 import PortraitMorph from "@/components/ui/PortraitMorph";
-import { POWER_BUILD_CSS } from "@/components/ui/Poweronbuild";
-import CinematicIntro from "@/components/ui/Cinematicintro";
+import WaveVideo from "@/components/ui/WavevVideo";
+import { POWER_BUILD_CSS } from "@/components/ui/PowerOnBuild";
+import CinematicIntro from "@/components/ui/CinematicIntro";
 import SiteAvatar, { type AvatarEvent } from "@/components/ui/SiteAvatar";
 import {
   useViewport,
@@ -31,7 +32,13 @@ import {
   designScale,
   type Pt,
 } from "@/components/ui/ChipLayout";
-import { FaLinkedin, FaGithub, FaInstagram } from "react-icons/fa";
+import { FaLinkedin, FaGithub, FaInstagram, FaWhatsapp } from "react-icons/fa";
+import {
+  GITHUB,
+  INSTAGRAM,
+  LINKEDIN,
+  WHATSAPP,
+} from "@/components/ui/SocialLinks";
 import TypewriterText from "../ui/TypeWriter";
 import { IntroStyles, intro, T } from "@/components/ui/Intro";
 import SciFiBackground from "../ui/ScifiBackground";
@@ -42,6 +49,9 @@ type HeroSectionProps = {
   /** true: giriş animasyonu oynamaz, bitmiş hal sabit görünür.
    *  Adres "?final=1" ile açılınca (Header'daki HOME) da otomatik açılır. */
   finished?: boolean;
+  /** true: üstteki sokette fiş TAKILI çizilir. Avatar sayfadan çıkıp
+   *  gizlenince (sayfa geçişi) fiş sokette kalmaya devam etsin diye. */
+  plugged?: boolean;
 };
 
 type ChipLayoutResult = ReturnType<typeof computeChipLayout>;
@@ -52,13 +62,30 @@ type ChipLayoutResult = ReturnType<typeof computeChipLayout>;
 const MENU_RIGHT = 322;
 const PANEL_TOP_STACK = 26;
 const PORT_MAX_ROT = 20;
-const TEXT_SHIFT_X = 60;
+/** Yazı bloğunun menü–çip arası ortadan kayması (px, menü ölçeğiyle).
+ *  Negatif → sola. */
+const TEXT_SHIFT_X = -40;
 
-const SUBTITLE_LINES = [
-  ">>> CREATIVE AI ARCHITECT",
-  "DIGITAL DEVELOPER",
-  "SYSTEMS DESIGNER",
-];
+/** İsim (başlık) fontu: layout.tsx'teki --font-display (Chakra Petch);
+ *  yüklenemezse eski mono font */
+const NAME_FONT: CSSProperties = {
+  fontFamily: "var(--font-display), var(--font-geist-mono), monospace",
+  fontWeight: 700,
+  letterSpacing: "0.06em",
+};
+
+/* =========================================================
+   METİNLER — isim ve unvanlar tek yerden değişir
+========================================================= */
+const NAME = "ZEYNEP DELİ";
+const ROLE = "FULL STACK DEVELOPER";
+/** Teknolojiler: istediğin gibi ekle / çıkar */
+const STACK = ["REACT", "REACT NATIVE", "NEXT.JS", "NODE.JS", "TYPESCRIPT"];
+
+/** Dar yerde alt alta yazılan satırlar */
+const SUBTITLE_LINES = [`>>> ${ROLE}`, STACK.join(" · ")];
+/** Geniş yerde tek satır */
+const SUBTITLE_ONE_LINE = `>>> ${ROLE} | ${STACK.join(" | ")}`;
 
 const CHIP_TILT = 0;
 const CHIP_SPIN = -8;
@@ -66,21 +93,35 @@ const CHIP_TURN = 0;
 
 /** Kişi fotoğrafı artık çipin içinde (4 parçalı mozaik).
  *  Kadraj: yüz karoların birleştiği merkeze gelecek şekilde ayarla. */
-const PROFILE_PHOTO = "/images/PROFİLE.png";
+/* PORTRE = EL SALLAYAN KİŞİ (arka planı şeffaf)
+   Sayfa ilk açılıp portreye ilk ışık tutulduğunda video BİR KEZ oynar (el sallar),
+   sonra son karede durur. Video oynamazken aynı karelerin PNG'si gösterilir
+   (üzerine gelince parçacık etkisi bu PNG ile çalışır).
+   Dosyalar: public/videos/zeynep-wave.mp4, public/images/zeynep-wave-*.png */
+const WAVE_VIDEO = "/videos/zeynep-wave.mp4";
+const WAVE_START = "/images/zeynep-wave-start.png"; // videonun ilk karesi
+const WAVE_END = "/images/zeynep-wave-end.png"; // videonun son karesi
+/** video karesi portreden geniştir (kol yana açılınca taşmasın diye):
+    genişlik / yükseklik. Sol kenarı ve boyu portreyle birebir aynı. */
+const WAVE_ASPECT = 840 / 720;
 const PHOTO_POSITION = "50% 18%";
 const PORTRAIT_ASPECT = 3 / 4;
-const PORTRAIT_NUDGE = { x: 0, y: 0 };
+/** Portrenin halka merkezine göre kayması (çip boyuna oran).
+ *  x < 0 → sola. Alt kenar her zaman halkanın alt kenarında kalır. */
+const PORTRAIT_NUDGE = { x: -0.06, y: 0 };
+/** Portre boyu bu halka oranına göre hesaplanır (halka genişlese de
+ *  portre aynı boyda kalsın diye orta daireden bağımsız) */
+const PORTRAIT_RING_RATIO = 0.215;
 const PORTRAIT_IN_RING = 2.1;
-const PORTRAIT_EDGE = 0.36;
 
-const STACK_CHIP_DROP = 0.07;
+const STACK_CHIP_DROP = 0.02; // mobilde çip yazının hemen altından başlar → daha büyük
 const CHIP_BACK_OPACITY = 0.55;
 
 /** Avatar bir sebeple gelmezse (video yüklenmedi vb.) giriş yine de
  *  tamamlansın diye en geç bu süre sonra her şey açılır (ms) */
 const AVATAR_FALLBACK_MS = 16000;
-const SOCIAL_COUNT = 3;
-const SOCIAL_W = 580;
+const SOCIAL_COUNT = 4;
+const SOCIAL_W = 710; // 4 çip (WhatsApp eklendi)
 const CAMERA_OUT_MS = 2200;
 
 const ALL_SHOWN: boolean[] = Array<boolean>(SOCIAL_COUNT).fill(true);
@@ -106,51 +147,74 @@ const rad = (d: number) => (d * Math.PI) / 180;
 type PortBox = { x: number; y: number; h: number } | null;
 type SpotTarget = { x: number; y: number; spread: number };
 
-/** SidePort'un dönüşü + ışık hüzmesinin açısı/uzunluğu */
-function computeSpot(p: PortBox, t: SpotTarget) {
+/** SidePort'un dönüşü + ışık hüzmesinin açısı/uzunluğu.
+ *  maxRot: port gövdesinin en fazla dönüşü (derece)
+ *  follow: hedef açısının ne kadarını gövde döner (gerisini ışık kırar).
+ *  Hedef çok yandaysa gövde ona doğru dönmeli; yoksa ışık gövdenin
+ *  yanından fışkırıyor gibi görünür. */
+function computeSpot(
+  p: PortBox,
+  t: SpotTarget,
+  maxRot = PORT_MAX_ROT,
+  follow = 0.4,
+  overshoot = 1.12,
+) {
   if (!p) return null;
   const pivot = { x: p.x, y: p.y + 17 };
   const aim0 = deg(Math.atan2(-(t.x - pivot.x), t.y - pivot.y));
-  const swing = Math.min(PORT_MAX_ROT, Math.max(-PORT_MAX_ROT, aim0 * 0.4));
+  const swing = Math.min(maxRot, Math.max(-maxRot, aim0 * follow));
   const hole = {
     x: pivot.x - 42 * Math.sin(rad(swing)),
     y: pivot.y + 42 * Math.cos(rad(swing)),
   };
   const aim = deg(Math.atan2(-(t.x - hole.x), t.y - hole.y));
-  const len = Math.hypot(t.x - hole.x, t.y - hole.y) * 1.12;
+  /* overshoot: ışığın hedefin ne kadar ötesine uzandığı */
+  const len = Math.hypot(t.x - hole.x, t.y - hole.y) * overshoot;
   return { swing, beamAngle: aim - swing, len, width: t.spread, t };
 }
 
-/** Portrenin boyutu ve çipin ışık halkasına oturduğu yer */
+/** Portrenin boyutu ve çipin ışık halkasına oturduğu yer.
+ *  Portre HER ZAMAN çipin orta dairesine (ışık halkasına) hizalı:
+ *  yatayda halkanın merkezinde, alt kenarı halkanın alt kenarında.
+ *  Boyu çiple orantılı (çip ölçeği yüksekliğe bağlı → ekran daralınca
+ *  portre kısalmaz). */
 function computePortrait(
   layout: ChipLayoutResult,
-  vw: number,
-  stacked: boolean,
-  textCenter: number,
-  textWidth: number,
+  _vw: number,
+  _stacked: boolean,
+  _textCenter: number,
+  _textWidth: number,
 ) {
   const { panel } = layout;
   const ringR = layout.size * CHIP.plateRatio * CHIP.ringRatio;
-  const footY = layout.cy + ringR * 1.0 + PORTRAIT_NUDGE.y * layout.size;
-  const textEdge = textCenter + textWidth * 0.36;
-  const maxW = stacked ? Infinity : vw - panel.right - 12 - textEdge;
+  /* halkanın ekrandaki alt kenarı (perspektif dahil) */
+  const footY = layout.ring.y + layout.ring.ry + PORTRAIT_NUDGE.y * layout.size;
 
-  const ph = Math.max(
-    40,
-    Math.min(
-      ringR * 2 * PORTRAIT_IN_RING,
-      footY - panel.top - 30,
-      maxW / PORTRAIT_ASPECT,
-    ),
-  );
+  /* boy orta dairenin genişliğinden bağımsız: halka büyüse de portre aynı */
+  const designed =
+    layout.size * CHIP.plateRatio * PORTRAIT_RING_RATIO * 2 * PORTRAIT_IN_RING;
+  /* yalnızca panelin üst kenarına sığmazsa kısalır */
+  const ph = Math.max(40, Math.min(designed, footY - panel.top - 30));
   const pw = ph * PORTRAIT_ASPECT;
-  const visRight = vw - panel.right - 12;
-  const cx =
-    (stacked ? layout.cx : Math.min(layout.cx, visRight - pw * PORTRAIT_EDGE)) +
-    PORTRAIT_NUDGE.x * layout.size;
+  const cx = layout.ring.x + PORTRAIT_NUDGE.x * layout.size;
 
   return { ringR, footY, ph, pw, cx, cy: footY - ph * 0.64 };
 }
+
+/* portrenin alt kenarındaki sönme + yan kenarlarda ince sönme */
+const PORTRAIT_MASK = {
+  WebkitMaskImage:
+    "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%), linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%)",
+  WebkitMaskComposite: "source-in",
+  maskImage:
+    "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%), linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%)",
+  maskComposite: "intersect",
+} as const;
+
+/* net ve parlak: hafif kontrast + ince ışık kenarı + hale; kenarlardan
+   vuran ışık şeffaf görselde silüeti izler (fotoğraf ve video aynı) */
+const portraitFilter = (powered: boolean) =>
+  `contrast(1.05) brightness(1.06) drop-shadow(0 0 1.5px rgba(var(--photo-seam,207,230,255),.85)) drop-shadow(0 0 18px rgba(var(--photo-edge,70,190,255),${powered ? 0.55 : 0.35})) drop-shadow(0 18px 24px rgba(0,0,0,.45))`;
 
 /** "?final=1" okuması: sunucuda false, tarayıcıda gerçek değer (hydration güvenli) */
 const subscribeNoop = () => () => {};
@@ -165,6 +229,7 @@ export default function HeroSection({
   contentOpacity = 1,
   powered: poweredProp = false,
   finished: finishedProp = false,
+  plugged: pluggedProp = false,
 }: HeroSectionProps) {
   const { w: vw, h: vh } = useViewport();
 
@@ -184,6 +249,8 @@ export default function HeroSection({
   const [cineGo, setCineGo] = useState(false);
   const [nameLanded, setNameLanded] = useState(false);
   const [portraitLanded, setPortraitLanded] = useState(false);
+  /* el sallama videosu bitti mi (bitince son karenin fotoğrafı kalır) */
+  const [waveEnded, setWaveEnded] = useState(false);
   const [dim, setDim] = useState(false);
   const [camera, setCamera] = useState<"close" | "out" | "none">("none");
 
@@ -193,6 +260,10 @@ export default function HeroSection({
   const nameReady = final || nameLanded;
   const portraitGo = final || portraitLanded;
   const powered = poweredProp || avatarPowered;
+  /* açılıştaki İLK ışıkta (sinematik girişte portre ışığın altına
+     oturduğu an) video oynar — yalnızca ilk açılışta */
+  const wavePlaying = !final && portraitGo && !waveEnded;
+  const waveShowEnd = final || waveEnded;
 
   /* avatar olayları + yedek zamanlayıcı (setState hep callback içinde) */
   useEffect(() => {
@@ -242,19 +313,21 @@ export default function HeroSection({
     : Math.min(1.6, Math.max(0.55, ds));
 
   const STACK_PAD_X = phone ? 46 : 66;
-  const stackTextTop = PANEL_TOP_STACK + (phone ? 96 : 124);
+  const stackTextTop = PANEL_TOP_STACK + (phone ? 84 : 110);
   const STACK_TEXT_PAD = phone ? 26 : 56;
   const stackTextW = vw - STACK_TEXT_PAD * 2;
   const stackNameSize = Math.min(
     phone ? 44 : 64,
-    Math.floor(stackTextW / (12 * 0.62)),
+    Math.floor(stackTextW / ((NAME.length + 1) * 0.62)),
   );
   const stackTextH = stackNameSize + (phone ? 92 : 104);
   const stackTextBottom = stackTextTop + stackTextH;
   const stackChipBase = stackTextBottom + (phone ? 6 : 10);
   const stackChipTop = stackChipBase + vh * STACK_CHIP_DROP;
-  const stackChipMaxH = Math.max(220, vh - stackChipBase + (phone ? -70 : 40));
-  const stackChipMaxW = phone ? vw * 1.18 : vw * 1.05;
+  /* mobilde çip daha büyük: yanlardan ekran dışına taşabilir (çapraz
+     duran çipin köşeleri), portrenin altı yine sosyal butonların üstünde kalır */
+  const stackChipMaxH = Math.max(220, vh - stackChipBase + (phone ? 0 : 40));
+  const stackChipMaxW = vw * 1.6;
 
   const layout = useMemo(() => {
     if (!stacked)
@@ -276,7 +349,8 @@ export default function HeroSection({
   const menuScale = stacked ? 1 : Math.min(1.6, Math.max(0.55, ds));
   const menuRight = 48 + MENU_RIGHT * menuScale;
 
-  const textY = stacked ? stackTextTop + stackTextH / 2 : vh * 0.42;
+  /* masaüstünde yazı ekranın üst üçte birinde (eskiden %42) */
+  const textY = stacked ? stackTextTop + stackTextH / 2 : vh * 0.32;
   const textRight = (leftXAtY(poly, textY) ?? chipMinX) - 24;
   const textCenter = stacked
     ? vw / 2
@@ -298,24 +372,30 @@ export default function HeroSection({
   const [portBoxes, setPortBoxes] = useState<PortBox[]>([null, null]);
 
   useEffect(() => {
+    /* Portun YERLEŞİM konumu (offsetLeft/Top): açılış animasyonunun
+       kaydırması (introDown) ve kamera dönüşümü dahil EDİLMEZ. Eskiden
+       getBoundingClientRect kullanılıyordu; /home'da sahne yanık açıldığı
+       için ölçüm, portlar hâlâ yukarıdan kayarken yapılıyor ve ışık açısı
+       fazla dik hesaplanıyordu (ışık hedefin altına düşüyordu). */
     const measure = () => {
-      const sec = sectionRef.current?.getBoundingClientRect();
-      if (!sec) return;
-      setPortBoxes(
-        [portRef0, portRef1].map((r) => {
-          const b = r.current?.getBoundingClientRect();
-          return b
-            ? {
-                x: b.left - sec.left + b.width / 2,
-                y: b.top - sec.top,
-                h: b.height,
-              }
-            : null;
-        }),
-      );
+      const root = sectionRef.current;
+      if (!root) return;
+      const at = (el: HTMLElement | null) => {
+        if (!el) return null;
+        let x = 0;
+        let y = 0;
+        let n: HTMLElement | null = el;
+        while (n && n !== root) {
+          x += n.offsetLeft;
+          y += n.offsetTop;
+          n = n.offsetParent as HTMLElement | null;
+        }
+        return { x: x + el.offsetWidth / 2, y, h: el.offsetHeight };
+      };
+      setPortBoxes([at(portRef0.current), at(portRef1.current)]);
     };
 
-    const t = window.setTimeout(measure, powered ? 0 : 1600);
+    const t = window.setTimeout(measure, 0);
     window.addEventListener("resize", measure);
     return () => {
       window.clearTimeout(t);
@@ -327,19 +407,36 @@ export default function HeroSection({
     ? vw - 118
     : Math.round((textCenter + layout.cx) / 2) + 130;
 
-  const spotTargets: SpotTarget[] = [
-    {
-      x: textCenter,
-      y: textY + 10,
-      spread: Math.min(560, textWidth) * (stacked ? 0.7 : 0.55),
-    },
-    { x: layout.cx, y: layout.cy, spread: layout.size * 0.6 },
-  ];
-  const spots = portBoxes.map((p, i) => computeSpot(p, spotTargets[i]));
-
   /* ---------- Portre + kamera ---------- */
   const PG = computePortrait(layout, vw, stacked, textCenter, textWidth);
   const { ringR, footY, ph, pw, cx } = PG;
+
+  /* Port ışıklarının hedefleri:
+     0 → İSİM (yazı bloğunun üst kısmı: ismin ortası)
+     1 → PORTRENİN YÜZÜ (portrenin üst ~çeyreği) */
+  const nameY = stacked
+    ? stackTextTop + 28 + stackNameSize / 2
+    : textY - 22 * textScale;
+  const spotTargets: SpotTarget[] = [
+    {
+      x: textCenter,
+      y: nameY,
+      /* ismin genişliğine yakın (eskiden yazı bloğunun %55'i: isimden çok geniş) */
+      spread: Math.min(560, textWidth) * (stacked ? 0.6 : 0.42),
+    },
+    { x: cx, y: footY - ph * 0.74, spread: pw * 0.9 },
+  ];
+  /* 0 (isim): hedef sola çok açık → gövde ona dönsün (en fazla 45°, %80)
+     1 (portre): hedef neredeyse aşağıda → eski ayar (20°, %40) */
+  /* [en fazla dönüş, takip oranı, hedefin ötesine uzama]
+     isim ışığı ismin hemen arkasında biter (1.04) */
+  const SPOT_AIM: [number, number, number][] = [
+    [45, 0.8, 1.04],
+    [PORT_MAX_ROT, 0.4, 1.12],
+  ];
+  const spots = portBoxes.map((p, i) =>
+    computeSpot(p, spotTargets[i], ...SPOT_AIM[i]),
+  );
 
   const camScale = Math.max(1.4, Math.min(2.4, (vh * 1.15) / ph));
   const camT = (o: number, size: number) => size / 2 - o;
@@ -386,6 +483,8 @@ export default function HeroSection({
         style={intro("introPanel", T.panel, 1.1)}
       >
         <SciFiBackground
+          /* fişi bu sayfada avatar kendisi takar (animasyonlu) */
+          plugged={pluggedProp}
           panelInset={{
             left: `${panel.left}px`,
             top: `${panel.top}px`,
@@ -482,7 +581,8 @@ export default function HeroSection({
               data-build
               data-build-order="1"
               data-build-shape="text"
-              data-build-text="AYŞE YILMAZ"
+              data-build-text={NAME}
+              data-part="hero-text"
               data-build-font={stackNameSize}
               className="absolute z-2 flex flex-col items-center text-center"
               style={{
@@ -511,13 +611,14 @@ export default function HeroSection({
                   data-avatar-name
                   className="font-mono leading-[1.05] font-bold whitespace-nowrap text-accent"
                   style={{
+                    ...NAME_FONT,
                     fontSize: stackNameSize,
                     minHeight: "1.05em",
                     textShadow: "0 0 24px rgba(var(--c-4fd8ff,79,216,255),.35)",
                   }}
                 >
                   <TypewriterText
-                    text={"AYŞE YILMAZ"}
+                    text={NAME}
                     color="rgb(var(--c-c4f7fb,196,247,251))"
                     speed={final ? 0 : 26}
                     scramble={final ? 0 : 180}
@@ -539,20 +640,32 @@ export default function HeroSection({
                 <p
                   className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-mono text-accent/80 ${phone ? "text-[11px]" : "text-[15px]"}`}
                 >
-                  {SUBTITLE_LINES.map((line, i) => (
+                  {/* unvan kendi satırında; teknolojiler aralarında nokta ile,
+                      dar ekranda düzgünce alt satıra sarar */}
+                  <span className="w-full whitespace-nowrap">
+                    <TypewriterText
+                      color="rgb(var(--c-7fe3ef,127,227,239))"
+                      text={ROLE}
+                      speed={final ? 0 : 9}
+                      scramble={final ? 0 : 150}
+                      active={nameReady}
+                      startDelay={final ? 0 : 300}
+                    />
+                  </span>
+                  {STACK.map((item, i) => (
                     <span
-                      key={line}
+                      key={item}
                       className="flex items-center gap-2 whitespace-nowrap"
                     >
                       {i > 0 && <span className="text-accent/60">·</span>}
 
                       <TypewriterText
                         color="rgb(var(--c-7fe3ef,127,227,239))"
-                        text={i === 0 ? line.replace(">>> ", "") : line}
+                        text={item}
                         speed={final ? 0 : 9}
                         scramble={final ? 0 : 150}
                         active={nameReady}
-                        startDelay={final ? 0 : 300 + i * 90}
+                        startDelay={final ? 0 : 390 + i * 90}
                       />
                     </span>
                   ))}
@@ -564,7 +677,8 @@ export default function HeroSection({
               data-build
               data-build-order="1"
               data-build-shape="text"
-              data-build-text=">>> AYŞE YILMAZ"
+              data-build-text={`>>> ${NAME}`}
+              data-part="hero-text"
               data-build-font={Math.round(36 * textScale)}
               className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center"
               style={{
@@ -581,11 +695,15 @@ export default function HeroSection({
                 <h1
                   data-avatar-name
                   className="font-mono text-accent"
-                  style={{ fontSize: 36 * textScale, minHeight: "1.2em" }}
+                  style={{
+                    ...NAME_FONT,
+                    fontSize: 40 * textScale,
+                    minHeight: "1.2em",
+                  }}
                 >
                   <TypewriterText
-                    text=">>> AYŞE YILMAZ"
-                    color="rgb(var(--c-c4f7fb,196,247,251))" /* başlık: posterdeki açık turkuaz */
+                    text={`>>> ${NAME}`}
+                    color="rgb(var(--c-c4f7fb,196,247,251))" /* başlık: paletin en açık tonu */
                     speed={final ? 0 : 26}
                     scramble={final ? 0 : 180}
                     active={nameReady}
@@ -595,14 +713,16 @@ export default function HeroSection({
 
                 {/* Çip büyüdüğü için yazı alanı daraldı: sığmazsa unvanlar
                     alt alta (her satır kendi decode efektiyle) yazılır */}
-                {textWidth >= 600 * textScale ? (
+                {/* tek satır sığıyorsa tek satır (mono font: karakter ≈ 0.62em) */}
+                {textWidth >=
+                SUBTITLE_ONE_LINE.length * 14 * 0.62 * textScale ? (
                   <p
                     className="font-mono text-accent/80"
                     style={{ fontSize: 14 * textScale }}
                   >
                     <TypewriterText
                       color="rgb(var(--c-7fe3ef,127,227,239))"
-                      text=">>> CREATIVE AI ARCHITECT | DIGITAL DEVELOPER | SYSTEMS DESIGNER"
+                      text={SUBTITLE_ONE_LINE}
                       speed={final ? 0 : 7}
                       scramble={final ? 0 : 150}
                       active={nameReady}
@@ -694,7 +814,43 @@ export default function HeroSection({
               ...intro("introFade", T.chip + 0.6, 0.8),
             }}
           >
-            {/* arkadaki sıcak hale */}
+            {/* ORGANİK RENK LEKESİ — sadece palet tanımlarsa görünür
+                (--blob-opacity); portrenin arkasında akan renkli şekil */}
+            <svg
+              aria-hidden
+              viewBox="0 0 400 500"
+              preserveAspectRatio="xMidYMid meet"
+              className="absolute"
+              style={{
+                left: "-75%",
+                right: "-75%",
+                top: "-12%",
+                bottom: "0%",
+                width: "250%",
+                height: "112%",
+                overflow: "visible",
+                opacity: `calc(var(--blob-opacity, 0) * ${powered ? 1 : 0.55})`,
+                filter: "blur(var(--blob-blur, 0px))",
+                transition: "opacity 700ms",
+              }}
+            >
+              <defs>
+                <linearGradient id="hero-blob-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="rgb(var(--blob-1,190,60,150))" />
+                  <stop
+                    offset="0.55"
+                    stopColor="rgb(var(--blob-2,120,76,216))"
+                  />
+                  <stop offset="1" stopColor="rgb(var(--blob-3,74,106,232))" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M 60 120 C 40 40, 180 -10, 260 30 C 340 70, 400 150, 380 260 C 365 350, 300 440, 200 470 C 110 495, 20 430, 30 330 C 38 260, 80 220, 60 120 Z"
+                fill="url(#hero-blob-grad)"
+              />
+            </svg>
+
+            {/* arkadaki hale (palet ışık rengiyle) */}
             <div
               className="absolute"
               style={{
@@ -707,50 +863,82 @@ export default function HeroSection({
               }}
             />
 
-            {/* zemindeki ışık yansıması */}
+            {/* zemindeki ışık yansıması — fotoğrafın alt kısmı paletin
+                --photo-floor tonuna (yoksa --photo-edge) yumuşakça erir */}
             <div
               className="absolute"
               style={{
-                left: "-20%",
-                right: "-20%",
-                bottom: "-4%",
-                height: "14%",
-                background: `radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--photo-edge,70,190,255),${powered ? 0.45 : 0.25}), transparent 75%)`,
+                left: "-25%",
+                right: "-25%",
+                bottom: "-6%",
+                height: "26%",
+                background: `radial-gradient(ellipse 50% 50% at 50% 60%, rgba(var(--photo-floor, var(--photo-edge,70,190,255)),${powered ? 0.6 : 0.35}), rgba(var(--photo-floor, var(--photo-edge,70,190,255)),${powered ? 0.18 : 0.1}) 45%, transparent 75%)`,
+                transition: "background 700ms",
               }}
             />
 
             {/* FOTOĞRAF: açılışta parçacıksız, doğrudan görünür; üzerine
                 gelince parçacıklara ayrılma etkileşimi sürer */}
             {portraitGo && (
-              <PortraitMorph
-                instant={final}
-                introless
-                src={PROFILE_PHOTO}
-                alt="Profil fotoğrafı"
-                width={pw}
-                height={ph}
-                ring={{
-                  x: layout.cx - (cx - pw / 2),
-                  y: layout.cy - (footY - ph),
-                  r: ringR,
+              <div
+                className="absolute inset-0"
+                style={{
+                  /* video oynarken fotoğraf gizli; video bitince aynı son
+                     kare fotoğraf olarak kalır (geçiş görünmez) */
+                  opacity: wavePlaying ? 0 : 1,
+                  transition: wavePlaying ? "none" : "opacity 200ms",
                 }}
-                delay={0}
-                tempo={1.1}
-                objectPosition={PHOTO_POSITION}
-                imgStyle={{
-                  /* ayaklara doğru yumuşakça söner (dikdörtgen fotoğrafta da) */
-                  WebkitMaskImage:
-                    "linear-gradient(to bottom, #000 0%, #000 80%, transparent 99%), linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%)",
-                  WebkitMaskComposite: "source-in",
-                  maskImage:
-                    "linear-gradient(to bottom, #000 0%, #000 80%, transparent 99%), linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%)",
-                  maskComposite: "intersect",
-                  /* net ve parlak: hafif kontrast + ince ışık kenarı + sıcak hale;
-                     kenarlardan vuran sıcak ışık şeffaf PNG'de silüeti izler */
-                  filter: `contrast(1.05) brightness(1.06) drop-shadow(0 0 1.5px rgba(var(--photo-seam,207,230,255),.85)) drop-shadow(0 0 18px rgba(var(--photo-edge,70,190,255),${powered ? 0.55 : 0.35})) drop-shadow(0 18px 24px rgba(0,0,0,.45))`,
-                  transition: "filter 700ms",
-                }}
-              />
+              >
+                <PortraitMorph
+                  instant={final}
+                  introless
+                  src={waveShowEnd ? WAVE_END : WAVE_START}
+                  alt="Profil fotoğrafı"
+                  width={pw}
+                  height={ph}
+                  ring={{
+                    x: layout.cx - (cx - pw / 2),
+                    y: layout.cy - (footY - ph),
+                    r: ringR,
+                  }}
+                  delay={0}
+                  tempo={1.1}
+                  objectPosition={PHOTO_POSITION}
+                  imgStyle={{
+                    ...PORTRAIT_MASK,
+                    filter: portraitFilter(powered),
+                    transition: "filter 700ms",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* EL SALLAMA VİDEOSU — ışık tutulunca bir kez oynar */}
+            {portraitGo && !final && (
+              <>
+                <WaveVideo
+                  src={WAVE_VIDEO}
+                  play={wavePlaying}
+                  onEnded={() => setWaveEnded(true)}
+                  className="absolute"
+                  style={{
+                    left: 0,
+                    top: 0,
+                    width: ph * WAVE_ASPECT,
+                    height: ph,
+                    opacity: wavePlaying ? 1 : 0,
+                    transition: "opacity 200ms",
+                    WebkitMaskImage:
+                      "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
+                    maskImage:
+                      "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
+                    filter: portraitFilter(powered),
+                  }}
+                />
+                {/* son kare önceden yüklensin: video bitince anında görünsün */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={WAVE_END} alt="" aria-hidden className="hidden" />
+              </>
             )}
           </div>
 
@@ -800,6 +988,8 @@ export default function HeroSection({
               sp && (
                 <div
                   key={`spot-${i}`}
+                  /* hedefteki parlama da konnektör/port ışığıyla aynı renk */
+                  data-part="connector"
                   className="pointer-events-none"
                   aria-hidden
                 >
@@ -828,7 +1018,7 @@ export default function HeroSection({
                       height: sp.t.spread * (i === 0 ? 0.55 : 1),
                       transform: "translate(-50%, -50%)",
                       background:
-                        "radial-gradient(closest-side, rgba(var(--c-d7eeff,215,238,255),.18), rgba(var(--c-c8e6ff,200,230,255),.07) 55%, transparent)",
+                        "radial-gradient(closest-side, rgba(var(--c-d7eeff,215,238,255),.18), rgba(var(--c-c8ebff,200,235,255),.07) 55%, transparent)",
                       mixBlendMode: "screen",
                       opacity: powered ? 1 : 0,
                       transition: `opacity ${POWER_FADE_MS}ms ease ${powered ? POWER_LIGHT_MS : 0}ms`,
@@ -848,7 +1038,8 @@ export default function HeroSection({
             className="absolute"
             style={{
               left: stacked ? vw / 2 : textCenter,
-              bottom: panel.bottom + (stacked ? 14 : 20),
+              /* biraz yukarıda: panel kenarına yapışık durmasın */
+              bottom: panel.bottom + (stacked ? 30 : 64),
               transform: `translateX(-50%) scale(${socialScale})`,
               transformOrigin: "bottom center",
             }}
@@ -857,21 +1048,27 @@ export default function HeroSection({
               <SocialStrip>
                 <SocialChip
                   icon={FaLinkedin}
-                  href="#"
+                  href={LINKEDIN}
                   shown={chipShown[0]}
                   label="LinkedIn"
                 />
                 <SocialChip
                   icon={FaGithub}
-                  href="#"
+                  href={GITHUB}
                   shown={chipShown[1]}
                   label="GitHub"
                 />
                 <SocialChip
                   icon={FaInstagram}
-                  href="#"
+                  href={INSTAGRAM}
                   shown={chipShown[2]}
                   label="Instagram"
+                />
+                <SocialChip
+                  icon={FaWhatsapp}
+                  href={WHATSAPP}
+                  shown={chipShown[3]}
+                  label="WhatsApp"
                 />
               </SocialStrip>
             </div>
@@ -879,14 +1076,15 @@ export default function HeroSection({
         </div>
 
         {/* ELEKTRİKSİZ HAL: açılış yerleşirken sahne kararır (fotoğraf,
-            çip, menü…); fiş takılınca ışıklar yanar ve karanlık kalkar */}
+            çip, menü…); fiş takılınca ışıklar yanar ve karanlık kalkar.
+            Karanlık paletin en koyu tonundan gelir (paletsiz: eski siyah-lacivert) */}
         {!final && (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 z-60"
             style={{
               background:
-                "radial-gradient(ellipse 75% 70% at 55% 50%, rgba(3,5,12,.5), rgba(3,5,12,.7))",
+                "radial-gradient(ellipse 75% 70% at 55% 50%, rgba(var(--c-040c1a,3,5,12),.5), rgba(var(--c-010204,3,5,12),.72))",
               opacity: dim && !powered ? 1 : 0,
               transition: powered
                 ? `opacity ${POWER_FADE_MS}ms ease`
@@ -908,7 +1106,7 @@ export default function HeroSection({
         <CinematicIntro
           start={cineGo}
           rootRef={cameraRef}
-          title={stacked ? "AYŞE YILMAZ" : ">>> AYŞE YILMAZ"}
+          title={stacked ? NAME : `>>> ${NAME}`}
           titleTarget="[data-avatar-name]"
           backRef={cineBackRef}
           focus={{
@@ -921,11 +1119,12 @@ export default function HeroSection({
           onTitleLanded={() => setNameLanded(true)}
           onCoreLanded={() => setPortraitLanded(true)}
           onSettle={() => setDim(true)}
-          /* avatar açılış bitmeden tırmanıp portta bekler */
-          onAvatarGo={() => window.dispatchEvent(new Event("hero:built"))}
+          /* avatar açılış animasyonu BİTENE kadar görünmez; bitince
+             tırmanır, porta yürür ve fişi takar */
+          onAvatarGo={() => {}}
           onDone={() => {
             setIntroDone(true);
-            /* sahne tamam → fiş HEMEN takılır */
+            window.dispatchEvent(new Event("hero:built"));
             window.dispatchEvent(new Event("hero:plug"));
           }}
         />

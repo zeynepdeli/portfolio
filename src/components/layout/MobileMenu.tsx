@@ -8,12 +8,17 @@ import {
   FaFolderOpen,
   FaFileAlt,
   FaLinkedin,
-  FaTwitter,
-  FaBehance,
   FaGithub,
-  FaTelegram,
   FaInstagram,
+  FaWhatsapp,
 } from "react-icons/fa";
+import {
+  GITHUB,
+  INSTAGRAM,
+  LINKEDIN,
+  WHATSAPP,
+  linkProps,
+} from "@/components/ui/SocialLinks"
 import MenuSlot from "@/components/ui/MenuSlot";
 import GlowConnector, { CONNECTOR_HEIGHT } from "@/components/ui/GlowConnector";
 import { intro, T } from "@/components/ui/Intro";
@@ -27,31 +32,29 @@ import { intro, T } from "@/components/ui/Intro";
    ✕'e ya da Esc'ye basınca (veya bir sayfaya gidince) kapanır.
 ========================================================= */
 
-/** Sosyal bağlantılar (kendi adreslerinle değiştir) */
+/** Sosyal bağlantılar — adresler: components/ui/socialLinks.ts */
 const SOCIALS = [
-  { icon: FaLinkedin, label: "LinkedIn", href: "#" },
-  { icon: FaTwitter, label: "Twitter", href: "#" },
-  { icon: FaBehance, label: "Behance", href: "#" },
-  { icon: FaGithub, label: "GitHub", href: "#" },
-  { icon: FaTelegram, label: "Telegram", href: "#" },
-  { icon: FaInstagram, label: "Instagram", href: "#" },
+  { icon: FaLinkedin, label: "LinkedIn", href: LINKEDIN },
+  { icon: FaGithub, label: "GitHub", href: GITHUB },
+  { icon: FaInstagram, label: "Instagram", href: INSTAGRAM },
+  { icon: FaWhatsapp, label: "WhatsApp", href: WHATSAPP },
 ];
 
-const EDGE = "70,190,255";
-const ICE = "207,230,255";
+const EDGE = "var(--c-46beff,70,190,255)";
+const ICE = "var(--c-cfe6ff,207,230,255)";
 /** Masaüstü menüsünün (konnektör + butonlar) ölçeksiz boyu */
 const ITEMS = [
   { key: "home", label: "HOME", icon: FaHome, href: "/home" },
   { key: "skills", label: "SKILLS", icon: FaPalette, href: "/roadmap" },
   { key: "projects", label: "PROJECTS", icon: FaFolderOpen, href: "/projects" },
-  { key: "documents", label: "DOCUMENTS", icon: FaFileAlt, href: null },
+  { key: "documents", label: "DOCUMENTS", icon: FaFileAlt, href: "/documents" },
 ] as const;
 /** GlowConnector'ın ölçeksiz kalınlığı (yatay çevrilince yüksekliği olur) */
 const CONN_T = 42;
 
 const metal = `
   repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px),
-  linear-gradient(180deg, #154476 0%, #0b2b55 55%, #071c3b 100%)
+  linear-gradient(180deg, rgb(var(--c-154476,21,68,118)) 0%, rgb(var(--c-0b2b55,11,43,85)) 55%, rgb(var(--c-071c3b,7,28,59)) 100%)
 `;
 
 type Props = {
@@ -105,13 +108,13 @@ export default function MobileMenu({ powered = false, style }: Props) {
         aria-label="Menüyü aç"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="absolute z-60 cursor-pointer rounded-[9px] p-1.25 transition outline-hidden active:translate-y-px active:scale-97"
+        className="absolute z-60 cursor-pointer rounded-[9px] p-1.25 transition outline-hidden focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:translate-y-px active:scale-97"
         style={{
           ...style,
           width: 58,
           height: 50,
           background: metal,
-          border: `1px solid rgba(120,220,255,${powered ? 0.55 : 0.3})`,
+          border: `1px solid rgba(var(--c-78dcff,120,220,255),${powered ? 0.55 : 0.3})`,
           boxShadow: `inset 0 1px 0 rgba(${ICE},.35), inset 0 -2px 0 rgba(0,0,0,.45), 0 6px 16px rgba(0,0,0,.45)${
             powered ? `, 0 0 14px rgba(${EDGE},.3)` : ""
           }`,
@@ -119,12 +122,16 @@ export default function MobileMenu({ powered = false, style }: Props) {
         }}
       >
         {/* üst etiket */}
-        <span className="absolute top-0.5 left-1.75 font-mono text-[5.5px] tracking-[.18em] text-[#a8eef6]/70">
+        <span className="absolute top-0.5 left-1.75 font-mono text-[5.5px] tracking-[.18em] text-[rgba(var(--c-a8eef6,168,238,246),0.7)]">
           SW1
         </span>
         <span
           className="absolute top-0.5 right-1.75 font-mono text-[5.5px] tracking-[.18em]"
-          style={{ color: powered ? "#6ef5e8" : "rgba(168,238,246,.4)" }}
+          style={{
+            color: powered
+              ? "rgb(var(--c-6ef5e8,110,245,232))"
+              : "rgba(var(--c-a8eef6,168,238,246),.4)",
+          }}
         >
           ON
         </span>
@@ -132,7 +139,7 @@ export default function MobileMenu({ powered = false, style }: Props) {
         <span
           className="absolute inset-x-1.75 top-2.75 bottom-1.5 flex flex-col justify-between rounded-[3px] p-0.75"
           style={{
-            background: "#020b17",
+            background: "rgb(var(--c-020b17,2,11,23))",
             boxShadow: "inset 0 2px 3px rgba(0,0,0,.8)",
           }}
         >
@@ -145,8 +152,8 @@ export default function MobileMenu({ powered = false, style }: Props) {
               <span
                 className="relative block h-full flex-1 rounded-[1.5px]"
                 style={{
-                  background: "rgba(10,44,82,.9)",
-                  border: "1px solid rgba(120,220,255,.18)",
+                  background: "rgba(var(--c-0a2c52,10,44,82),.9)",
+                  border: "1px solid rgba(var(--c-78dcff,120,220,255),.18)",
                 }}
               >
                 {/* sürgü */}
@@ -155,8 +162,8 @@ export default function MobileMenu({ powered = false, style }: Props) {
                   style={{
                     left: powered ? "calc(100% - 10px)" : "-1px",
                     background: powered
-                      ? "linear-gradient(180deg, #e1f8ff, #6ef5e8)"
-                      : "linear-gradient(180deg, #8fb3d6, #4a6b90)",
+                      ? "linear-gradient(180deg, rgb(var(--c-e1f8ff,225,248,255)), rgb(var(--c-6ef5e8,110,245,232)))"
+                      : "linear-gradient(180deg, rgb(var(--c-8fb3d6,143,179,214)), rgb(var(--c-4a6b90,74,107,144)))",
                     boxShadow: powered
                       ? `0 0 6px rgba(${EDGE},.9)`
                       : "0 1px 1px rgba(0,0,0,.6)",
@@ -168,7 +175,9 @@ export default function MobileMenu({ powered = false, style }: Props) {
               <span
                 className="block size-1 shrink-0 rounded-full"
                 style={{
-                  background: powered ? "#5df2a6" : "rgba(127,182,232,.25)",
+                  background: powered
+                    ? "#5df2a6"
+                    : "rgba(var(--c-7fb6e8,127,182,232),.25)",
                   boxShadow: powered ? "0 0 5px #5df2a6" : "none",
                   transition: `background 300ms ${200 + i * 90}ms`,
                 }}
@@ -190,7 +199,7 @@ export default function MobileMenu({ powered = false, style }: Props) {
           aria-label="Menü"
         >
           <div
-            className="absolute inset-0 bg-[rgba(1,6,18,.35)]"
+            className="absolute inset-0 bg-[rgba(var(--c-010612,1,6,18),.35)]"
             style={{ animation: "mmFade 450ms ease-out both" }}
             onClick={() => setOpen(false)}
           />
@@ -202,16 +211,16 @@ export default function MobileMenu({ powered = false, style }: Props) {
             style={{
               background: `
                 radial-gradient(ellipse 80% 45% at 50% 18%, rgba(${EDGE},.14), transparent 70%),
-                linear-gradient(180deg, #0b2a4a 0%, #071d36 60%, #04142a 100%)
+                linear-gradient(180deg, rgb(var(--c-0b2a4a,11,42,74)) 0%, rgb(var(--c-071d36,7,29,54)) 60%, rgb(var(--c-04142a,4,20,42)) 100%)
               `,
-              border: "1.5px solid rgba(120,220,255,.35)",
+              border: "1.5px solid rgba(var(--c-78dcff,120,220,255),.35)",
               boxShadow: `0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(${ICE},.3)`,
               animation: "mmSlide 560ms cubic-bezier(.22,1,.36,1) both",
             }}
           >
             {/* üst şerit: başlık + kapat */}
             <div className="relative flex h-14.5 shrink-0 items-center justify-between px-5">
-              <span className="flex items-center gap-2 font-mono text-[10px] tracking-[.26em] text-[#5fb8d0]">
+              <span className="flex items-center gap-2 font-mono text-[10px] tracking-[.26em] text-[rgb(var(--c-5fb8d0,95,184,208))]">
                 <span
                   className="block size-1.5 rounded-full"
                   style={{
@@ -225,10 +234,10 @@ export default function MobileMenu({ powered = false, style }: Props) {
                 type="button"
                 aria-label="Menüyü kapat"
                 onClick={() => setOpen(false)}
-                className="flex size-9 cursor-pointer items-center justify-center rounded-[10px] text-[#a8eef6] outline-hidden active:scale-95"
+                className="flex size-9 cursor-pointer items-center justify-center rounded-[10px] text-[rgb(var(--c-a8eef6,168,238,246))] outline-hidden transition-colors hover:text-[rgb(var(--c-78d2ff,255,198,120))] focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:scale-95"
                 style={{
                   background: metal,
-                  border: "1px solid rgba(120,220,255,.35)",
+                  border: "1px solid rgba(var(--c-78dcff,120,220,255),.35)",
                 }}
               >
                 ✕
@@ -285,21 +294,19 @@ export default function MobileMenu({ powered = false, style }: Props) {
 
             {/* sosyal bağlantılar */}
             <div className="relative z-1 shrink-0 px-4 py-5">
-              <div className="mb-2 text-center font-mono text-[9px] tracking-[.26em] text-[#5fb8d0]">
+              <div className="mb-2 text-center font-mono text-[9px] tracking-[.26em] text-[rgb(var(--c-5fb8d0,95,184,208))]">
                 CONNECT
               </div>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {SOCIALS.map(({ icon: Icon, label, href }) => (
                   <a
                     key={label}
-                    href={href}
+                    {...linkProps(href)}
                     aria-label={label}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex size-9 items-center justify-center rounded-[9px] text-[#c4f7fb] transition active:scale-95"
+                    className="flex size-9 items-center justify-center rounded-[9px] text-[rgb(var(--c-c4f7fb,196,247,251))] outline-hidden transition hover:text-[rgb(var(--c-78d2ff,255,198,120))] focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:scale-95"
                     style={{
                       background: metal,
-                      border: "1px solid rgba(120,220,255,.3)",
+                      border: "1px solid rgba(var(--c-78dcff,120,220,255),.3)",
                       boxShadow: `inset 0 1px 0 rgba(${ICE},.3), 0 4px 10px rgba(0,0,0,.4)`,
                     }}
                   >
@@ -323,7 +330,7 @@ export default function MobileMenu({ powered = false, style }: Props) {
                   className={`absolute ${c} block size-2.25 rounded-full`}
                   style={{
                     background:
-                      "radial-gradient(circle at 35% 30%, rgba(207,230,255,.95), rgba(70,190,255,.5) 45%, rgba(6,31,58,1) 100%)",
+                      "radial-gradient(circle at 35% 30%, rgba(var(--c-cfe6ff,207,230,255),.95), rgba(var(--c-46beff,70,190,255),.5) 45%, rgba(var(--c-061f3a,6,31,58),1) 100%)",
                   }}
                 />
               ),

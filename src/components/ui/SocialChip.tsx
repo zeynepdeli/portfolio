@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { linkProps } from "@/components/ui/SocialLinks";
 import type { IconType } from "react-icons";
 import {
   GLASS_EDGE,
@@ -27,6 +28,12 @@ type SocialChipProps = {
 /* Üst/alt pin sırası — çip pinleri ve akım çizgileriyle aynı
    altın/bakır tonda ince bacaklar */
 const PIN_INDEXES = Array.from({ length: 9 }, (_, i) => i);
+
+/* Renkler header menüsüyle (MenuSlot) aynı değişkenlerden — tasarım aynı,
+   yalnızca tonlar menüyle eşleşir */
+const ICE = "var(--c-46beff,70,190,255)"; // menü iç paneli ışığı
+const NAVY = "var(--c-0a2c52,10,44,82)"; // menü gövde suyu
+const LABEL = "var(--c-a8eef6,168,238,246)"; // menü etiket rengi
 
 function PinRow() {
   return (
@@ -58,9 +65,7 @@ export default function SocialChip({
 
   return (
     <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      {...linkProps(href)}
       aria-label={label}
       style={
         shown === false
@@ -98,7 +103,7 @@ export default function SocialChip({
                 boxShadow: metalShadow({ lit: hovered }),
               }
             : {
-                background: glassSurface("var(--c-5a78a0,90,120,160)", 0.55),
+                background: glassSurface(NAVY, 0.55),
                 backdropFilter: "blur(10px)",
                 WebkitBackdropFilter: "blur(10px)",
                 border: `1px solid rgba(var(--c-ffffff,255,255,255),${hovered ? 0.5 : 0.3})`,
@@ -132,7 +137,7 @@ export default function SocialChip({
                 rgba(var(--c-ffffff,255,255,255),0.10) 0%,
                 rgba(var(--c-ffffff,255,255,255),0.02) 45%,
                 rgba(${GLASS_EDGE},0.10) 100%),
-              rgba(var(--c-284064,40,64,100),0.45)
+              rgba(${NAVY},0.45)
             `,
             border:
               UI_STYLE === "metal"
@@ -151,8 +156,8 @@ export default function SocialChip({
             style={{
               opacity: hovered ? 1 : 0.7,
               background: `radial-gradient(ellipse at 50% 50%,
-                rgba(${GLASS_EDGE},0.28) 0%,
-                rgba(${GLASS_EDGE},0.1) 40%,
+                rgba(${ICE},0.28) 0%,
+                rgba(${ICE},0.1) 40%,
                 transparent 72%)`,
             }}
           />
@@ -165,12 +170,11 @@ export default function SocialChip({
             <Icon
               size={30}
               style={{
-                color:
-                  "rgba(var(--social-icon,var(--c-c4f7fb,196,247,251)),.97)",
+                color: `rgba(var(--social-icon,${LABEL}),.97)`,
                 filter: `var(--social-icon-fx,
-                  drop-shadow(0 0 2px rgba(var(--c-f0f8ff,240,248,255),.95))
-                  drop-shadow(0 0 6px rgba(${GLASS_EDGE},.75))
-                  drop-shadow(0 0 12px rgba(${GLASS_EDGE},.35)))`,
+                  drop-shadow(0 0 2px rgba(${LABEL},.95))
+                  drop-shadow(0 0 6px rgba(var(--c-4fd8ff,79,216,255),.75))
+                  drop-shadow(0 0 12px rgba(var(--c-4fd8ff,79,216,255),.35)))`,
               }}
             />
           </div>

@@ -16,6 +16,11 @@ type SciFiBackgroundProps = {
   backdrop?: ReactNode;
   panelInset?: PanelInset;
   hudOnFrame?: boolean;
+  /** Üst sokete fiş TAKILI çizilsin mi. Ana sayfada fişi avatar kendisi
+   *  taktığı için HeroSection false verir; diğer sayfalarda takılı görünür. */
+  plugged?: boolean;
+  /** Üst orta soket hiç çizilmesin (ör. footer) */
+  connector?: boolean;
 };
 
 /* =========================================================
@@ -41,9 +46,19 @@ const OCEAN = {
              (fırçalanmış metal kenar, vidalar, havalandırma delikleri)
    "glass" → önceki şeffaf cam panel
 ========================================================= */
-const PANEL_STYLE: "metal" | "glass" = "metal";
+const PANEL_STYLE: "metal" | "glass" = "glass";
 
-const SHOW_HUD = true;
+/* =========================================================
+   CAM KALINLIĞI (PANEL_STYLE = "glass" iken)
+   "thin"  → fotoğraftaki gibi: ince kenarlı, hafif renkli, arkadaki
+             nebula içinden görünen tek parça cam kart. Zemin ile kart
+             aynı bulutları paylaşır, böylece ikisi bir bütün olur.
+   "thick" → önceki kalın, kırılmalı cam kenar + kasa vidaları
+========================================================= */
+const GLASS_LOOK: "thin" | "thick" = "thin";
+
+/** Sağdaki süs HUD yazıları ([ANTIBUS | SKILLS HUB], [CONTACT CONN]) */
+const SHOW_HUD = false;
 const SHOW_CONNECTOR = true;
 
 /* =========================================================
@@ -218,6 +233,113 @@ function OceanBackground() {
         className="absolute inset-0"
         style={{ background: "var(--bg-blobs, none)" }}
       />
+      {/* DOKULU NEBULA — fractal noise ile çizilmiş lavanta bulut dokusu,
+          bulutların şekliyle (--bg-blobs) maskelenir: düz gradyan yerine
+          fotoğraftaki gibi tozlu, dağınık bulutlar. Statik SVG, bir kez
+          çizilir. Yalnızca palet --bg-nebula tanımlarsa görünür. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          opacity: "var(--bg-nebula, 0)",
+          WebkitMaskImage: "var(--bg-nebula-mask, var(--bg-blobs, none))",
+          maskImage: "var(--bg-nebula-mask, var(--bg-blobs, none))",
+        }}
+      >
+        <svg
+          className="absolute inset-0 size-full"
+          viewBox="0 0 900 600"
+          preserveAspectRatio="none"
+        >
+          {/* 1) koyu boşluklar: bulutların arasındaki derin indigo yarıklar */}
+          <filter id="sfb-neb-dark" x="0" y="0" width="100%" height="100%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.006 0.012"
+              numOctaves={5}
+              seed={4}
+            />
+            <feColorMatrix values="0 0 0 0 0.07  0 0 0 0 0.06  0 0 0 0 0.2  -2.6 0 0 0 1.25" />
+          </filter>
+          {/* 2) tozlu bulut dokusu: arduvaz-lavanta, ince yatay lifler */}
+          <filter id="sfb-neb-light" x="0" y="0" width="100%" height="100%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.007 0.016"
+              numOctaves={6}
+              seed={11}
+            />
+            <feColorMatrix values="0 0 0 0 0.58  0 0 0 0 0.5  0 0 0 0 0.74  3 0 0 0 -1.3" />
+          </filter>
+          <rect
+            width="900"
+            height="600"
+            filter="url(#sfb-neb-dark)"
+            opacity=".55"
+          />
+          <rect
+            width="900"
+            height="600"
+            filter="url(#sfb-neb-light)"
+            style={{ mixBlendMode: "screen" }}
+          />
+        </svg>
+      </div>
+      {/* SU IŞIĞI (caustic) — suyun dibine vuran kırık ışık ağı. Gürültünün
+          yalnızca orta değerleri ince parlak çizgilere çevrilir; iki katman
+          üst üste binince su yüzeyi dokusu çıkar. Yukarıda güçlü, derine
+          indikçe söner. Statik SVG. Yalnızca palet --bg-caustic tanımlarsa. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          opacity: "var(--bg-caustic, 0)",
+          mixBlendMode: "screen",
+          /* palet --bg-caustic-filter ile rengini (ör. daha beyaz),
+             --bg-caustic-mask ile nerede görüneceğini değiştirebilir */
+          filter: "var(--bg-caustic-filter, none)",
+          WebkitMaskImage:
+            "var(--bg-caustic-mask, linear-gradient(180deg, #000 0%, rgba(0,0,0,.8) 40%, rgba(0,0,0,.3) 78%, transparent 100%))",
+          maskImage:
+            "var(--bg-caustic-mask, linear-gradient(180deg, #000 0%, rgba(0,0,0,.8) 40%, rgba(0,0,0,.3) 78%, transparent 100%))",
+        }}
+      >
+        <svg
+          className="absolute inset-0 size-full"
+          viewBox="0 0 900 600"
+          preserveAspectRatio="xMidYMid slice"
+        >
+          {[
+            { id: "sfb-caustic-a", f: "0.011 0.014", seed: 3, o: 1 },
+            { id: "sfb-caustic-b", f: "0.02 0.026", seed: 8, o: 0.55 },
+          ].map((l) => (
+            <g key={l.id}>
+              <filter id={l.id} x="0" y="0" width="100%" height="100%">
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency={l.f}
+                  numOctaves={2}
+                  seed={l.seed}
+                />
+                <feComponentTransfer>
+                  <feFuncR
+                    type="table"
+                    tableValues="0 0 0 0 .55 1 .55 0 0 0 0"
+                  />
+                </feComponentTransfer>
+                <feColorMatrix values="0 0 0 0 .5  0 0 0 0 .9  0 0 0 0 1  1 0 0 0 0" />
+                <feGaussianBlur stdDeviation=".45" />
+              </filter>
+              <rect
+                width="900"
+                height="600"
+                filter={`url(#${l.id})`}
+                opacity={l.o}
+              />
+            </g>
+          ))}
+        </svg>
+      </div>
       {/* turkuaz ışık tozu — metal panelde panelin içinde çizilir (tek kopya) */}
       {OCEAN.count > 0 && PANEL_STYLE === "glass" && <ParticleOcean />}
       {/* köşe vinyeti */}
@@ -485,6 +607,9 @@ function GlassEdges() {
    METAL (CAM OLMAYAN) PANEL
    İçi posterin gece laciverti + ışık tozu; kenarı opak fırçalanmış
    metal çerçeve, iç kenarda ince pah çizgisi.
+   Palet --panel-nebula tanımlarsa panelin içinden de yumuşak
+   nebula bulutları geçer; --frame-opacity metal çerçeveyi
+   arka plana iter (ikisi de yoksa görünüm aynen eskisi).
 ========================================================= */
 function MetalPanel({
   children,
@@ -518,6 +643,13 @@ function MetalPanel({
         isolation: "isolate",
       }}
     >
+      {/* panelin içindeki nebula bulutları (yalnızca palet tanımlarsa) */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "var(--panel-nebula, none)" }}
+      />
+
       {/* ışık tozu panelin içinde de */}
       {THEME === "ocean" && OCEAN.count > 0 && <ParticleOcean />}
 
@@ -555,6 +687,7 @@ function MetalPanel({
           mask: "linear-gradient(rgb(var(--c-000000,0,0,0)) 0 0) content-box exclude, linear-gradient(rgb(var(--c-000000,0,0,0)) 0 0)",
           boxShadow:
             "inset 0 1px 0 rgba(var(--c-cfe6ff,207,230,255),.35), inset 0 -2px 0 rgba(var(--c-000000,0,0,0),.4)",
+          opacity: "var(--frame-opacity, 1)",
         }}
       />
       {/* çerçevenin iç kenarı: ekranın başladığı yer (içe pah) */}
@@ -576,6 +709,67 @@ function MetalPanel({
   );
 }
 
+/* =========================================================
+   İNCE CAM KART — fotoğraftaki görünüm
+   Opak değil: zemin rengiyle aynı tonda, yarı saydam lacivert-indigo
+   bir cam. Arkadaki nebula bulutları ve ışık tozu camın içinden
+   görünür, bu yüzden zemin ve kart tek parça gibi akar. Kenarda tek
+   ince açık çizgi, üstte cam yansıması, içte hafif ışıma.
+========================================================= */
+function ThinGlassPanel({
+  children,
+  inset,
+}: {
+  children?: ReactNode;
+  inset: PanelInset;
+}) {
+  const blur = "blur(var(--glass-blur, 2px)) saturate(1.15)";
+  return (
+    <div
+      className="absolute z-10 overflow-hidden"
+      style={{
+        left: inset.left,
+        right: inset.right,
+        top: inset.top,
+        bottom: inset.bottom,
+        borderRadius: "var(--glass-radius, 18px)",
+        /* --panel-fill: paletin tam panel dolgusu (ör. ortası açık, kenarı
+           zemin tonuna eriyen geçiş). Yoksa yarı saydam varsayılan renk. */
+        background: `var(--panel-fill,
+          radial-gradient(ellipse 70% 55% at 62% 40%, rgba(var(--panel-glow-1,12,34,88),calc(var(--glass-alpha,.55) * .6)), transparent 75%),
+          linear-gradient(180deg,
+            rgba(var(--panel-1,4,11,38),var(--glass-alpha,.55)) 0%,
+            rgba(var(--panel-2,6,18,55),calc(var(--glass-alpha,.55) * 1.05)) 55%,
+            rgba(var(--panel-3,3,9,32),calc(var(--glass-alpha,.55) * 1.2)) 100%))
+        `,
+        backdropFilter: blur,
+        WebkitBackdropFilter: blur,
+        border:
+          "1px solid rgba(var(--c-78dcff,120,220,255),var(--glass-edge,.3))",
+        /* --panel-rim: kenarlardan içeri süzülen ışık (paletten gelir;
+           yoksa eski hafif ışıma) */
+        boxShadow: `
+          var(--panel-halo, 0 30px 70px rgba(0,0,0,.6)),
+          inset 0 1px 0 rgba(255,255,255,.14),
+          var(--panel-rim, inset 0 0 80px rgba(var(--c-4fd8ff,79,216,255),.05))
+        `,
+        isolation: "isolate",
+      }}
+    >
+      {/* camın üst kenarından süzülen yansıma */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-1/3"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0))",
+        }}
+      />
+      <div className="absolute inset-0 z-10">{children}</div>
+    </div>
+  );
+}
+
 function GlassPanel({
   children,
   inset,
@@ -583,6 +777,9 @@ function GlassPanel({
   children?: ReactNode;
   inset: PanelInset;
 }) {
+  if (GLASS_LOOK === "thin")
+    return <ThinGlassPanel inset={inset}>{children}</ThinGlassPanel>;
+
   /* ocean: parçacıklar net kalsın diye cam neredeyse hiç bulanıklaştırmaz */
   const filter = `blur(${THEME === "ocean" ? 0.6 : GLASS.blur}px)`;
 
@@ -629,7 +826,7 @@ function GlassPanel({
    ÜST BAĞLANTI SOKETİ
 ========================================================= */
 
-function TopConnector() {
+function TopConnector({ plugged = false }: { plugged?: boolean }) {
   if (!SHOW_CONNECTOR) return null;
 
   /* GERÇEKÇİ GÜÇ SOKETİ — footer'daki PSU girişi gibi:
@@ -717,7 +914,11 @@ function TopConnector() {
           />
         ))}
       </svg>
-      {/* güç LED'i */}
+      {/* TAKILI FİŞ — kablo yukarıdan iner, metal gövde soketin üstünde,
+          başlık soketin ağzına oturur (ağız ≈32×8) */}
+      {plugged && <PluggedJack />}
+
+      {/* güç LED'i — fiş takılıyken yanık */}
       <span
         className="absolute block rounded-full"
         style={{
@@ -725,11 +926,192 @@ function TopConnector() {
           top: 15,
           width: 4,
           height: 4,
-          background: "rgba(var(--c-4fd8ff,79,216,255),.35)",
-          boxShadow: "0 0 4px rgba(var(--c-4fd8ff,79,216,255),.5)",
+          background: plugged
+            ? "rgb(var(--c-4fd8ff,79,216,255))"
+            : "rgba(var(--c-4fd8ff,79,216,255),.35)",
+          boxShadow: plugged
+            ? "0 0 6px rgba(var(--c-4fd8ff,79,216,255),.9), 0 0 12px rgba(var(--c-4fd8ff,79,216,255),.5)"
+            : "0 0 4px rgba(var(--c-4fd8ff,79,216,255),.5)",
         }}
       />
     </div>
+  );
+}
+
+/** Sokete takılı fiş + kablo (soketin koordinatlarında; y=0 panelin üst kenarı).
+ *  Ana sayfada avatarın taktığı fişin AYNISI (SiteAvatar > Connector /
+ *  CableStroke, kenarda EDGE_SCALE = 0.5 ölçeğiyle): fiş sokete üstten
+ *  oturmuş, kablosu portun biraz solundan panelin arkasına iniyor ve
+ *  içinden turkuaz akım akıyor. */
+const JACK_SCALE = 0.5; // SiteAvatar EDGE_SCALE ile aynı
+const JACK_W = 62; // SiteAvatar CONN_W
+const JACK_BODY = 12; // SiteAvatar CONN_BODY
+const JACK_PINS = 6; // SiteAvatar CONN_PINS
+const JACK_IN_Y = -6; // gövde üstü: kenarın 6px üstünde (SiteAvatar CONN_IN_Y)
+const JACK_CYAN = "79,216,255"; // SiteAvatar PLUG_CYAN
+
+function PluggedJack() {
+  const x0 = -JACK_W / 2;
+  const x1 = JACK_W / 2;
+  const B = JACK_BODY;
+  const P = JACK_PINS;
+  const contacts: number[] = [];
+  for (let x = x0 + 6; x <= x1 - 6; x += 3.2) contacts.push(x);
+  const boot = JACK_IN_Y - 13;
+  /* kovandan yukarı kalkar, portun biraz soluna kıvrılıp panelin
+     ARKASINA iner (panel kenarında biter). SiteAvatar PLUG_CABLE_D ile aynı */
+  const cable = `M 0 ${boot} C 0 ${boot - 9}, -20 ${boot - 11}, -36 ${boot - 5} S -53 -8, -54 0`;
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 overflow-visible"
+      /* 0 boyutlu svg hiç çizilmez: 1px, içerik taşar (overflow-visible) */
+      style={{ top: 0, zIndex: 2 }}
+      width="1"
+      height="1"
+    >
+      <defs>
+        <linearGradient id="pjBody" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#1a2e52" />
+          <stop offset=".45" stopColor="#0c1a33" />
+          <stop offset="1" stopColor="#050c1c" />
+        </linearGradient>
+        <linearGradient id="pjShell" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#c9d8ea" />
+          <stop offset=".5" stopColor="#8197b4" />
+          <stop offset="1" stopColor="#4b5f7c" />
+        </linearGradient>
+        <linearGradient id="pjBoot" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#050c1c" />
+          <stop offset=".5" stopColor="#1a2e52" />
+          <stop offset="1" stopColor="#050c1c" />
+        </linearGradient>
+      </defs>
+      <g
+        transform={`scale(${JACK_SCALE})`}
+        style={{ filter: "drop-shadow(0 0 3px rgba(200,214,232,.45))" }}
+      >
+        {/* KABLO — kılıf, yansıma ve içinden akan turkuaz akım;
+            panel kenarında biter: kablo panelin arkasına iner */}
+        <g fill="none" strokeLinecap="butt">
+          <path d={cable} stroke="#020b17" strokeWidth={6.5} />
+          <path d={cable} stroke="#0a1a33" strokeWidth={4.2} />
+          <path
+            d={cable}
+            stroke="rgba(207,230,255,.28)"
+            strokeWidth={0.9}
+            transform="translate(-0.8 -1.2)"
+          />
+          <path
+            d={cable}
+            stroke={`rgb(${JACK_CYAN})`}
+            strokeWidth={1.4}
+            strokeDasharray="6 12"
+            style={{ filter: `drop-shadow(0 0 3px rgba(${JACK_CYAN},1))` }}
+            opacity={0.95}
+          >
+            <animate
+              attributeName="stroke-dashoffset"
+              from="0"
+              to="36"
+              dur="0.7s"
+              repeatCount="indefinite"
+            />
+          </path>
+        </g>
+
+        {/* FİŞ */}
+        <g transform={`translate(0 ${JACK_IN_Y})`}>
+          {/* metal kılıf — sokete giren kısım */}
+          <path
+            d={`M ${x0 + 2} ${B - 1} H ${x1 - 2} V ${B + P - 2} L ${x1 - 4} ${B + P} H ${x0 + 4} L ${x0 + 2} ${B + P - 2} Z`}
+            fill="url(#pjShell)"
+            stroke="rgba(10,20,40,.8)"
+            strokeWidth={0.6}
+          />
+          {contacts.map((x) => (
+            <rect
+              key={x}
+              x={x}
+              y={B + P - 3.2}
+              width={1.4}
+              height={2.6}
+              rx={0.3}
+              fill="#ffe39a"
+            />
+          ))}
+          {/* kablo koruması (lastik kovan) */}
+          <path
+            d="M -4.5 -13 L 4.5 -13 L 9 0 L -9 0 Z"
+            fill="url(#pjBoot)"
+            stroke="rgba(207,230,255,.25)"
+            strokeWidth={0.6}
+          />
+          {[0, 1, 2, 3].map((k) => (
+            <line
+              key={k}
+              x1={-5 - k * 1.1}
+              x2={5 + k * 1.1}
+              y1={-10 + k * 3}
+              y2={-10 + k * 3}
+              stroke="rgba(0,0,0,.6)"
+              strokeWidth={0.9}
+            />
+          ))}
+          {/* gövde */}
+          <rect
+            x={x0}
+            y={0}
+            width={JACK_W}
+            height={B}
+            rx={2.5}
+            fill="url(#pjBody)"
+            stroke="rgba(150,175,205,.9)"
+            strokeWidth={1}
+          />
+          <rect
+            x={x0 + 3}
+            y={1.1}
+            width={JACK_W - 6}
+            height={1.2}
+            rx={0.6}
+            fill="rgba(207,230,255,.35)"
+          />
+          {[0, 1, 2, 3, 4].map((k) => (
+            <g key={k}>
+              <line
+                x1={x0 + 4 + k * 2.4}
+                x2={x0 + 4 + k * 2.4}
+                y1={3.5}
+                y2={B - 2.5}
+                stroke="rgba(0,0,0,.55)"
+                strokeWidth={1}
+              />
+              <line
+                x1={x1 - 4 - k * 2.4}
+                x2={x1 - 4 - k * 2.4}
+                y1={3.5}
+                y2={B - 2.5}
+                stroke="rgba(0,0,0,.55)"
+                strokeWidth={1}
+              />
+            </g>
+          ))}
+          {/* durum LED'i — takılı: turkuaz yanar */}
+          <rect
+            x={-10}
+            y={B / 2 - 1}
+            width={20}
+            height={2}
+            rx={1}
+            fill={`rgb(${JACK_CYAN})`}
+            style={{
+              filter: `drop-shadow(0 0 3px rgba(${JACK_CYAN},1)) drop-shadow(0 0 6px rgba(${JACK_CYAN},.7))`,
+            }}
+          />
+        </g>
+      </g>
+    </svg>
   );
 }
 
@@ -757,6 +1139,7 @@ function useRimThickness() {
    KASA DONANIMI — footer'daki bilgisayar kasası gibi:
    köşelerde vidalar, üst/alt kenarda delikli havalandırma şeridi,
    cam kenarında fırçalanmış metal dokusu.
+   Palet --case-opacity tanımlarsa donanım geri planda kalır.
 ========================================================= */
 
 const SHOW_CASE = true;
@@ -813,10 +1196,15 @@ function Vent({ style }: { style: CSSProperties }) {
 
 function CaseHardware() {
   const t = useRimThickness();
-  if (!SHOW_CASE) return null;
+  /* ince cam kartta kasa donanımı yok (fotoğraftaki gibi sade kenar) */
+  if (!SHOW_CASE || (PANEL_STYLE === "glass" && GLASS_LOOK === "thin"))
+    return null;
   const c = t / 2 - 6.5; // vidalar cam kenarının ortasında
   return (
-    <div className="pointer-events-none absolute inset-0 z-25">
+    <div
+      className="pointer-events-none absolute inset-0 z-25"
+      style={{ opacity: "var(--case-opacity, 1)" }}
+    >
       {/* fırçalanmış metal kenar dokusu (sadece kalın cam kenarında) */}
       {PANEL_STYLE === "glass" && (
         <div
@@ -909,6 +1297,8 @@ export default function SciFiBackground({
   backdrop,
   panelInset,
   hudOnFrame = false,
+  plugged = true,
+  connector = true,
 }: SciFiBackgroundProps) {
   const inset = panelInset ?? {
     left: "1%",
@@ -945,7 +1335,7 @@ export default function SciFiBackground({
         }}
       >
         <CaseHardware />
-        <TopConnector />
+        {connector && <TopConnector plugged={plugged} />}
         {!hudOnFrame && <Hud />}
       </div>
 
