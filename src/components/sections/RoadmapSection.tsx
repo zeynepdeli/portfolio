@@ -432,9 +432,16 @@ const polygon = (a: Pt[], b: Pt[]) =>
    GEOMETRY
 ================================================================ */
 
-function buildGeometry() {
-  const top = spline(SECTIONS.map(([a]) => a));
-  const bottom = spline(SECTIONS.map(([, b]) => b));
+type GeoOptions = {
+  /** yeteneklerin dizildiği bölüm: middle noktalarının indeks aralığı */
+  range: (middle: Pt[], acc: number[]) => [number, number];
+  /** k. yeteneğin kıyısı: true = "top" kenar, false = "bottom" kenar */
+  onTop: (k: number, m: Pt, top: Pt, bottom: Pt) => boolean;
+};
+
+function buildGeometry(sections: [P, P][], opts: GeoOptions) {
+  const top = spline(sections.map(([a]) => a));
+  const bottom = spline(sections.map(([, b]) => b));
 
   const depth = top.map(
     (p, i) => 5 + Math.hypot(p.x - bottom[i].x, p.y - bottom[i].y) * 0.08,
@@ -458,12 +465,7 @@ function buildGeometry() {
           middle[i].y - middle[i - 1].y,
         ),
     );
-  const iFrom = Math.max(
-    0,
-    middle.findIndex((p) => p.x >= SKILL_FROM_X),
-  );
-  let iTo = middle.length - 1;
-  while (iTo > iFrom && middle[iTo].x > SKILL_TO_X) iTo--;
+  const [iFrom, iTo] = opts.range(middle, acc);
   const s0 = acc[iFrom];
   const s1 = acc[iTo];
   const nodeIndexes = NODES.map((_, k) => {
@@ -474,7 +476,9 @@ function buildGeometry() {
   });
   /* her yeteneğin kıyı noktası ve kıyıdan dışa doğru yön */
   const banks = nodeIndexes.map((i, k) => {
-    const edge = (k % 2 === 0 ? top : bottom)[i];
+    const edge = (opts.onTop(k, middle[i], top[i], bottom[i]) ? top : bottom)[
+      i
+    ];
     const m = middle[i];
     const len = Math.hypot(edge.x - m.x, edge.y - m.y) || 1;
     return { at: edge, nx: (edge.x - m.x) / len, ny: (edge.y - m.y) / len };
@@ -494,9 +498,74 @@ function buildGeometry() {
 }
 
 /* Geometri sabit veriden üretilir: modül yüklenirken bir kez hesaplanır */
-const GEO = buildGeometry();
+const GEO = buildGeometry(SECTIONS, {
+  range: (middle) => {
+    const iFrom = Math.max(
+      0,
+      middle.findIndex((p) => p.x >= SKILL_FROM_X),
+    );
+    let iTo = middle.length - 1;
+    while (iTo > iFrom && middle[iTo].x > SKILL_TO_X) iTo--;
+    return [iFrom, iTo];
+  },
+  /* sırayla bir üst kıyı, bir alt kıyı */
+  onTop: (k) => k % 2 === 0,
+});
 
-const RIVER_END = GEO.middle[GEO.middle.length - 1];
+/* ================================================================
+   TELEFON (DİKEY EKRAN) NEHRİ — projeler sayfasındaki gibi yukarıdan
+   aşağı kıvrılarak akar, ekrana tam sığar (kamera kaymaz).
+   Koordinatlar: TW × TH (telefon oranında). Nehrin orta çizgisi
+   TALL_MIDDLE; kıyılar bu çizgiden TALL_HALF kadar iki yana açılır.
+================================================================ */
+const TW = 640;
+const TH = 1360;
+const TALL_HALF = 50;
+/** telefonda etiketin en fazla genişliği (px): sığmazsa iki satıra iner */
+const CHIP_MAX_PHONE = 118;
+const TALL_MIDDLE: P[] = [
+  [320, -40],
+  [330, 90],
+  [380, 210],
+  [385, 340],
+  [320, 450],
+  [258, 560],
+  [255, 690],
+  [318, 800],
+  [382, 910],
+  [386, 1040],
+  [322, 1150],
+  [262, 1250],
+  [265, 1420],
+];
+const TALL_SECTIONS: [P, P][] = TALL_MIDDLE.map(([x, y], i) => {
+  const [px, py] = TALL_MIDDLE[Math.max(0, i - 1)];
+  const [nx, ny] = TALL_MIDDLE[Math.min(TALL_MIDDLE.length - 1, i + 1)];
+  const tx = nx - px;
+  const ty = ny - py;
+  const len = Math.hypot(tx, ty) || 1;
+  /* akış yönüne dik birim vektör (sol kıyı = "top", sağ kıyı = "bottom") */
+  const ox = (ty / len) * TALL_HALF;
+  const oy = (-tx / len) * TALL_HALF;
+  return [
+    [x + ox, y + oy],
+    [x - ox, y - oy],
+  ];
+});
+const GEO_TALL = buildGeometry(TALL_SECTIONS, {
+  /* nehrin %6'sından %92'sine kadar eşit aralıklı */
+  range: (middle, acc) => {
+    const total = acc[acc.length - 1];
+    const iFrom = acc.findIndex((a) => a >= total * 0.06);
+    let iTo = middle.length - 1;
+    while (iTo > iFrom && acc[iTo] > total * 0.92) iTo--;
+    return [iFrom, iTo];
+  },
+  /* sırayla bir sol, bir sağ kıyı (nehir ortada, iki yanda eşit boşluk) */
+  onTop: (k) => k % 2 === 0,
+});
+
+const geoOf = (portrait: boolean) => (portrait ? GEO_TALL : GEO);
 
 /* ================================================================
    SAFE POINT
@@ -530,22 +599,15 @@ const pointAt = (points: Pt[], value: number): Pt => {
 ================================================================ */
 
 /* DİKEY: nehrin başından sonuna dikey açıklığı ekran yüksekliğine sığar */
+/* nehir ekranı kaplar (dikeyde telefon nehri, yatayda geniş nehir) */
 const computeScale = (w: number, h: number, portrait: boolean) =>
-  portrait ? (h * 0.96) / (RIVER_END.y + 80) : Math.max(w / W, h / H);
+  portrait ? Math.max(w / TW, h / TH) : Math.max(w / W, h / H);
 
-/* kamera yatay kayması: dikey ekranda kişi ekranın ~%38'inde durur;
-   sona gelince nehrin ucu tam SAĞ ALT köşeden çıkar */
-function panAt(w: number, scale: number, portrait: boolean, i: number) {
-  if (!portrait) return (w - W * scale) / 2;
-  const ax = pointAt(GEO.middle, i).x * scale;
-  const want = w * 0.38 - ax;
-  const minPan = w - RIVER_END.x * scale + 24; // uç sağ kenarın biraz dışında
-  return Math.min(0, Math.max(minPan, want));
-}
-
-/* nehrin ucu alt kenarın biraz dışında → sağ alt köşeden çıkar */
+/* nehir ekranda ortalanır (kamera kaymaz) */
+const panAt = (w: number, scale: number, portrait: boolean) =>
+  (w - (portrait ? TW : W) * scale) / 2;
 const panYOf = (h: number, scale: number, portrait: boolean) =>
-  portrait ? h - RIVER_END.y * scale + 24 : (h - H * scale) / 2;
+  (h - (portrait ? TH : H) * scale) / 2;
 
 /* ================================================================
    SCROLL PARENT
@@ -777,7 +839,6 @@ export default function RoadmapSection({
      React state ile DEĞİL, doğrudan stil yazılarak güncellenir — her
      karede bütün bölüm (nehir, 22 etiket) yeniden çizilmez */
   const avatarElRef = useRef<HTMLDivElement>(null);
-  const camRef = useRef<HTMLDivElement>(null);
 
   /* Avatar: en son vardığı durak (-1 = henüz başlamadı), hareket ediyor mu,
      hangi yöne bakıyor */
@@ -844,6 +905,10 @@ export default function RoadmapSection({
   ============================================================== */
 
   const portrait = size.w > 0 && size.w < 900 && size.h > size.w * 1.15;
+  /* bu ekranın nehri ve koordinat alanı */
+  const G = geoOf(portrait);
+  const VW = portrait ? TW : W;
+  const VH = portrait ? TH : H;
 
   /* telefon (dikey ya da yatay): yetenek paneli mobil hâliyle */
   const compactPanel = size.w > 0 && (size.w < 640 || size.h < 560);
@@ -998,15 +1063,12 @@ export default function RoadmapSection({
   const placeAvatar = useCallback(
     (i: number) => {
       const sc = computeScale(size.w, size.h, portrait);
-      const base = panAt(size.w, sc, portrait, 0);
+      const base = panAt(size.w, sc, portrait);
       const py = panYOf(size.h, sc, portrait);
-      const pt = pointAt(GEO.middle, i);
+      const pt = pointAt(geoOf(portrait).middle, i);
       const av = avatarElRef.current;
       if (av)
         av.style.transform = `translate3d(${base + pt.x * sc}px, ${py + pt.y * sc}px, 0) translate(-50%, -96%)`;
-      const cam = camRef.current;
-      if (cam)
-        cam.style.transform = `translate3d(${panAt(size.w, sc, portrait, i) - base}px, 0, 0)`;
     },
     [size.w, size.h, portrait],
   );
@@ -1028,7 +1090,7 @@ export default function RoadmapSection({
     if (!active) return;
 
     const from = avatarRef.current;
-    const to = GEO.middle.length - 1;
+    const to = G.middle.length - 1;
 
     if (from >= to - 0.001) return;
 
@@ -1037,8 +1099,8 @@ export default function RoadmapSection({
     let pathLen = 0;
     for (let i = Math.floor(from); i < to; i++) {
       pathLen += Math.hypot(
-        GEO.middle[i + 1].x - GEO.middle[i].x,
-        GEO.middle[i + 1].y - GEO.middle[i].y,
+        G.middle[i + 1].x - G.middle[i].x,
+        G.middle[i + 1].y - G.middle[i].y,
       );
     }
     pathLen *= sc;
@@ -1074,8 +1136,8 @@ export default function RoadmapSection({
       const current = from + (to - from) * ease;
 
       /* yön: sola kıvrılınca sol; aşağı (izleyiciye) akarken ekrana döner */
-      const a = pointAt(GEO.middle, current);
-      const b = pointAt(GEO.middle, Math.min(to, current + 1.2));
+      const a = pointAt(G.middle, current);
+      const b = pointAt(G.middle, Math.min(to, current + 1.2));
       const dx = b.x - a.x;
       const dy = b.y - a.y;
 
@@ -1089,7 +1151,9 @@ export default function RoadmapSection({
 
       /* nehir aşağı akarken ekrana döner (histerezis: titreme olmasın) */
       const ratio = dy / (Math.abs(dx) || 0.001);
+      /* telefonda nehir hep aşağı akar: kişi hep ekrana dönük */
       const front =
+        portrait ||
         current < FRONT_INTRO_UNTIL ||
         (lastFront ? ratio > FRONT_EXIT : ratio > FRONT_ENTER);
       if (front !== lastFront) {
@@ -1100,8 +1164,8 @@ export default function RoadmapSection({
       /* geçtiği yetenekler toplanır */
       let passed = 0;
       while (
-        passed < GEO.nodeIndexes.length &&
-        GEO.nodeIndexes[passed] <= current + 0.5
+        passed < G.nodeIndexes.length &&
+        G.nodeIndexes[passed] <= current + 0.5
       )
         passed++;
       if (passed !== lastPassed) {
@@ -1137,7 +1201,7 @@ export default function RoadmapSection({
       cancelAnimationFrame(kick);
       cancelAnimationFrame(frame);
     };
-  }, [active, portrait, size.w, size.h, placeAvatar]);
+  }, [active, portrait, size.w, size.h, placeAvatar, G]);
 
   /* ==============================================================
      KAMERA
@@ -1145,9 +1209,8 @@ export default function RoadmapSection({
 
   const scale = computeScale(size.w, size.h, portrait);
 
-  /* kamera: başlangıç konumu (dikey ekranda kişinin başladığı yer).
-     Kişi ilerledikçe kamera kayması camRef'e doğrudan yazılır. */
-  const panX = panAt(size.w, scale, portrait, 0);
+  /* nehir ekranda ortalı (dikey ekranda telefon nehri) */
+  const panX = panAt(size.w, scale, portrait);
   const panY = panYOf(size.h, scale, portrait);
 
   const toPx = (pt: Pt) => ({
@@ -1164,14 +1227,18 @@ export default function RoadmapSection({
 
   /* KIYIDAKİ YETENEK ETİKETLERİ — her biri kendi kıyı noktasından dışa
      doğru yerleşir; başka bir etiketle çakışırsa biraz daha dışa itilir */
-  const chipFont = portrait ? 10 : 11.5;
+  const chipFont = portrait ? 9.5 : 11.5;
   const chipPositions: { left: number; top: number }[] = [];
   {
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    GEO.banks.forEach(({ at, nx, ny }, i) => {
+    G.banks.forEach(({ at, nx, ny }, i) => {
       const p = toPx(at);
-      const w = 36 + NODES[i].name.length * chipFont * 0.63;
-      const h = chipFont + 13;
+      /* telefonda etiket en fazla CHIP_MAX_PHONE genişliğinde; uzun
+         olan iki satıra iner */
+      const est = 36 + NODES[i].name.length * chipFont * 0.63;
+      const w = portrait ? Math.min(est, CHIP_MAX_PHONE) : est;
+      const lines = portrait ? Math.ceil(est / CHIP_MAX_PHONE) : 1;
+      const h = lines * 13 + 13;
       const base = BANK_GAP + Math.abs(nx) * (w / 2) + Math.abs(ny) * (h / 2);
       const hits = (cx: number, cy: number) =>
         placed.some(
@@ -1196,6 +1263,8 @@ export default function RoadmapSection({
           }
         }
       }
+      /* etiket ekrandan taşmasın */
+      cx = Math.min(Math.max(cx, w / 2 + 6), size.w - w / 2 - 6);
       placed.push({
         x0: cx - w / 2,
         y0: cy - h / 2,
@@ -1295,18 +1364,17 @@ export default function RoadmapSection({
       ====================================================== */}
 
       <div className="rm-river-layer pointer-events-none absolute inset-0">
-        {/* KAMERA: dikey ekranda nehir, etiketler ve kişi birlikte kayar */}
-        <div ref={camRef} className="absolute inset-0 will-change-transform">
+        <div className="absolute inset-0">
           <svg
-            viewBox={`0 0 ${W} ${H}`}
+            viewBox={`0 0 ${VW} ${VH}`}
             preserveAspectRatio="none"
             className="absolute"
             style={{
               /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
               left: panX,
               top: panY,
-              width: W * scale,
-              height: H * scale,
+              width: VW * scale,
+              height: VH * scale,
             }}
           >
             <defs>
@@ -1317,8 +1385,8 @@ export default function RoadmapSection({
                 gradientUnits="userSpaceOnUse"
                 x1="150"
                 y1="0"
-                x2={W}
-                y2={H}
+                x2={VW}
+                y2={VH}
               >
                 <stop offset="0" stopColor="#061f3a" />
                 <stop offset=".22" stopColor="#0a2c52" />
@@ -1335,8 +1403,8 @@ export default function RoadmapSection({
                 gradientUnits="userSpaceOnUse"
                 x1="150"
                 y1="0"
-                x2={W}
-                y2={H}
+                x2={VW}
+                y2={VH}
               >
                 <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
                 <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
@@ -1363,13 +1431,13 @@ export default function RoadmapSection({
               </linearGradient>
 
               <mask id="rm-mask" maskUnits="userSpaceOnUse">
-                <rect width={W} height={H} fill="url(#rm-fade)" />
+                <rect width={VW} height={VH} fill="url(#rm-fade)" />
               </mask>
 
               {/* RIVER CLIP */}
 
               <clipPath id="rm-clip">
-                <path d={GEO.river} />
+                <path d={G.river} />
               </clipPath>
 
               {/* WATER WAVE */}
@@ -1401,19 +1469,19 @@ export default function RoadmapSection({
 
             {/* DERE TABANI */}
 
-            <path d={GEO.river} fill="url(#rm-depth)" />
+            <path d={G.river} fill="url(#rm-depth)" />
 
             {/* SU */}
 
             <g clipPath="url(#rm-clip)">
-              <path d={GEO.surface} fill="url(#rm-water)" />
+              <path d={G.surface} fill="url(#rm-water)" />
 
               {/* KOYU DERİNLİK BANTLARI */}
 
               {DARK_BANDS.map((ratio) => (
                 <path
                   key={ratio}
-                  d={GEO.lane(ratio)}
+                  d={G.lane(ratio)}
                   fill="none"
                   stroke="#04142b"
                   strokeWidth="34"
@@ -1425,7 +1493,7 @@ export default function RoadmapSection({
 
               {/* İÇ CAM */}
 
-              <path d={GEO.core} fill="url(#rm-core)" opacity=".75" />
+              <path d={G.core} fill="url(#rm-core)" opacity=".75" />
 
               {/* AKIŞ ÇİZGİLERİ
 
@@ -1439,7 +1507,7 @@ export default function RoadmapSection({
               {SOFT_STREAMS.map((ratio, i) => (
                 <path
                   key={ratio}
-                  d={GEO.lane(ratio)}
+                  d={G.lane(ratio)}
                   fill="none"
                   stroke={C.edge}
                   strokeWidth="5"
@@ -1457,7 +1525,7 @@ export default function RoadmapSection({
                 {FINE_STREAMS.map((stream, i) => (
                   <path
                     key={`${stream.f}-${i}`}
-                    d={GEO.lane(stream.f)}
+                    d={G.lane(stream.f)}
                     fill="none"
                     stroke={C.iceSoft}
                     strokeWidth={stream.width}
@@ -1476,7 +1544,7 @@ export default function RoadmapSection({
                 {HIGHLIGHTS.map((ratio, i) => (
                   <path
                     key={ratio}
-                    d={GEO.lane(ratio)}
+                    d={G.lane(ratio)}
                     fill="none"
                     stroke={C.ice}
                     strokeWidth="1.2"
@@ -1494,7 +1562,7 @@ export default function RoadmapSection({
               {STREAMS.map((stream, i) => (
                 <path
                   key={`${stream.f}-${i}`}
-                  d={GEO.lane(stream.f)}
+                  d={G.lane(stream.f)}
                   fill="none"
                   stroke={i % 3 === 0 ? C.edge : C.steel}
                   strokeWidth={stream.width}
@@ -1511,7 +1579,7 @@ export default function RoadmapSection({
               <g mask="url(#rm-mask)">
                 {BINARY_LANES.map(([ratio, opacity, offset], i) => (
                   <g key={ratio}>
-                    <path id={`rm-lane-${i}`} d={GEO.lane(ratio)} fill="none" />
+                    <path id={`rm-lane-${i}`} d={G.lane(ratio)} fill="none" />
 
                     <text
                       fontFamily={MONO}
@@ -1532,7 +1600,7 @@ export default function RoadmapSection({
             {/* DERE KENARLARI */}
 
             <path
-              d={GEO.top}
+              d={G.top}
               fill="none"
               stroke={C.steel}
               strokeWidth="1"
@@ -1540,7 +1608,7 @@ export default function RoadmapSection({
             />
 
             <path
-              d={GEO.bottom}
+              d={G.bottom}
               fill="none"
               stroke={C.steelDim}
               strokeWidth="1"
@@ -1574,13 +1642,15 @@ export default function RoadmapSection({
                     left: pos.left,
                     top: pos.top,
                     transform: "translate(-50%, -50%)",
+                    maxWidth: portrait ? CHIP_MAX_PHONE : undefined,
                   }}
                 >
                   <div
                     className="flex items-center gap-1.5 rounded-full font-mono"
                     style={{
-                      padding: "4px 9px 4px 7px",
-                      lineHeight: "15px",
+                      padding: portrait ? "3px 8px 3px 6px" : "4px 9px 4px 7px",
+                      lineHeight: portrait ? "13px" : "15px",
+                      borderRadius: portrait ? 10 : undefined,
                       fontSize: chipFont,
                       letterSpacing: ".02em",
                       color: collected
