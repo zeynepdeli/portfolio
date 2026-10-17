@@ -396,10 +396,12 @@ export default function Home() {
     () => (
       <FooterSection
         open={footerArrived}
+        /* içerik, footer yükselmeye BAŞLARKEN sırayla yerine oturur */
+        reveal={footerOpen}
         topFade={FOOTER_MODE === "curtain" ? 0 : undefined}
       />
     ),
-    [footerArrived],
+    [footerArrived, footerOpen],
   );
 
   /* ipucu: footer kapatılınca (ya da otomatik açılma kapalıysa) */

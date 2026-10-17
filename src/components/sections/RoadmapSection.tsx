@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -437,6 +438,9 @@ type GeoOptions = {
   range: (middle: Pt[], acc: number[]) => [number, number];
   /** k. yeteneğin kıyısı: true = "top" kenar, false = "bottom" kenar */
   onTop: (k: number, m: Pt, top: Pt, bottom: Pt) => boolean;
+  /** yetenek aralığı için yol parçasının ağırlığı (varsayılan: uzunluğu).
+   *  Telefonda yalnızca yatay ilerleme sayılır: kıvrımlara etiket düşmez */
+  weight?: (a: Pt, b: Pt) => number;
 };
 
 function buildGeometry(sections: [P, P][], opts: GeoOptions) {
@@ -466,12 +470,19 @@ function buildGeometry(sections: [P, P][], opts: GeoOptions) {
         ),
     );
   const [iFrom, iTo] = opts.range(middle, acc);
-  const s0 = acc[iFrom];
-  const s1 = acc[iTo];
+  /* yetenekler ağırlıklı uzunluğa göre eşit aralıklı */
+  const wacc = opts.weight
+    ? middle.reduce<number[]>((arr, p, i) => {
+        arr.push(i ? arr[i - 1] + opts.weight!(middle[i - 1], p) : 0);
+        return arr;
+      }, [])
+    : acc;
+  const s0 = wacc[iFrom];
+  const s1 = wacc[iTo];
   const nodeIndexes = NODES.map((_, k) => {
     const target = s0 + ((k + 0.5) / NODES.length) * (s1 - s0);
     let i = iFrom;
-    while (i < iTo && acc[i] < target) i++;
+    while (i < iTo && wacc[i] < target) i++;
     return i;
   });
   /* her yeteneğin kıyı noktası ve kıyıdan dışa doğru yön */
@@ -513,59 +524,101 @@ const GEO = buildGeometry(SECTIONS, {
 });
 
 /* ================================================================
-   TELEFON (DİKEY EKRAN) NEHRİ — projeler sayfasındaki gibi yukarıdan
-   aşağı kıvrılarak akar, ekrana tam sığar (kamera kaymaz).
-   Koordinatlar: TW × TH (telefon oranında). Nehrin orta çizgisi
-   TALL_MIDDLE; kıyılar bu çizgiden TALL_HALF kadar iki yana açılır.
+   TELEFON (DİKEY EKRAN) NEHRİ — masaüstündeki gibi EN SOLDAN girer,
+   EN SAĞDAN çıkar. Dar ve uzun ekrana sığmak için yılan gibi üç kez
+   kıvrılır: soldan sağa → sağdan sola → soldan sağa.
+   Koordinatlar: genişlik TW (= lacivert panelin genişliği), yükseklik
+   panelin oranına göre hesaplanır; nehir panelden DIŞARI taşmaz.
 ================================================================ */
 const TW = 640;
-const TH = 1360;
-const TALL_HALF = 50;
+/** nehrin yarı genişliği (koordinat birimi) */
+const TALL_HALF = 38;
 /** telefonda etiketin en fazla genişliği (px): sığmazsa iki satıra iner */
 const CHIP_MAX_PHONE = 118;
-const TALL_MIDDLE: P[] = [
-  [320, -40],
-  [330, 90],
-  [380, 210],
-  [385, 340],
-  [320, 450],
-  [258, 560],
-  [255, 690],
-  [318, 800],
-  [382, 910],
-  [386, 1040],
-  [322, 1150],
-  [262, 1250],
-  [265, 1420],
-];
-const TALL_SECTIONS: [P, P][] = TALL_MIDDLE.map(([x, y], i) => {
-  const [px, py] = TALL_MIDDLE[Math.max(0, i - 1)];
-  const [nx, ny] = TALL_MIDDLE[Math.min(TALL_MIDDLE.length - 1, i + 1)];
-  const tx = nx - px;
-  const ty = ny - py;
-  const len = Math.hypot(tx, ty) || 1;
-  /* akış yönüne dik birim vektör (sol kıyı = "top", sağ kıyı = "bottom") */
-  const ox = (ty / len) * TALL_HALF;
-  const oy = (-tx / len) * TALL_HALF;
-  return [
-    [x + ox, y + oy],
-    [x - ox, y - oy],
-  ];
-});
-const GEO_TALL = buildGeometry(TALL_SECTIONS, {
-  /* nehrin %6'sından %92'sine kadar eşit aralıklı */
-  range: (middle, acc) => {
-    const total = acc[acc.length - 1];
-    const iFrom = acc.findIndex((a) => a >= total * 0.06);
-    let iTo = middle.length - 1;
-    while (iTo > iFrom && acc[iTo] > total * 0.92) iTo--;
-    return [iFrom, iTo];
-  },
-  /* sırayla bir sol, bir sağ kıyı (nehir ortada, iki yanda eşit boşluk) */
-  onTop: (k) => k % 2 === 0,
-});
+const CHIP_FONT_PHONE = 9.5;
+const CHIP_FONT = 11.5;
+/** telefonda geniş kıvrımın sağ / sol uç noktası (TW içinde) */
+const TURN_IN = 470;
+const TURN_OUT = 548;
 
-const geoOf = (portrait: boolean) => (portrait ? GEO_TALL : GEO);
+/** panelin oranına göre (th = TW * panelH / panelW) yılan nehir */
+function buildTall(th: number) {
+  const y1 = th * 0.15;
+  const y2 = th * 0.45;
+  const y3 = th * 0.75;
+  const D = y2 - y1;
+  const wob = Math.min(26, D * 0.06);
+  const L = TW - TURN_IN; // sol kıvrımın iç noktası
+  const Lo = TW - TURN_OUT; // sol kıvrımın uç noktası
+  const middle: P[] = [
+    [-90, y1 + wob],
+    [40, y1],
+    [190, y1 - wob],
+    [340, y1 + wob * 0.6],
+    [TURN_IN, y1 + D * 0.03],
+    [TURN_OUT - 14, y1 + D * 0.22],
+    [TURN_OUT, y1 + D * 0.5],
+    [TURN_OUT - 14, y1 + D * 0.78],
+    [TURN_IN, y2 - D * 0.03],
+    [330, y2 + wob * 0.6],
+    [190, y2 - wob * 0.6],
+    [L, y2 + D * 0.03],
+    [Lo + 14, y2 + D * 0.22],
+    [Lo, y2 + D * 0.5],
+    [Lo + 14, y2 + D * 0.78],
+    [L, y3 - D * 0.03],
+    [300, y3 + wob * 0.6],
+    [450, y3 - wob],
+    [600, y3],
+    [TW + 90, y3 + wob],
+  ];
+  const sections: [P, P][] = middle.map(([x, y], i) => {
+    const [px, py] = middle[Math.max(0, i - 1)];
+    const [nx, ny] = middle[Math.min(middle.length - 1, i + 1)];
+    const tx = nx - px;
+    const ty = ny - py;
+    const len = Math.hypot(tx, ty) || 1;
+    /* akış yönüne dik birim vektör */
+    const ox = (ty / len) * TALL_HALF;
+    const oy = (-tx / len) * TALL_HALF;
+    return [
+      [x + ox, y + oy],
+      [x - ox, y - oy],
+    ];
+  });
+  return buildGeometry(sections, {
+    /* panelin içindeki kısım (girişten hemen sonra, çıkıştan hemen önce) */
+    range: (m) => {
+      const iFrom = Math.max(
+        0,
+        m.findIndex((p) => p.x >= 20),
+      );
+      let iTo = m.length - 1;
+      while (iTo > iFrom && m[iTo].x > TW - 30) iTo--;
+      return [iFrom, iTo];
+    },
+    /* yalnızca yatay ilerleme: etiketler üç düz kolun üstüne/altına */
+    weight: (a, b) => {
+      const dx = Math.abs(b.x - a.x);
+      return dx > Math.abs(b.y - a.y) * 1.3 ? dx : 0;
+    },
+    /* sırayla bir üst, bir alt kıyı; kıvrımlarda dış kıyı ekran
+       kenarına çok yakınsa etiket iç kıyıya geçer */
+    onTop: (k, m, top, bottom) => {
+      const first = k % 2 === 0;
+      const e = first ? top : bottom;
+      const len = Math.hypot(e.x - m.x, e.y - m.y) || 1;
+      const nx = (e.x - m.x) / len;
+      if ((nx > 0.55 && m.x > TW * 0.72) || (nx < -0.55 && m.x < TW * 0.28))
+        return !first;
+      return first;
+    },
+  });
+}
+
+/** telefon nehrinin yüksekliği (koordinat): panel oranından, 20'lik adımla */
+const tallHeightOf = (w: number, h: number) =>
+  Math.round((TW * (h * PANEL_H)) / (w * PANEL_W) / 20) * 20;
 
 /* ================================================================
    SAFE POINT
@@ -595,19 +648,145 @@ const pointAt = (points: Pt[], value: number): Pt => {
 };
 
 /* ================================================================
-   SCALE
+   ÇERÇEVE (ölçek + konum)
+   Lacivert cam panel: ScifiBackground'daki gibi sol/sağ %1, üst/alt %1.5.
 ================================================================ */
+const PANEL_L = 0.01;
+const PANEL_T = 0.015;
+const PANEL_W = 1 - PANEL_L * 2;
+const PANEL_H = 1 - PANEL_T * 2;
 
-/* DİKEY: nehrin başından sonuna dikey açıklığı ekran yüksekliğine sığar */
-/* nehir ekranı kaplar (dikeyde telefon nehri, yatayda geniş nehir) */
-const computeScale = (w: number, h: number, portrait: boolean) =>
-  portrait ? Math.max(w / TW, h / TH) : Math.max(w / W, h / H);
+type Frame = { sc: number; px: number; py: number; vw: number; vh: number };
 
-/* nehir ekranda ortalanır (kamera kaymaz) */
-const panAt = (w: number, scale: number, portrait: boolean) =>
-  (w - (portrait ? TW : W) * scale) / 2;
-const panYOf = (h: number, scale: number, portrait: boolean) =>
-  (h - (portrait ? TH : H) * scale) / 2;
+/** geniş ekran: nehir ekranı kaplar ve ortalanır.
+ *  telefon: nehir panelin genişliğine tam oturur (uçlar panel kenarında) */
+function frameOf(w: number, h: number, portrait: boolean): Frame {
+  if (portrait) {
+    const vh = tallHeightOf(w, h) || 1360;
+    const sc = (w * PANEL_W) / TW || 1;
+    return {
+      sc,
+      px: w * PANEL_L,
+      py: h * PANEL_T + (h * PANEL_H - vh * sc) / 2,
+      vw: TW,
+      vh,
+    };
+  }
+  const sc = Math.max(w / W, h / H);
+  return { sc, px: (w - W * sc) / 2, py: (h - H * sc) / 2, vw: W, vh: H };
+}
+
+/* ================================================================
+   YETENEK ETİKETLERİNİN YERİ — her biri kendi kıyı noktasından dışa
+   doğru yerleşir; başka etikete ya da (telefonda) nehre çarpmayan en
+   yakın yere itilir. Ağır hesap: yalnızca boyut değişince yapılır.
+================================================================ */
+type Geo = ReturnType<typeof buildGeometry>;
+
+/** aday kaydırmalar [dışa itme, kıyı boyunca kayma], yakından uzağa */
+const CANDIDATES_WIDE: [number, number][] = [];
+for (let push = 0; push <= 120; push += 10)
+  for (const slide of [0, 24, -24, 48, -48, 72, -72])
+    CANDIDATES_WIDE.push([push, slide]);
+/* telefon: dışa itmek (ikinci sıraya geçmek) yana kaymaktan ucuz */
+const CANDIDATES_TALL: [number, number][] = [];
+for (let push = 0; push <= 170; push += 10)
+  for (let slide = -120; slide <= 120; slide += 15)
+    CANDIDATES_TALL.push([push, slide]);
+CANDIDATES_TALL.sort(
+  (a, b) => a[0] + Math.abs(a[1]) * 1.6 - (b[0] + Math.abs(b[1]) * 1.6),
+);
+
+function layoutChips(
+  G: Geo,
+  frame: Frame,
+  sw: number,
+  sh: number,
+  portrait: boolean,
+) {
+  const chipFont = portrait ? CHIP_FONT_PHONE : CHIP_FONT;
+  const scale = frame.sc;
+  const toPx = (pt: Pt) => ({
+    left: frame.px + pt.x * scale,
+    top: frame.py + pt.y * scale,
+  });
+  const chipPositions: { left: number; top: number }[] = [];
+  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const padX = sw * PANEL_L + 6;
+  const padY = sh * PANEL_T + 6;
+  /* telefonda nehrin orta çizgisi (px) ve yarı genişliği: etiketler
+     suyun üstüne binmez */
+  const riverPx = portrait
+    ? G.middle
+        .filter((_, j) => j % 3 === 0)
+        .map(toPx)
+        .map((q) => ({ x: q.left, y: q.top }))
+    : [];
+  const riverHalfPx = TALL_HALF * scale + 4;
+  G.banks.forEach(({ at, nx, ny }, i) => {
+    const p = toPx(at);
+    /* telefonda etiket en fazla CHIP_MAX_PHONE genişliğinde; uzun
+       olan iki satıra iner */
+    const est = 36 + NODES[i].name.length * chipFont * 0.63;
+    const w = portrait ? Math.min(est, CHIP_MAX_PHONE) : est;
+    /* telefonda satır sayısı: yazı alanı (ikon + boşluk hariç) kelime
+       kaydırma payıyla */
+    const lines = portrait
+      ? Math.ceil(
+          (NODES[i].name.length * chipFont * 0.62 * 1.15) /
+            (CHIP_MAX_PHONE - 34),
+        )
+      : 1;
+    const h = lines * 13 + 10;
+    const base = BANK_GAP + Math.abs(nx) * (w / 2) + Math.abs(ny) * (h / 2);
+    /* etiket lacivert panelden taşmasın */
+    const clampX = (x: number) =>
+      Math.min(Math.max(x, padX + w / 2), sw - padX - w / 2);
+    /* telefonda üstteki fiş soketinin altında kalır */
+    const clampY = (y: number) =>
+      Math.min(
+        Math.max(y, (portrait ? padY + 34 : padY) + h / 2),
+        sh - padY - h / 2,
+      );
+    const hits = (cx: number, cy: number) =>
+      placed.some(
+        (r) =>
+          cx - w / 2 < r.x1 + 6 &&
+          cx + w / 2 > r.x0 - 6 &&
+          cy - h / 2 < r.y1 + 4 &&
+          cy + h / 2 > r.y0 - 4,
+      ) ||
+      /* telefonda etiket nehrin üstüne binmesin */
+      riverPx.some(
+        (q) =>
+          Math.hypot(
+            Math.max(Math.abs(q.x - cx) - w / 2, 0),
+            Math.max(Math.abs(q.y - cy) - h / 2, 0),
+          ) < riverHalfPx,
+      );
+    /* önce kıyıya en yakın boş yer: dışa doğru it, gerekirse kıyı
+       boyunca kaydır */
+    let cx = clampX(p.left + nx * base);
+    let cy = clampY(p.top + ny * base);
+    for (const [push, slide] of portrait ? CANDIDATES_TALL : CANDIDATES_WIDE) {
+      const x = clampX(p.left + nx * (base + push) - ny * slide);
+      const y = clampY(p.top + ny * (base + push) + nx * slide);
+      if (!hits(x, y)) {
+        cx = x;
+        cy = y;
+        break;
+      }
+    }
+    placed.push({
+      x0: cx - w / 2,
+      y0: cy - h / 2,
+      x1: cx + w / 2,
+      y1: cy + h / 2,
+    });
+    chipPositions.push({ left: cx, top: cy });
+  });
+  return chipPositions;
+}
 
 /* ================================================================
    SCROLL PARENT
@@ -906,9 +1085,13 @@ export default function RoadmapSection({
 
   const portrait = size.w > 0 && size.w < 900 && size.h > size.w * 1.15;
   /* bu ekranın nehri ve koordinat alanı */
-  const G = geoOf(portrait);
-  const VW = portrait ? TW : W;
-  const VH = portrait ? TH : H;
+  const frame = frameOf(size.w, size.h, portrait);
+  const tallH = portrait ? tallHeightOf(size.w, size.h) || 1360 : 0;
+  /* telefon nehri panelin oranına göre bir kez kurulur */
+  const tallGeo = useMemo(() => (tallH ? buildTall(tallH) : null), [tallH]);
+  const G = tallGeo ?? GEO;
+  const VW = frame.vw;
+  const VH = frame.vh;
 
   /* telefon (dikey ya da yatay): yetenek paneli mobil hâliyle */
   const compactPanel = size.w > 0 && (size.w < 640 || size.h < 560);
@@ -1062,15 +1245,13 @@ export default function RoadmapSection({
      (stil doğrudan yazılır, React yeniden çizmez) */
   const placeAvatar = useCallback(
     (i: number) => {
-      const sc = computeScale(size.w, size.h, portrait);
-      const base = panAt(size.w, sc, portrait);
-      const py = panYOf(size.h, sc, portrait);
-      const pt = pointAt(geoOf(portrait).middle, i);
+      const f = frameOf(size.w, size.h, portrait);
+      const pt = pointAt(G.middle, i);
       const av = avatarElRef.current;
       if (av)
-        av.style.transform = `translate3d(${base + pt.x * sc}px, ${py + pt.y * sc}px, 0) translate(-50%, -96%)`;
+        av.style.transform = `translate3d(${f.px + pt.x * f.sc}px, ${f.py + pt.y * f.sc}px, 0) translate(-50%, -96%)`;
     },
-    [size.w, size.h, portrait],
+    [size.w, size.h, portrait, G],
   );
 
   /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
@@ -1095,7 +1276,7 @@ export default function RoadmapSection({
     if (from >= to - 0.001) return;
 
     /* süre yol uzunluğuna göre: sabit hızla kayar */
-    const sc = computeScale(size.w, size.h, portrait) || 1;
+    const sc = frameOf(size.w, size.h, portrait).sc || 1;
     let pathLen = 0;
     for (let i = Math.floor(from); i < to; i++) {
       pathLen += Math.hypot(
@@ -1108,11 +1289,13 @@ export default function RoadmapSection({
     const start = performance.now();
     /* telefonda nehir küçük ölçekte: biraz daha yavaş, kamera rahat izlesin */
     const duration =
-      Math.max(600, (pathLen / WALK_SPEED) * 1000) * (portrait ? 1.6 : 1);
+      Math.max(600, (pathLen / WALK_SPEED) * 1000) * (portrait ? 1.5 : 1);
+    /* telefonda giriş pozu kısa: nehir hemen yana kıvrılır */
+    const introUntil = portrait ? 1.5 * STEPS : FRONT_INTRO_UNTIL;
 
     let lastLeft: boolean | null = null;
     /* başlangıçta öne dönük (giriş pozu) */
-    let lastFront: boolean | null = from < FRONT_INTRO_UNTIL ? true : null;
+    let lastFront: boolean | null = from < introUntil ? true : null;
     let lastPassed = -1;
     let frame = 0;
 
@@ -1151,10 +1334,8 @@ export default function RoadmapSection({
 
       /* nehir aşağı akarken ekrana döner (histerezis: titreme olmasın) */
       const ratio = dy / (Math.abs(dx) || 0.001);
-      /* telefonda nehir hep aşağı akar: kişi hep ekrana dönük */
       const front =
-        portrait ||
-        current < FRONT_INTRO_UNTIL ||
+        current < introUntil ||
         (lastFront ? ratio > FRONT_EXIT : ratio > FRONT_ENTER);
       if (front !== lastFront) {
         lastFront = front;
@@ -1207,16 +1388,9 @@ export default function RoadmapSection({
      KAMERA
   ============================================================== */
 
-  const scale = computeScale(size.w, size.h, portrait);
-
-  /* nehir ekranda ortalı (dikey ekranda telefon nehri) */
-  const panX = panAt(size.w, scale, portrait);
-  const panY = panYOf(size.h, scale, portrait);
-
-  const toPx = (pt: Pt) => ({
-    left: panX + pt.x * scale,
-    top: panY + pt.y * scale,
-  });
+  const scale = frame.sc;
+  const panX = frame.px;
+  const panY = frame.py;
 
   /* OTURAN KİŞİ: yetenekler panelinin karşısındaki boş alanın ortasında */
   const perchFree = size.w - PANEL_AREA(size.w);
@@ -1227,53 +1401,18 @@ export default function RoadmapSection({
 
   /* KIYIDAKİ YETENEK ETİKETLERİ — her biri kendi kıyı noktasından dışa
      doğru yerleşir; başka bir etiketle çakışırsa biraz daha dışa itilir */
-  const chipFont = portrait ? 9.5 : 11.5;
-  const chipPositions: { left: number; top: number }[] = [];
-  {
-    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    G.banks.forEach(({ at, nx, ny }, i) => {
-      const p = toPx(at);
-      /* telefonda etiket en fazla CHIP_MAX_PHONE genişliğinde; uzun
-         olan iki satıra iner */
-      const est = 36 + NODES[i].name.length * chipFont * 0.63;
-      const w = portrait ? Math.min(est, CHIP_MAX_PHONE) : est;
-      const lines = portrait ? Math.ceil(est / CHIP_MAX_PHONE) : 1;
-      const h = lines * 13 + 13;
-      const base = BANK_GAP + Math.abs(nx) * (w / 2) + Math.abs(ny) * (h / 2);
-      const hits = (cx: number, cy: number) =>
-        placed.some(
-          (r) =>
-            cx - w / 2 < r.x1 + 6 &&
-            cx + w / 2 > r.x0 - 6 &&
-            cy - h / 2 < r.y1 + 4 &&
-            cy + h / 2 > r.y0 - 4,
-        );
-      /* önce kıyıya en yakın boş yer: dışa doğru it, gerekirse kıyı
-         boyunca biraz kaydır */
-      let cx = p.left + nx * base;
-      let cy = p.top + ny * base;
-      search: for (let push = 0; push <= 120; push += 10) {
-        for (const slide of [0, 24, -24, 48, -48, 72, -72]) {
-          const x = p.left + nx * (base + push) - ny * slide;
-          const y = p.top + ny * (base + push) + nx * slide;
-          if (!hits(x, y)) {
-            cx = x;
-            cy = y;
-            break search;
-          }
-        }
-      }
-      /* etiket ekrandan taşmasın */
-      cx = Math.min(Math.max(cx, w / 2 + 6), size.w - w / 2 - 6);
-      placed.push({
-        x0: cx - w / 2,
-        y0: cy - h / 2,
-        x1: cx + w / 2,
-        y1: cy + h / 2,
-      });
-      chipPositions.push({ left: cx, top: cy });
-    });
-  }
+  const chipFont = portrait ? CHIP_FONT_PHONE : CHIP_FONT;
+  const chipPositions = useMemo(
+    () =>
+      layoutChips(
+        G,
+        frameOf(size.w, size.h, portrait),
+        size.w,
+        size.h,
+        portrait,
+      ),
+    [G, size.w, size.h, portrait],
+  );
 
   return (
     <div
@@ -1363,171 +1502,227 @@ export default function RoadmapSection({
           eğim ne olursa olsun suyun üstünde kalır.
       ====================================================== */}
 
-      <div className="rm-river-layer pointer-events-none absolute inset-0">
-        <div className="absolute inset-0">
-          <svg
-            viewBox={`0 0 ${VW} ${VH}`}
-            preserveAspectRatio="none"
-            className="absolute"
-            style={{
-              /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
-              left: panX,
-              top: panY,
-              width: VW * scale,
-              height: VH * scale,
-            }}
-          >
-            <defs>
-              {/* WATER */}
+      {/* nehir lacivert cam panelin İÇİNDE kalır (kenarlarından taşmaz) */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          clipPath: `inset(${PANEL_T * 100}% ${PANEL_L * 100}% round var(--glass-radius, 14px))`,
+        }}
+      >
+        <div className="rm-river-layer pointer-events-none absolute inset-0">
+          <div className="absolute inset-0">
+            <svg
+              viewBox={`0 0 ${VW} ${VH}`}
+              preserveAspectRatio="none"
+              className="absolute"
+              style={{
+                /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
+                left: panX,
+                top: panY,
+                width: VW * scale,
+                height: VH * scale,
+              }}
+            >
+              <defs>
+                {/* WATER */}
 
-              <linearGradient
-                id="rm-water"
-                gradientUnits="userSpaceOnUse"
-                x1="150"
-                y1="0"
-                x2={VW}
-                y2={VH}
-              >
-                <stop offset="0" stopColor="#061f3a" />
-                <stop offset=".22" stopColor="#0a2c52" />
-                <stop offset=".46" stopColor="#0e3b6b" />
-                <stop offset=".66" stopColor="#0b3058" />
-                <stop offset=".84" stopColor="#072444" />
-                <stop offset="1" stopColor="#04162e" />
-              </linearGradient>
+                <linearGradient
+                  id="rm-water"
+                  gradientUnits="userSpaceOnUse"
+                  x1="150"
+                  y1="0"
+                  x2={VW}
+                  y2={VH}
+                >
+                  <stop offset="0" stopColor="#061f3a" />
+                  <stop offset=".22" stopColor="#0a2c52" />
+                  <stop offset=".46" stopColor="#0e3b6b" />
+                  <stop offset=".66" stopColor="#0b3058" />
+                  <stop offset=".84" stopColor="#072444" />
+                  <stop offset="1" stopColor="#04162e" />
+                </linearGradient>
 
-              {/* CORE */}
+                {/* CORE */}
 
-              <linearGradient
-                id="rm-core"
-                gradientUnits="userSpaceOnUse"
-                x1="150"
-                y1="0"
-                x2={VW}
-                y2={VH}
-              >
-                <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
-                <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
-                <stop offset=".55" stopColor={C.ice} stopOpacity=".26" />
-                <stop offset=".74" stopColor={C.steel} stopOpacity=".12" />
-                <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
-              </linearGradient>
+                <linearGradient
+                  id="rm-core"
+                  gradientUnits="userSpaceOnUse"
+                  x1="150"
+                  y1="0"
+                  x2={VW}
+                  y2={VH}
+                >
+                  <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
+                  <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
+                  <stop offset=".55" stopColor={C.ice} stopOpacity=".26" />
+                  <stop offset=".74" stopColor={C.steel} stopOpacity=".12" />
+                  <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
+                </linearGradient>
 
-              {/* DEPTH */}
+                {/* DEPTH */}
 
-              <linearGradient id="rm-depth" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#0a2240" />
-                <stop offset=".55" stopColor="#081c36" />
-                <stop offset="1" stopColor="#051328" />
-              </linearGradient>
+                <linearGradient id="rm-depth" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#0a2240" />
+                  <stop offset=".55" stopColor="#081c36" />
+                  <stop offset="1" stopColor="#051328" />
+                </linearGradient>
 
-              {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
+                {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
 
-              <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor="white" stopOpacity="0" />
-                <stop offset=".2" stopColor="white" stopOpacity=".8" />
-                <stop offset=".85" stopColor="white" stopOpacity=".9" />
-                <stop offset="1" stopColor="white" stopOpacity="0" />
-              </linearGradient>
+                <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stopColor="white" stopOpacity="0" />
+                  <stop offset=".2" stopColor="white" stopOpacity=".8" />
+                  <stop offset=".85" stopColor="white" stopOpacity=".9" />
+                  <stop offset="1" stopColor="white" stopOpacity="0" />
+                </linearGradient>
 
-              <mask id="rm-mask" maskUnits="userSpaceOnUse">
-                <rect width={VW} height={VH} fill="url(#rm-fade)" />
-              </mask>
+                <mask id="rm-mask" maskUnits="userSpaceOnUse">
+                  <rect width={VW} height={VH} fill="url(#rm-fade)" />
+                </mask>
 
-              {/* RIVER CLIP */}
+                {/* RIVER CLIP */}
 
-              <clipPath id="rm-clip">
-                <path d={G.river} />
-              </clipPath>
+                <clipPath id="rm-clip">
+                  <path d={G.river} />
+                </clipPath>
 
-              {/* WATER WAVE */}
+                {/* WATER WAVE */}
 
-              <filter id="rm-wave" x="-5%" y="-5%" width="110%" height="110%">
-                <feTurbulence
-                  type="fractalNoise"
-                  baseFrequency="0.002 0.009"
-                  numOctaves="1"
-                  seed="4"
-                />
-                <feDisplacementMap in="SourceGraphic" scale="12" />
-              </filter>
+                <filter id="rm-wave" x="-5%" y="-5%" width="110%" height="110%">
+                  <feTurbulence
+                    type="fractalNoise"
+                    baseFrequency="0.002 0.009"
+                    numOctaves="1"
+                    seed="4"
+                  />
+                  <feDisplacementMap in="SourceGraphic" scale="12" />
+                </filter>
 
-              {/* GLOW */}
+                {/* GLOW */}
 
-              <filter id="rm-glow" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+                <filter
+                  id="rm-glow"
+                  x="-30%"
+                  y="-30%"
+                  width="160%"
+                  height="160%"
+                >
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
 
-              <filter id="rm-soft" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="7" />
-              </filter>
-            </defs>
+                <filter
+                  id="rm-soft"
+                  x="-20%"
+                  y="-20%"
+                  width="140%"
+                  height="140%"
+                >
+                  <feGaussianBlur stdDeviation="7" />
+                </filter>
+              </defs>
 
-            {/* DERE TABANI */}
+              {/* DERE TABANI */}
 
-            <path d={G.river} fill="url(#rm-depth)" />
+              <path d={G.river} fill="url(#rm-depth)" />
 
-            {/* SU */}
+              {/* SU */}
 
-            <g clipPath="url(#rm-clip)">
-              <path d={G.surface} fill="url(#rm-water)" />
+              <g clipPath="url(#rm-clip)">
+                <path d={G.surface} fill="url(#rm-water)" />
 
-              {/* KOYU DERİNLİK BANTLARI */}
+                {/* KOYU DERİNLİK BANTLARI */}
 
-              {DARK_BANDS.map((ratio) => (
-                <path
-                  key={ratio}
-                  d={G.lane(ratio)}
-                  fill="none"
-                  stroke="#04142b"
-                  strokeWidth="34"
-                  opacity=".28"
-                  filter="url(#rm-soft)"
-                  className="rm-dark"
-                />
-              ))}
+                {DARK_BANDS.map((ratio) => (
+                  <path
+                    key={ratio}
+                    d={G.lane(ratio)}
+                    fill="none"
+                    stroke="#04142b"
+                    strokeWidth="34"
+                    opacity=".28"
+                    filter="url(#rm-soft)"
+                    className="rm-dark"
+                  />
+                ))}
 
-              {/* İÇ CAM */}
+                {/* İÇ CAM */}
 
-              <path d={G.core} fill="url(#rm-core)" opacity=".75" />
+                <path d={G.core} fill="url(#rm-core)" opacity=".75" />
 
-              {/* AKIŞ ÇİZGİLERİ
+                {/* AKIŞ ÇİZGİLERİ
 
                 PERFORMANS: akan çizgiler hareketli olduğu için üzerlerinde
                 SVG filtresi (bulanıklık / dalga) YOK — filtre her karede
                 yeniden hesaplanıp ekranı yavaşlatıyordu. Parlaklık, çizgi
                 kalınlığı ve opaklığıyla veriliyor. */}
 
-              {/* SOFT STREAMS */}
+                {/* SOFT STREAMS */}
 
-              {SOFT_STREAMS.map((ratio, i) => (
-                <path
-                  key={ratio}
-                  d={G.lane(ratio)}
-                  fill="none"
-                  stroke={C.edge}
-                  strokeWidth="5"
-                  strokeOpacity=".25"
-                  strokeDasharray={`${320 + i * 100} ${280 + i * 70}`}
-                  strokeLinecap="round"
-                  className="rm-flow"
-                  style={flowVars(`${7 + i}s`)}
-                />
-              ))}
+                {SOFT_STREAMS.map((ratio, i) => (
+                  <path
+                    key={ratio}
+                    d={G.lane(ratio)}
+                    fill="none"
+                    stroke={C.edge}
+                    strokeWidth="5"
+                    strokeOpacity=".25"
+                    strokeDasharray={`${320 + i * 100} ${280 + i * 70}`}
+                    strokeLinecap="round"
+                    className="rm-flow"
+                    style={flowVars(`${7 + i}s`)}
+                  />
+                ))}
 
-              {/* FINE STREAMS */}
+                {/* FINE STREAMS */}
 
-              <g mask="url(#rm-mask)" className="rm-fine">
-                {FINE_STREAMS.map((stream, i) => (
+                <g mask="url(#rm-mask)" className="rm-fine">
+                  {FINE_STREAMS.map((stream, i) => (
+                    <path
+                      key={`${stream.f}-${i}`}
+                      d={G.lane(stream.f)}
+                      fill="none"
+                      stroke={C.iceSoft}
+                      strokeWidth={stream.width}
+                      strokeOpacity={stream.opacity}
+                      strokeDasharray={stream.dash}
+                      strokeLinecap="round"
+                      className="rm-flow"
+                      style={flowVars(`${stream.duration}s`)}
+                    />
+                  ))}
+                </g>
+
+                {/* HIGHLIGHTS */}
+
+                <g className="rm-hl">
+                  {HIGHLIGHTS.map((ratio, i) => (
+                    <path
+                      key={ratio}
+                      d={G.lane(ratio)}
+                      fill="none"
+                      stroke={C.ice}
+                      strokeWidth="1.2"
+                      strokeOpacity=".62"
+                      strokeDasharray={`${500 + i * 150} ${380 + i * 100}`}
+                      strokeLinecap="round"
+                      className="rm-flow"
+                      style={flowVars(`${6 + i}s`)}
+                    />
+                  ))}
+                </g>
+
+                {/* MAIN STREAMS */}
+
+                {STREAMS.map((stream, i) => (
                   <path
                     key={`${stream.f}-${i}`}
                     d={G.lane(stream.f)}
                     fill="none"
-                    stroke={C.iceSoft}
+                    stroke={i % 3 === 0 ? C.edge : C.steel}
                     strokeWidth={stream.width}
                     strokeOpacity={stream.opacity}
                     strokeDasharray={stream.dash}
@@ -1536,165 +1731,133 @@ export default function RoadmapSection({
                     style={flowVars(`${stream.duration}s`)}
                   />
                 ))}
+
+                {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
+
+                <g mask="url(#rm-mask)">
+                  {BINARY_LANES.map(([ratio, opacity, offset], i) => (
+                    <g key={ratio}>
+                      <path id={`rm-lane-${i}`} d={G.lane(ratio)} fill="none" />
+
+                      <text
+                        fontFamily={MONO}
+                        fontSize={BINARY_SIZE}
+                        letterSpacing={BINARY_SPACING}
+                        fill={C.ice}
+                        opacity={opacity}
+                      >
+                        <textPath href={`#rm-lane-${i}`} startOffset={offset}>
+                          {BINARY[i]}
+                        </textPath>
+                      </text>
+                    </g>
+                  ))}
+                </g>
               </g>
 
-              {/* HIGHLIGHTS */}
+              {/* DERE KENARLARI */}
 
-              <g className="rm-hl">
-                {HIGHLIGHTS.map((ratio, i) => (
-                  <path
-                    key={ratio}
-                    d={G.lane(ratio)}
-                    fill="none"
-                    stroke={C.ice}
-                    strokeWidth="1.2"
-                    strokeOpacity=".62"
-                    strokeDasharray={`${500 + i * 150} ${380 + i * 100}`}
-                    strokeLinecap="round"
-                    className="rm-flow"
-                    style={flowVars(`${6 + i}s`)}
-                  />
-                ))}
-              </g>
+              <path
+                d={G.top}
+                fill="none"
+                stroke={C.steel}
+                strokeWidth="1"
+                opacity=".35"
+              />
 
-              {/* MAIN STREAMS */}
+              <path
+                d={G.bottom}
+                fill="none"
+                stroke={C.steelDim}
+                strokeWidth="1"
+                opacity=".3"
+              />
+            </svg>
 
-              {STREAMS.map((stream, i) => (
-                <path
-                  key={`${stream.f}-${i}`}
-                  d={G.lane(stream.f)}
-                  fill="none"
-                  stroke={i % 3 === 0 ? C.edge : C.steel}
-                  strokeWidth={stream.width}
-                  strokeOpacity={stream.opacity}
-                  strokeDasharray={stream.dash}
-                  strokeLinecap="round"
-                  className="rm-flow"
-                  style={flowVars(`${stream.duration}s`)}
-                />
-              ))}
-
-              {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
-
-              <g mask="url(#rm-mask)">
-                {BINARY_LANES.map(([ratio, opacity, offset], i) => (
-                  <g key={ratio}>
-                    <path id={`rm-lane-${i}`} d={G.lane(ratio)} fill="none" />
-
-                    <text
-                      fontFamily={MONO}
-                      fontSize={BINARY_SIZE}
-                      letterSpacing={BINARY_SPACING}
-                      fill={C.ice}
-                      opacity={opacity}
-                    >
-                      <textPath href={`#rm-lane-${i}`} startOffset={offset}>
-                        {BINARY[i]}
-                      </textPath>
-                    </text>
-                  </g>
-                ))}
-              </g>
-            </g>
-
-            {/* DERE KENARLARI */}
-
-            <path
-              d={G.top}
-              fill="none"
-              stroke={C.steel}
-              strokeWidth="1"
-              opacity=".35"
-            />
-
-            <path
-              d={G.bottom}
-              fill="none"
-              stroke={C.steelDim}
-              strokeWidth="1"
-              opacity=".3"
-            />
-          </svg>
-
-          {/* ====================================================
+            {/* ====================================================
             NEHİRDEKİ KİŞİ / IŞIK
 
             Node'ları topladıktan sonra aynı nehir üzerinde
             devam ederek ekranın sağ-alt çıkışına gidiyor.
         ==================================================== */}
 
-          {/* (nehirle aynı katmanda: eğim ve kayma birebir aynı)
+            {/* (nehirle aynı katmanda: eğim ve kayma birebir aynı)
             KIYIDAKİ YETENEKLER — her biri geçilince altın yanıp söner */}
-          {size.w > 0 &&
-            NODES.map((node, i) => {
-              const pos = chipPositions[i];
-              const collected = arrived >= node.number;
-              const Icon = node.icon;
+            {size.w > 0 &&
+              NODES.map((node, i) => {
+                const pos = chipPositions[i];
+                const collected = arrived >= node.number;
+                const Icon = node.icon;
 
-              return (
-                <div
-                  key={node.number}
-                  ref={(el) => {
-                    cardRefs.current[i] = el;
-                  }}
-                  className="absolute z-10 w-max"
-                  style={{
-                    left: pos.left,
-                    top: pos.top,
-                    transform: "translate(-50%, -50%)",
-                    maxWidth: portrait ? CHIP_MAX_PHONE : undefined,
-                  }}
-                >
+                return (
                   <div
-                    className="flex items-center gap-1.5 rounded-full font-mono"
+                    key={node.number}
+                    ref={(el) => {
+                      cardRefs.current[i] = el;
+                    }}
+                    className="absolute z-10 w-max"
                     style={{
-                      padding: portrait ? "3px 8px 3px 6px" : "4px 9px 4px 7px",
-                      lineHeight: portrait ? "13px" : "15px",
-                      borderRadius: portrait ? 10 : undefined,
-                      fontSize: chipFont,
-                      letterSpacing: ".02em",
-                      color: collected
-                        ? C.goldLight
-                        : "rgb(var(--c-a8eef6,168,238,246))",
-                      background: "rgba(6,22,46,.72)",
-                      border: `1px solid ${collected ? C.goldLight : "rgba(207,230,255,.28)"}`,
-                      boxShadow: collected
-                        ? `0 0 14px rgba(${C.goldRGB},.8)`
-                        : `0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)`,
-                      opacity: collected ? 0 : 1,
-                      transform: collected
-                        ? "scale(.4) translateY(-14px)"
-                        : "scale(1)",
-                      filter: collected ? "blur(4px) brightness(1.8)" : "none",
-                      transition: collected
-                        ? "opacity 320ms ease-in 140ms, transform 320ms cubic-bezier(.5,0,.8,.4) 140ms, filter 320ms ease-in 140ms, color 120ms, border-color 120ms, box-shadow 120ms"
-                        : "none",
+                      left: pos.left,
+                      top: pos.top,
+                      transform: "translate(-50%, -50%)",
+                      maxWidth: portrait ? CHIP_MAX_PHONE : undefined,
                     }}
                   >
-                    <Icon
-                      size={portrait ? 11 : 13}
-                      strokeWidth={1.6}
-                      style={{ opacity: 0.85, flexShrink: 0 }}
-                    />
-                    {node.name}
+                    <div
+                      className="flex items-center gap-1.5 rounded-full font-mono"
+                      style={{
+                        padding: portrait
+                          ? "3px 8px 3px 6px"
+                          : "4px 9px 4px 7px",
+                        lineHeight: portrait ? "13px" : "15px",
+                        borderRadius: portrait ? 10 : undefined,
+                        fontSize: chipFont,
+                        letterSpacing: ".02em",
+                        color: collected
+                          ? C.goldLight
+                          : "rgb(var(--c-a8eef6,168,238,246))",
+                        background: "rgba(6,22,46,.72)",
+                        border: `1px solid ${collected ? C.goldLight : "rgba(207,230,255,.28)"}`,
+                        boxShadow: collected
+                          ? `0 0 14px rgba(${C.goldRGB},.8)`
+                          : `0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)`,
+                        opacity: collected ? 0 : 1,
+                        transform: collected
+                          ? "scale(.4) translateY(-14px)"
+                          : "scale(1)",
+                        filter: collected
+                          ? "blur(4px) brightness(1.8)"
+                          : "none",
+                        transition: collected
+                          ? "opacity 320ms ease-in 140ms, transform 320ms cubic-bezier(.5,0,.8,.4) 140ms, filter 320ms ease-in 140ms, color 120ms, border-color 120ms, box-shadow 120ms"
+                          : "none",
+                      }}
+                    >
+                      <Icon
+                        size={portrait ? 11 : 13}
+                        strokeWidth={1.6}
+                        style={{ opacity: 0.85, flexShrink: 0 }}
+                      />
+                      {node.name}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
 
-          {size.w > 0 &&
-            arrived >= 0 &&
-            !finished &&
-            !((compactPanel || portrait) && panelOn) && (
-              <WalkingAvatar
-                elRef={avatarElRef}
-                moving={moving}
-                facingLeft={facingLeft}
-                facingScreen={facingScreen}
-                collecting={moving && arrived >= 1 && arrived <= NODES.length}
-                pickKey={arrived}
-              />
-            )}
+            {size.w > 0 &&
+              arrived >= 0 &&
+              !finished &&
+              !((compactPanel || portrait) && panelOn) && (
+                <WalkingAvatar
+                  elRef={avatarElRef}
+                  moving={moving}
+                  facingLeft={facingLeft}
+                  facingScreen={facingScreen}
+                  collecting={moving && arrived >= 1 && arrived <= NODES.length}
+                  pickKey={arrived}
+                />
+              )}
+          </div>
         </div>
       </div>
 

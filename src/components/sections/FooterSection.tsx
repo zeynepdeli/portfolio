@@ -31,7 +31,7 @@ import {
   LINKEDIN,
   WHATSAPP,
   linkProps,
-} from "@/components/ui/SocialLinks"
+} from "@/components/ui/SocialLinks";
 import AlphaVideo from "@/components/ui/AlphaVideo";
 import SciFiBackground from "@/components/ui/ScifiBackground";
 
@@ -206,15 +206,25 @@ const metal = (light = 0): CSSProperties => ({
   boxShadow: `inset 0 1px 0 rgba(255,255,255,.16), inset 0 -2px 0 rgba(0,0,0,.35), 0 14px 34px rgba(0,0,0,.38)`,
 });
 
+/** açılış sırası (CSS --i) */
+const ftI = (i: number) => ({ "--i": i }) as CSSProperties;
+
 type Props = {
   /** footer görünür/açık mı. Verilmezse ekrana girince kendisi başlar. */
   open?: boolean;
   /** üst kenarın zemine karışma yüksekliği (px). 0: keskin kenar
    *  (perde geçişinde footer proje sayfasının altından çıkar) */
   topFade?: number;
+  /** içerik açılış animasyonu (sayfa geçişi BAŞLARKEN true): yazı,
+   *  kutular ve nehir sırayla yerine oturur. Verilmezse open ile aynı. */
+  reveal?: boolean;
 };
 
-export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
+export default function FooterSection({
+  open,
+  topFade = TOP_FADE,
+  reveal,
+}: Props) {
   const rootRef = useRef<HTMLElement>(null);
   const riverRef = useRef<HTMLDivElement>(null);
   /** geniş ekranda avatarın oturduğu boş sütun (en sağ) */
@@ -232,6 +242,7 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
       ? {}
       : { maxHeight: Math.max(200, vh - riverH - 60 - 2 * PANEL_GAP) };
   const isOpen = open ?? inView;
+  const revealOn = reveal ?? isOpen;
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [motion, setMotion] = useState<Motion | null>(null);
@@ -397,7 +408,7 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
   return (
     <footer
       ref={rootRef}
-      className="ft-root relative isolate w-full"
+      className={`ft-root ft-boot relative isolate w-full ${revealOn ? "is-on" : ""}`}
       style={{ overflow: "visible" }}
     >
       <style>{`
@@ -441,6 +452,32 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
           90%  { opacity: var(--o); }
           100% { transform: translate(var(--w), 0); opacity: 0; }
         }
+        /* AÇILIŞ: footer yükselirken içerik sırayla, ışıkla yerine oturur
+           (yalnızca transform + opacity: telefonda da akıcı) */
+        .ft-boot [data-ft-in] { opacity: 0; transform: translate3d(0, 26px, 0) scale(.97); }
+        .ft-boot.is-on [data-ft-in] {
+          animation: ftIn 760ms cubic-bezier(.2,.85,.25,1) calc(var(--i, 0) * 110ms + 260ms) both;
+        }
+        @keyframes ftIn {
+          0%   { opacity: 0; transform: translate3d(0, 26px, 0) scale(.97); }
+          55%  { opacity: 1; }
+          100% { opacity: 1; transform: none; }
+        }
+        .ft-scan { opacity: 0; }
+        .ft-boot.is-on .ft-scan { animation: ftScan 1300ms cubic-bezier(.4,0,.2,1) 180ms both; }
+        @keyframes ftScan {
+          0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+          12%  { opacity: 1; }
+          85%  { opacity: .8; }
+          100% { transform: translate3d(0, var(--scan-h, 600px), 0); opacity: 0; }
+        }
+        .ft-glow { opacity: 0; }
+        .ft-boot.is-on .ft-glow { animation: ftGlow 1600ms ease-out 120ms both; }
+        @keyframes ftGlow { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) {
+          .ft-boot [data-ft-in], .ft-boot.is-on [data-ft-in] { opacity: 1; transform: none; animation: none; }
+          .ft-boot.is-on .ft-scan, .ft-boot.is-on .ft-glow { animation: none; }
+        }
         .ft-plug { transform: translate(-50%, 14px); }
         .ft-port:hover .ft-plug, .ft-port:focus-visible .ft-plug { transform: translate(-50%, 0); opacity: 1; }
         .ft-port:hover .ft-hole, .ft-port:focus-visible .ft-hole { filter: drop-shadow(0 0 8px rgba(${EDGE},.9)); }
@@ -479,6 +516,26 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
           borderRadius: "var(--glass-radius, 14px)",
         }}
       >
+        {/* açılışta panel enerjilenir: yumuşak ışık + yukarıdan aşağı
+            inen tarama çizgisi */}
+        <div
+          aria-hidden
+          className="ft-glow pointer-events-none absolute inset-0 z-20"
+          style={{
+            background: `radial-gradient(ellipse 70% 60% at 50% 0%, rgba(${EDGE},.16), transparent 70%)`,
+          }}
+        />
+        <div
+          aria-hidden
+          className="ft-scan pointer-events-none absolute inset-x-0 top-0 z-20 h-0.5"
+          style={
+            {
+              "--scan-h": `${Math.max(300, vh)}px`,
+              background: `linear-gradient(90deg, transparent, rgba(${ICE},.9) 30%, #fff 50%, rgba(${ICE},.9) 70%, transparent)`,
+              boxShadow: `0 0 16px rgba(${EDGE},.9), 0 0 40px rgba(${EDGE},.45)`,
+            } as CSSProperties
+          }
+        />
         <div
           data-footer-scroll
           className="relative z-10 flex flex-col gap-6 overflow-y-auto px-5 pb-1 pt-24 sm:px-8 lg:px-12 xl:overflow-visible xl:pb-1 xl:pt-28"
@@ -486,7 +543,7 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
         >
           {/* ÜST: söz + e-posta */}
           <div className="flex flex-col gap-x-10 gap-y-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-2.5">
+            <div data-ft-in className="flex flex-col gap-2.5" style={ftI(0)}>
               <h2
                 className="font-mono text-[clamp(22px,2.4vw,38px)] font-bold leading-[1.1] text-[#c4f7fb]"
                 style={{ textShadow: `0 0 22px rgba(${EDGE},.35)` }}
@@ -531,23 +588,34 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
                 </span>
               </p>
             </div>
-            <EmailCopy />
+            <div data-ft-in style={ftI(1)}>
+              <EmailCopy />
+            </div>
           </div>
 
           {/* ALT: portlar · menü yuvaları · güç kaynağı YAN YANA
               (avatar, güç kaynağının fanının ÖNÜNDE oturur) */}
           <div className="grid items-end gap-5 md:grid-cols-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.75fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,1.25fr)_minmax(0,.8fr)_minmax(0,1.15fr)] xl:gap-7">
-            <IOShield powered={powered} />
-            <ExpansionSlots powered={powered} />
-            <div className="md:col-span-2 lg:col-span-1">
+            <div data-ft-in style={ftI(2)}>
+              <IOShield powered={powered} />
+            </div>
+            <div data-ft-in style={ftI(3)}>
+              <ExpansionSlots powered={powered} />
+            </div>
+            <div
+              data-ft-in
+              className="md:col-span-2 lg:col-span-1"
+              style={ftI(4)}
+            >
               <PSU powered={powered} fanRef={spotRef} />
             </div>
           </div>
 
           {/* telif satırı */}
           <div
+            data-ft-in
             className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t pt-3 pr-24 font-mono text-[9px] tracking-[.2em] text-[rgba(var(--ft-t),.6)] xl:pr-0"
-            style={{ borderColor: `rgba(${ICE},.1)` }}
+            style={{ borderColor: `rgba(${ICE},.1)`, ...ftI(5) }}
           >
             <span>
               © {YEAR} {NAME} · ALL SIGNALS RESERVED
@@ -559,8 +627,9 @@ export default function FooterSection({ open, topFade = TOP_FADE }: Props) {
         {/* ---------- EN ALT: 0-1 NEHRİ ---------- */}
         <div
           ref={riverRef}
+          data-ft-in
           className="relative z-5 -mt-5 w-full"
-          style={{ height: riverH }}
+          style={{ height: riverH, ...ftI(4) }}
         >
           <BinaryRiver powered={powered} height={riverH} />
         </div>

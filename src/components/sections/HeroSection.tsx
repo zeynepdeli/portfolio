@@ -39,7 +39,6 @@ import {
   LINKEDIN,
   WHATSAPP,
 } from "@/components/ui/SocialLinks";
-import TypewriterText from "../ui/TypeWriter";
 import { IntroStyles, intro, T } from "@/components/ui/Intro";
 import SciFiBackground from "../ui/ScifiBackground";
 
@@ -125,6 +124,98 @@ const SOCIAL_W = 710; // 4 çip (WhatsApp eklendi)
 const CAMERA_OUT_MS = 2200;
 
 const ALL_SHOWN: boolean[] = Array<boolean>(SOCIAL_COUNT).fill(true);
+
+/* =========================================================
+   AÇILIŞ
+   CINEMATIC_INTRO = false → sayfa karanlıkta beklemeden açılır: fener
+   (portre ışığı) baştan yanık, portre el sallar, yazılar terminalde
+   yazılıyormuş gibi hızla gelir. true → eski sinematik açılış.
+========================================================= */
+const CINEMATIC_INTRO = false;
+/** hızlı açılışta avatarın tırmanmaya başlaması (ms) */
+const QUICK_INTRO_MS = 700;
+/** terminal yazma hızı (harf / sn) */
+const TYPE_CPS_NAME = 38;
+const TYPE_CPS_TEXT = 90;
+/** isim yazılmaya başlama gecikmesi (ms) */
+const TYPE_NAME_DELAY = 180;
+const nameTypeMs = (text: string) =>
+  TYPE_NAME_DELAY + (text.length * 1000) / TYPE_CPS_NAME + 80;
+/** mobilde teknolojiler unvandan sonra sırayla yazılır */
+const stackDelay = (i: number) =>
+  nameTypeMs(NAME) +
+  ((`>>> ${ROLE}`.length + STACK.slice(0, i).join("").length) * 1000) /
+    TYPE_CPS_TEXT;
+
+/* =========================================================
+   TERMİNAL YAZISI — harf harf yazılır, yanıp sönen imleçle.
+   Karışık / rastgele karakter YOK. Tam metnin yeri baştan ayrılır
+   (görünmez kopya): yazılırken satır kaymaz, titremez.
+========================================================= */
+function TerminalText({
+  text,
+  color,
+  active,
+  instant = false,
+  delay = 0,
+  cps = TYPE_CPS_TEXT,
+  keepCursor = false,
+}: {
+  text: string;
+  color?: string;
+  active: boolean;
+  instant?: boolean;
+  delay?: number;
+  cps?: number;
+  /** yazı bitince imleç yanıp sönmeye devam etsin */
+  keepCursor?: boolean;
+}) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!active || instant) return;
+    const start = performance.now() + delay;
+    let raf = 0;
+    const tick = (now: number) => {
+      const k = Math.min(
+        text.length,
+        Math.max(0, Math.floor(((now - start) * cps) / 1000)),
+      );
+      setN(k);
+      if (k < text.length) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, instant, text, delay, cps]);
+
+  const shown = instant ? text.length : active ? n : 0;
+  const typing = !instant && active && shown > 0 && shown < text.length;
+  const cursor = typing || (keepCursor && shown === text.length);
+
+  return (
+    <span className="relative inline-block" style={{ color }}>
+      <span aria-hidden className="invisible">
+        {text}
+      </span>
+      <span className="absolute inset-0 text-left" aria-label={text}>
+        {text.slice(0, shown)}
+        {cursor && (
+          <span
+            aria-hidden
+            className={keepCursor && !typing ? "term-cursor" : undefined}
+          >
+            ▋
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+const TERMINAL_CSS = `
+  .term-cursor { animation: termBlink 1s steps(1) infinite; }
+  @keyframes termBlink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .term-cursor { animation: none; } }
+`;
 
 /* =========================================================
    YARDIMCILAR
@@ -295,7 +386,25 @@ export default function HeroSection({
       window.dispatchEvent(new Event("hero:built"));
       return;
     }
-    const raf = window.requestAnimationFrame(() => setChipShown(ALL_SHOWN));
+    const raf = window.requestAnimationFrame(() => {
+      setChipShown(ALL_SHOWN);
+      /* hızlı açılış: portre ve isim hemen hazır (karanlık bekleme yok) */
+      if (!CINEMATIC_INTRO) {
+        setNameLanded(true);
+        setPortraitLanded(true);
+      }
+    });
+    if (!CINEMATIC_INTRO) {
+      const t = window.setTimeout(() => {
+        setIntroDone(true);
+        window.dispatchEvent(new Event("hero:built"));
+        window.dispatchEvent(new Event("hero:plug"));
+      }, QUICK_INTRO_MS);
+      return () => {
+        window.cancelAnimationFrame(raf);
+        window.clearTimeout(t);
+      };
+    }
     const id = window.setTimeout(() => setCineGo(true), 150);
     return () => {
       window.cancelAnimationFrame(raf);
@@ -465,7 +574,8 @@ export default function HeroSection({
       <IntroStyles />
 
       <style>
-        {POWER_BUILD_CSS +
+        {TERMINAL_CSS +
+          POWER_BUILD_CSS +
           `
         .pb-wait [data-build] { filter: none !important; transition: opacity .35s ease !important; }
       `}
@@ -619,13 +729,13 @@ export default function HeroSection({
                 >
                   {/* isim açılışta zaten uçarak yerine geliyor (CinematicIntro):
                       burada TEKRAR yazılmaz, olduğu gibi görünür */}
-                  <TypewriterText
+                  <TerminalText
                     text={NAME}
                     color="rgb(var(--c-c4f7fb,196,247,251))"
-                    speed={0}
-                    scramble={0}
+                    instant={final || CINEMATIC_INTRO}
                     active={nameReady}
-                    startDelay={final ? 0 : 120}
+                    delay={TYPE_NAME_DELAY}
+                    cps={TYPE_CPS_NAME}
                   />
                 </h1>
 
@@ -645,13 +755,12 @@ export default function HeroSection({
                   {/* unvan kendi satırında; teknolojiler aralarında nokta ile,
                       dar ekranda düzgünce alt satıra sarar */}
                   <span className="w-full whitespace-nowrap">
-                    <TypewriterText
+                    <TerminalText
                       color="rgb(var(--c-7fe3ef,127,227,239))"
-                      text={ROLE}
-                      speed={final ? 0 : 9}
-                      scramble={final ? 0 : 150}
+                      text={`>>> ${ROLE}`}
+                      instant={final}
                       active={nameReady}
-                      startDelay={final ? 0 : 300}
+                      delay={nameTypeMs(NAME)}
                     />
                   </span>
                   {STACK.map((item, i) => (
@@ -661,13 +770,13 @@ export default function HeroSection({
                     >
                       {i > 0 && <span className="text-accent/60">·</span>}
 
-                      <TypewriterText
+                      <TerminalText
                         color="rgb(var(--c-7fe3ef,127,227,239))"
                         text={item}
-                        speed={final ? 0 : 9}
-                        scramble={final ? 0 : 150}
+                        instant={final}
                         active={nameReady}
-                        startDelay={final ? 0 : 390 + i * 90}
+                        delay={stackDelay(i)}
+                        keepCursor={i === STACK.length - 1}
                       />
                     </span>
                   ))}
@@ -704,13 +813,13 @@ export default function HeroSection({
                   }}
                 >
                   {/* isim açılışta zaten uçarak yerine geliyor: tekrar yazılmaz */}
-                  <TypewriterText
+                  <TerminalText
                     text={`>>> ${NAME}`}
                     color="rgb(var(--c-c4f7fb,196,247,251))" /* başlık: paletin en açık tonu */
-                    speed={0}
-                    scramble={0}
+                    instant={final || CINEMATIC_INTRO}
                     active={nameReady}
-                    startDelay={final ? 0 : 120} /* ışıklarla aynı anda */
+                    delay={TYPE_NAME_DELAY}
+                    cps={TYPE_CPS_NAME}
                   />
                 </h1>
 
@@ -723,13 +832,13 @@ export default function HeroSection({
                     className="font-mono text-accent/80"
                     style={{ fontSize: 14 * textScale }}
                   >
-                    <TypewriterText
+                    <TerminalText
                       color="rgb(var(--c-7fe3ef,127,227,239))"
                       text={SUBTITLE_ONE_LINE}
-                      speed={final ? 0 : 7}
-                      scramble={final ? 0 : 150}
+                      instant={final}
                       active={nameReady}
-                      startDelay={final ? 0 : 300}
+                      delay={nameTypeMs(`>>> ${NAME}`)}
+                      keepCursor
                     />
                   </p>
                 ) : (
@@ -738,14 +847,18 @@ export default function HeroSection({
                     style={{ fontSize: 14 * textScale }}
                   >
                     {SUBTITLE_LINES.map((line, i) => (
-                      <TypewriterText
+                      <TerminalText
                         key={line}
                         color="rgb(var(--c-7fe3ef,127,227,239))"
                         text={line}
-                        speed={final ? 0 : 9}
-                        scramble={final ? 0 : 150}
+                        instant={final}
                         active={nameReady}
-                        startDelay={final ? 0 : 300 + i * 90}
+                        delay={
+                          nameTypeMs(`>>> ${NAME}`) +
+                          SUBTITLE_LINES.slice(0, i).join("").length *
+                            (1000 / TYPE_CPS_TEXT)
+                        }
+                        keepCursor={i === SUBTITLE_LINES.length - 1}
                       />
                     ))}
                   </p>
@@ -971,9 +1084,10 @@ export default function HeroSection({
               />
             </div>
             <div ref={portRef1}>
+              {/* FENER: portreye tutulan ışık sayfa açılır açılmaz yanık */}
               <SidePort
                 type="audio"
-                lit={powered}
+                lit={powered || !CINEMATIC_INTRO}
                 swing={spots[1]?.swing ?? 0}
                 beamAngle={spots[1]?.beamAngle ?? 0}
                 beamLength={spots[1]?.len ?? 650}
@@ -996,21 +1110,24 @@ export default function HeroSection({
                   className="pointer-events-none"
                   aria-hidden
                 >
-                  {/* Işık yanmadan önce bölge daha koyu: ışık gelince açılır */}
-                  <div
-                    className="absolute rounded-full"
-                    style={{
-                      left: sp.t.x,
-                      top: sp.t.y,
-                      width: sp.t.spread * 1.7,
-                      height: sp.t.spread * (i === 0 ? 0.95 : 1.5),
-                      transform: "translate(-50%, -50%)",
-                      background:
-                        "radial-gradient(closest-side, rgba(var(--c-040c1a,4,12,26),.62), rgba(var(--c-040c1a,4,12,26),.38) 55%, transparent)",
-                      opacity: powered ? 0 : 1,
-                      transition: `opacity ${POWER_FADE_MS}ms ease ${powered ? POWER_LIGHT_MS : 0}ms`,
-                    }}
-                  />
+                  {/* Işık yanmadan önce bölge daha koyu: ışık gelince açılır
+                      (hızlı açılışta karanlık bölge yok) */}
+                  {CINEMATIC_INTRO && (
+                    <div
+                      className="absolute rounded-full"
+                      style={{
+                        left: sp.t.x,
+                        top: sp.t.y,
+                        width: sp.t.spread * 1.7,
+                        height: sp.t.spread * (i === 0 ? 0.95 : 1.5),
+                        transform: "translate(-50%, -50%)",
+                        background:
+                          "radial-gradient(closest-side, rgba(var(--c-040c1a,4,12,26),.62), rgba(var(--c-040c1a,4,12,26),.38) 55%, transparent)",
+                        opacity: powered ? 0 : 1,
+                        transition: `opacity ${POWER_FADE_MS}ms ease ${powered ? POWER_LIGHT_MS : 0}ms`,
+                      }}
+                    />
+                  )}
 
                   <div
                     className="absolute rounded-full"
@@ -1023,7 +1140,7 @@ export default function HeroSection({
                       background:
                         "radial-gradient(closest-side, rgba(var(--c-d7eeff,215,238,255),.18), rgba(var(--c-c8ebff,200,235,255),.07) 55%, transparent)",
                       mixBlendMode: "screen",
-                      opacity: powered ? 1 : 0,
+                      opacity: powered || (i === 1 && !CINEMATIC_INTRO) ? 1 : 0,
                       transition: `opacity ${POWER_FADE_MS}ms ease ${powered ? POWER_LIGHT_MS : 0}ms`,
                     }}
                   />
@@ -1105,7 +1222,7 @@ export default function HeroSection({
       </div>
 
       {/* SİNEMATİK AÇILIŞ: çekirdek ışık + yörüngedeki parçalar + isim */}
-      {!final && (
+      {!final && CINEMATIC_INTRO && (
         <CinematicIntro
           start={cineGo}
           rootRef={cameraRef}

@@ -117,6 +117,12 @@ const HOP_AIR_MS = ms(150); // ikondan ikona havada geçen süre
 const HOP_SQUAT_MS = ms(45); // her ikona basma (ayak değme) süresi
 const HOP_HEIGHT = 26; // ikonlar arası sekme yüksekliği (px)
 const EXIT_MS = ms(450); // ekranın en solundan aşağı atlayıp çıkış
+/* SONDA: en solda durur, burnunu tutar ve suya atlar gibi aşağıdaki
+   roadmap sayfasına zıplar (footer'daki ile aynı görsel) */
+const PINCH_IMG = "/images/zeynep-burun.png";
+const PINCH_MS = ms(260); // burnunu tutup hazırlanma
+const PINCH_H = 58; // ayakta boyu (px)
+const PINCH_W = Math.round((PINCH_H * 223) / 720);
 /* ÇIKIŞ: son ikondan yere atlar, yerde KOŞARAK ekranın en soluna gider,
    oradan alttaki sayfaya iner (yol haritasındaki nehir de soldan başlar) */
 const TO_FLOOR_MS = ms(380); // son ikondan yere atlama
@@ -339,6 +345,11 @@ const AVATAR_CSS = `
           50%  { transform: translateY(-${HOP_HEIGHT}px); animation-timing-function: cubic-bezier(.6,0,.8,.3); }
           100% { transform: translateY(0); }
         }
+        @keyframes avPinch {
+          0%   { transform: scale(1.04, .9); }
+          60%  { transform: scale(.97, 1.05); }
+          100% { transform: none; }
+        }
         @keyframes avCrouch {
           0%   { transform: scale(1, 1); }
           70%  { transform: scale(1.08, .8); }
@@ -374,6 +385,7 @@ type Stage =
   | "social" // sosyal ikonların üstünde tek tek sekerek geçer
   | "toFloor" // son ikondan yere atlar
   | "toLeft" // yerde koşarak ekranın en soluna gider
+  | "pinch" // burnunu tutar (suya atlar gibi)
   | "descending"
   | "done";
 
@@ -490,6 +502,7 @@ export default function SiteAvatar({
       stage === "social" ||
       stage === "toFloor" ||
       stage === "toLeft" ||
+      stage === "pinch" ||
       stage === "descending";
     if (stage !== "land" && stage !== "onName" && !releasing) return;
     if (releasing && dentT.current.released) return;
@@ -661,7 +674,8 @@ export default function SiteAvatar({
       jump: ["land", JUMP_MS],
       land: ["onName", LAND_MS],
       toFloor: ["toLeft", TO_FLOOR_MS],
-      toLeft: ["descending", floorRunMs],
+      toLeft: [hops.length ? "pinch" : "descending", floorRunMs],
+      pinch: ["descending", PINCH_MS],
       descending: ["done", hops.length ? EXIT_MS : DESCEND_MS],
     };
     /* İsimden sonra: ikon varsa onlara, yoksa eskisi gibi sol alta */
@@ -770,7 +784,7 @@ export default function SiteAvatar({
               : stage === "toFloor" && hops.length
                 ? /* son ikondan biraz sola, yere atlar */
                   at({ x: floorStartX, y: window.innerHeight - FLOOR_GAP })
-                : stage === "toLeft" && hops.length
+                : (stage === "toLeft" || stage === "pinch") && hops.length
                   ? /* yerde koşarak ekranın en soluna */
                     at({ x: floorEndX, y: window.innerHeight - FLOOR_GAP })
                   : stage === "descending" && hops.length
@@ -812,7 +826,8 @@ export default function SiteAvatar({
               : stage === "toLeft"
                 ? `left ${floorRunMs}ms cubic-bezier(.3,0,.7,1), top ${floorRunMs}ms linear`
                 : stage === "descending" && hops.length
-                  ? `left ${EXIT_MS}ms linear, top ${EXIT_MS}ms cubic-bezier(.3,-0.5,.8,1), opacity ${EXIT_MS}ms ease-in`
+                  ? /* önce hafifçe yukarı sıçrar, sonra dimdik aşağı dalar */
+                    `left ${EXIT_MS}ms linear, top ${EXIT_MS}ms cubic-bezier(.35,-0.55,.75,.9)`
                   : stage === "descending"
                     ? `left ${DESCEND_MS}ms cubic-bezier(.45,.05,.4,1), top ${DESCEND_MS}ms cubic-bezier(.45,.05,.4,1)`
                     : `left ${WALK_MS}ms cubic-bezier(.45,.05,.4,1), top ${WALK_MS}ms cubic-bezier(.45,.05,.4,1)`;
@@ -824,7 +839,7 @@ export default function SiteAvatar({
     stage === "social" ||
     stage === "toFloor" ||
     stage === "toLeft" ||
-    stage === "descending";
+    (stage === "descending" && !hops.length);
   /* Sosyal ikonlarda bir önceki noktaya göre yön */
   const hopPrevX =
     hopIdx === 0 ? (spots ? spots.end.x : 0) : (hops[hopIdx - 1]?.x ?? 0);
@@ -836,7 +851,6 @@ export default function SiteAvatar({
     hopLeft ||
     stage === "toFloor" ||
     stage === "toLeft" ||
-    stage === "descending" ||
     ((stage === "prejump" || stage === "jump" || stage === "land") &&
       !!spots?.jumpLeft);
   const plugged = stage === "plugged";
@@ -853,7 +867,10 @@ export default function SiteAvatar({
     (stage === "social" && !squat) ||
     stage === "toFloor" ||
     stage === "toLeft" ||
-    stage === "descending";
+    (stage === "descending" && !hops.length);
+  /* Burnunu tutup atlama (ayakta, ekrana dönük) */
+  const pinching =
+    hops.length > 0 && (stage === "pinch" || stage === "descending");
   /* Konma anları: ayak altında ışık halkası */
   const impactKey =
     stage === "land"
@@ -1023,11 +1040,14 @@ export default function SiteAvatar({
               : move === "none"
                 ? "none"
                 : `${move}, transform 200ms ease`,
-          opacity: stage === "descending" ? (hops.length ? 0 : 0.9) : 1,
+          opacity: stage === "descending" && !hops.length ? 0.9 : 1,
         }}
         aria-hidden
       >
         <style>{AVATAR_CSS}</style>
+        {/* burun tutma görseli önceden yüklensin (atlarken boş kare olmasın) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={PINCH_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
@@ -1151,6 +1171,24 @@ export default function SiteAvatar({
                     }}
                   />
                 )}
+                {/* Burnunu tutmuş, ayakta: suya atlar gibi aşağı dalar */}
+                {pinching && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={PINCH_IMG}
+                    alt=""
+                    draggable={false}
+                    className="av-anim absolute max-w-none"
+                    style={{
+                      width: PINCH_W,
+                      height: PINCH_H,
+                      left: (W - PINCH_W) / 2,
+                      top: H - PINCH_H,
+                      transformOrigin: "50% 100%",
+                      animation: `avPinch ${PINCH_MS}ms ease-out both`,
+                    }}
+                  />
+                )}
                 {/* Fiş takarken yürüme durur (adım ortasında bekler) */}
                 <AlphaVideo
                   key={`w${run}`}
@@ -1164,7 +1202,7 @@ export default function SiteAvatar({
                   playing={walking}
                   playbackRate={RUN_RATE}
                   className="absolute inset-0"
-                  style={{ opacity: crouching ? 0 : 1 }}
+                  style={{ opacity: crouching || pinching ? 0 : 1 }}
                 />
 
                 {/* Elindeki kablo + fiş */}
