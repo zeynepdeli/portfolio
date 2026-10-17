@@ -617,11 +617,13 @@ export default function HeroSection({
                     textShadow: "0 0 24px rgba(var(--c-4fd8ff,79,216,255),.35)",
                   }}
                 >
+                  {/* isim açılışta zaten uçarak yerine geliyor (CinematicIntro):
+                      burada TEKRAR yazılmaz, olduğu gibi görünür */}
                   <TypewriterText
                     text={NAME}
                     color="rgb(var(--c-c4f7fb,196,247,251))"
-                    speed={final ? 0 : 26}
-                    scramble={final ? 0 : 180}
+                    speed={0}
+                    scramble={0}
                     active={nameReady}
                     startDelay={final ? 0 : 120}
                   />
@@ -701,11 +703,12 @@ export default function HeroSection({
                     minHeight: "1.2em",
                   }}
                 >
+                  {/* isim açılışta zaten uçarak yerine geliyor: tekrar yazılmaz */}
                   <TypewriterText
                     text={`>>> ${NAME}`}
                     color="rgb(var(--c-c4f7fb,196,247,251))" /* başlık: paletin en açık tonu */
-                    speed={final ? 0 : 26}
-                    scramble={final ? 0 : 180}
+                    speed={0}
+                    scramble={0}
                     active={nameReady}
                     startDelay={final ? 0 : 120} /* ışıklarla aynı anda */
                   />

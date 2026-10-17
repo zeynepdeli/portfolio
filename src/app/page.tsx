@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 
 import HeroSection from "@/components/sections/HeroSection";
 import RoadmapSection from "@/components/sections/RoadmapSection";
 import ProjectsSection from "@/components/sections/ProjectsSection";
-
+import FooterSection from "@/components/sections/FooterSection";
 import SiteAvatar from "@/components/ui/SiteAvatar";
 import { ThemeStyles } from "@/components/ui/Theme";
-import FooterSection from "@/components/sections/FooterSection";
 
 /* =========================================================
    ANA SAYFA — Hero → Roadmap → Projects → Footer
@@ -21,6 +27,9 @@ import FooterSection from "@/components/sections/FooterSection";
 
 const HERO_TO_ROADMAP_MS = 2200;
 const ROADMAP_TO_PROJECTS_MS = 2200;
+/** telefonda / dar ekranda geçişler daha kısa (ms) */
+const MOBILE_TRANSITION_MS = 1300;
+const isNarrow = () => typeof window !== "undefined" && window.innerWidth < 768;
 
 /* SAYFA GEÇİŞİ — yeni sayfa alttan, üst kenarına düşen gölgeyle
    yükselir; eski sayfa ondan YAVAŞ yukarı kayar (derinlik / paralaks)
@@ -30,14 +39,41 @@ const PARALLAX = 0.3;
 /** eski sayfanın en fazla kararması */
 const OUT_DIM = 0.55;
 
-/** geçiş sırasında yükselen sayfanın üst kenarındaki gölge */
-const riseShadow = (t: number) =>
-  t > 0 && t < 1
-    ? `0 -26px 70px rgba(0,0,0,${(0.6 * Math.sin(Math.PI * t)).toFixed(3)})`
-    : "none";
-/** geçiş sırasında geride kalan sayfanın kararması */
-const outFilter = (t: number) =>
-  t > 0 && t < 1 ? `brightness(${(1 - OUT_DIM * t).toFixed(3)})` : "none";
+/* PERFORMANS: geçişte HER KAREDE yalnızca transform ve opacity
+   değişir (ekran kartı yapar, telefonda da akıcı). Kararma ve gölge
+   için filter / box-shadow ANİME EDİLMEZ — onların yerine üstte duran
+   hazır katmanların (Dim, RiseShadow) yalnızca opaklığı değişir. */
+/** yükselen sayfanın üst kenarındaki gölgenin opaklığı */
+const riseShadowOpacity = (t: number) =>
+  t > 0 && t < 1 ? Math.sin(Math.PI * t) : 0;
+/** geride kalan sayfanın kararma katmanının opaklığı */
+const dimOpacity = (t: number) => (t > 0 && t < 1 ? OUT_DIM * t : 0);
+
+/** sayfanın üstüne serilen kararma katmanı */
+function Dim({ ref }: { ref: Ref<HTMLDivElement> }) {
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-60 bg-black"
+      style={{ opacity: 0 }}
+    />
+  );
+}
+/** sayfanın üst kenarının hemen üstüne düşen hazır gölge */
+function RiseShadow({ ref }: { ref: Ref<HTMLDivElement> }) {
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 bottom-full h-24"
+      style={{
+        opacity: 0,
+        background: "linear-gradient(0deg, rgba(0,0,0,.6), transparent)",
+      }}
+    />
+  );
+}
 
 /* =========================================================
    FOOTER GEÇİŞİ — denemek için yalnızca bunu değiştir:
@@ -110,6 +146,11 @@ export default function Home() {
   const crtRef = useRef<HTMLDivElement>(null);
   /** GERİ ÇEKİLME modunda proje panelini karartıp bulanıklaştıran katman */
   const recedeRef = useRef<HTMLDivElement>(null);
+  /* geçiş katmanları (yalnızca opaklıkları değişir) */
+  const heroDimRef = useRef<HTMLDivElement>(null);
+  const roadDimRef = useRef<HTMLDivElement>(null);
+  const roadShadowRef = useRef<HTMLDivElement>(null);
+  const projShadowRef = useRef<HTMLDivElement>(null);
   /** geçiş ilerlemeleri (render tetiklemez) */
   const prog = useRef({ hero: 0, projects: 0, footer: 0 });
   /** footer bir kez açıldı mı (sonra kapatılırsa ipucu görünür) */
@@ -130,22 +171,27 @@ export default function Home() {
     if (hero) {
       /* geride kalır: yavaşça yukarı kayar ve kararır */
       hero.style.transform = `translate3d(0, ${-PARALLAX * h * 100}%, 0)`;
-      hero.style.filter = outFilter(h);
+      if (heroDimRef.current)
+        heroDimRef.current.style.opacity = String(dimOpacity(h));
       hero.style.pointerEvents = h < 0.5 ? "auto" : "none";
       show(hero, h < 1);
     }
     if (road) {
       /* alttan gölgeyle yükselir; sonra projelere yer açarken geride kalır */
       road.style.transform = `translate3d(0, ${(1 - h) * 100 - PARALLAX * p * 100}%, 0)`;
-      road.style.boxShadow = riseShadow(h);
-      road.style.filter = outFilter(p);
+      if (roadShadowRef.current)
+        roadShadowRef.current.style.opacity = String(riseShadowOpacity(h));
+      if (roadDimRef.current)
+        roadDimRef.current.style.opacity = String(dimOpacity(p));
       road.style.pointerEvents = h > 0.5 && p < 0.5 ? "auto" : "none";
       show(road, h > 0 && p < 1);
     }
     if (proj) {
       let transform = `translate3d(0, ${(1 - p) * 100}%, 0)`;
       let filter = "none";
-      let shadow = riseShadow(p);
+      let shadow = "none";
+      if (projShadowRef.current)
+        projShadowRef.current.style.opacity = String(riseShadowOpacity(p));
       let visible = p > 0;
 
       if (FOOTER_MODE === "curtain") {
@@ -206,19 +252,25 @@ export default function Home() {
   /* HERO → ROADMAP */
   useEffect(() => {
     if (!heroTransitioning) return;
-    return tween(HERO_TO_ROADMAP_MS, (v) => {
-      prog.current.hero = v;
-      paint();
-    });
+    return tween(
+      isNarrow() ? MOBILE_TRANSITION_MS : HERO_TO_ROADMAP_MS,
+      (v) => {
+        prog.current.hero = v;
+        paint();
+      },
+    );
   }, [heroTransitioning, paint]);
 
   /* ROADMAP → PROJECTS */
   useEffect(() => {
     if (!roadmapComplete) return;
-    return tween(ROADMAP_TO_PROJECTS_MS, (v) => {
-      prog.current.projects = v;
-      paint();
-    });
+    return tween(
+      isNarrow() ? MOBILE_TRANSITION_MS : ROADMAP_TO_PROJECTS_MS,
+      (v) => {
+        prog.current.projects = v;
+        paint();
+      },
+    );
   }, [roadmapComplete, paint]);
 
   /* PROJECTS → FOOTER geçişi (açılırken ve kapanırken) */
@@ -343,12 +395,28 @@ export default function Home() {
 
   return (
     <main className="fixed inset-0 overflow-hidden">
+      {/* GERİ ÇEKİLME katmanı: bulanıklık (backdrop-filter) pahalıdır —
+          yalnızca geniş ekranda; telefonda biraz daha koyu kararma */}
+      <style>{`
+        .pf-recede { background: linear-gradient(180deg, rgba(2,6,20,.55), rgba(2,6,20,.75)); }
+        @media (min-width: 1024px) and (hover: hover) {
+          .pf-recede {
+            background: linear-gradient(180deg, rgba(2,6,20,.35), rgba(2,6,20,.6));
+            backdrop-filter: blur(5px) saturate(.75);
+            -webkit-backdrop-filter: blur(5px) saturate(.75);
+          }
+        }
+      `}</style>
       {/* RENK PALETİ (theme.tsx → PALETTE) */}
       <ThemeStyles />
 
       {/* HERO */}
-      <section ref={heroRef} className="absolute inset-0 z-0">
+      <section
+        ref={heroRef}
+        className="absolute inset-0 z-0 will-change-transform"
+      >
         {hero}
+        <Dim ref={heroDimRef} />
       </section>
 
       {/* ROADMAP */}
@@ -357,7 +425,9 @@ export default function Home() {
         className="absolute inset-0 z-10 will-change-transform"
         style={{ transform: "translate3d(0, 100%, 0)", visibility: "hidden" }}
       >
+        <RiseShadow ref={roadShadowRef} />
         {roadmap}
+        <Dim ref={roadDimRef} />
       </section>
 
       {/* PROJECTS — roadmap'in hemen altında */}
@@ -366,6 +436,7 @@ export default function Home() {
         className="absolute inset-0 z-20 will-change-transform"
         style={{ transform: "translate3d(0, 100%, 0)", visibility: "hidden" }}
       >
+        <RiseShadow ref={projShadowRef} />
         {projects}
 
         {/* GERİ ÇEKİLME: yalnızca cam panelin içi kararır / bulanıklaşır
@@ -374,7 +445,7 @@ export default function Home() {
           <div
             ref={recedeRef}
             aria-hidden
-            className="pointer-events-none absolute z-50"
+            className="pf-recede pointer-events-none absolute z-50"
             style={{
               left: "1%",
               right: "1%",
@@ -382,10 +453,6 @@ export default function Home() {
               bottom: "1.5%",
               borderRadius: "var(--glass-radius, 14px)",
               opacity: 0,
-              background:
-                "linear-gradient(180deg, rgba(2,6,20,.35), rgba(2,6,20,.6))",
-              backdropFilter: "blur(5px) saturate(.75)",
-              WebkitBackdropFilter: "blur(5px) saturate(.75)",
             }}
           />
         )}
