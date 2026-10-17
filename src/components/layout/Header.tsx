@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { FaHome, FaPalette, FaFolderOpen, FaFileAlt } from "react-icons/fa";
 import MenuSlot from "@/components/ui/MenuSlot";
@@ -28,7 +28,7 @@ const menuItems = [
   { key: "home", label: "HOME", icon: FaHome, href: "/home" },
   { key: "skills", label: "SKILLS", icon: FaPalette, href: "/roadmap" },
   { key: "projects", label: "PROJECTS", icon: FaFolderOpen, href: "/projects" },
-  { key: "documents", label: "DOCUMENTS", icon: FaFileAlt, href: null },
+  { key: "documents", label: "DOCUMENTS", icon: FaFileAlt, href: "/documents" },
 ] as const;
 
 type HeaderProps = {
@@ -54,6 +54,14 @@ export default function Header({
 }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+
+  /* menüdeki sayfaları arka planda önceden indir: tıklayınca sayfa
+     hazır olsun, bekleme olmasın */
+  useEffect(() => {
+    menuItems.forEach((m) => {
+      if (m.href) router.prefetch(m.href);
+    });
+  }, [router]);
   const fromPath =
     menuItems.find((m) => m.href && pathname?.startsWith(m.href))?.key ??
     "home";
@@ -61,7 +69,7 @@ export default function Header({
   const current = activeKey ?? localActive;
 
   const go = (item: (typeof menuItems)[number]) => {
-    if (!item.href) return; // DOCUMENTS: şimdilik boş
+    if (!item.href) return; // adresi olmayan buton (şu an yok)
     setLocalActive(item.key);
     onNavigate?.(item.key);
     if (item.href !== pathname) router.push(item.href);
@@ -143,7 +151,7 @@ export default function Header({
                 litFromLeft={powered}
                 height={BUTTON_H}
                 onClick={() => {
-                  if (!item.href) return; // DOCUMENTS: şimdilik boş
+                  if (!item.href) return; // adresi olmayan buton (şu an yok)
                   setLocalActive(item.key);
                   onNavigate?.(item.key);
                   /* sayfaya git — orada animasyon oynamaz, bitmiş hali görünür

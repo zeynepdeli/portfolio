@@ -18,7 +18,7 @@ import {
   LINKEDIN,
   WHATSAPP,
   linkProps,
-} from "@/components/ui/SocialLinks"
+} from "@/components/ui/SocialLinks";
 import MenuSlot from "@/components/ui/MenuSlot";
 import GlowConnector, { CONNECTOR_HEIGHT } from "@/components/ui/GlowConnector";
 import { intro, T } from "@/components/ui/Intro";
@@ -66,6 +66,13 @@ type Props = {
 export default function MobileMenu({ powered = false, style }: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+
+  /* menüdeki sayfaları arka planda önceden indir: tıklayınca bekleme olmasın */
+  useEffect(() => {
+    ITEMS.forEach((m) => {
+      if (m.href) router.prefetch(m.href);
+    });
+  }, [router]);
   const pathname = usePathname();
   const current =
     ITEMS.find((m) => m.href && pathname?.startsWith(m.href))?.key ?? "home";
