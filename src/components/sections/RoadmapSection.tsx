@@ -88,7 +88,9 @@ const FRONT_INTRO_UNTIL = 8 * STEPS;
 
 /** Kişi nehrin sonuna varınca, sayfa geçişinden önce bekleme (ms):
     panel yanmış haldeyken sayfa sakin biter */
-const END_HOLD_MS = 1000; // eskiden 2600: sayfa geçişi ~1.6 sn önce başlar
+/** yetenekler paneli tamamen açılıp liste görününce sayfa bu kadar
+ *  bekler, sonra projelere geçer (ms) */
+const END_HOLD_MS = 1600;
 /** Alırken saçılan altın kıvılcımlar */
 const PICK_SPARKS: [number, number][] = [
   [-18, -46],
@@ -113,6 +115,8 @@ const ORB_MS = Math.round(620 * RM_SLOW);
 
 /** Tüm yetenekler toplandıktan sonra panelin yanmasına kadar bekleme (ms) */
 const PANEL_ON_DELAY = Math.round(600 * RM_SLOW); // son yetenekten sonra panel
+/** panelin açılış animasyonu + satırların sırayla gelmesi (ms) */
+const PANEL_SHOW_MS = Math.round(1100 * RM_SLOW) + 900;
 
 /** Karttaki kişi: sağ kenardan boşluk (genişlik oranı) ve dikey ortası (yükseklik oranı)
     — daha sağa: PERCH_RIGHT'ı küçült, daha yukarı: PERCH_Y'yi küçült */
@@ -262,6 +266,11 @@ const SECTIONS: [P, P][] = [
   [
     [2700, 975],
     [2150, 1300],
+  ],
+  /* geniş / alçak ekranlarda da nehir SAĞ ALT köşeye kadar uzansın */
+  [
+    [3400, 1290],
+    [2850, 1640],
   ],
 ];
 
@@ -1013,6 +1022,17 @@ export default function RoadmapSection({
     setPanelDelayDone(false);
   }
 
+  /* SAYFA GEÇİŞİ: panel yandıktan, açılış animasyonu bitip liste
+     göründükten END_HOLD_MS sonra */
+  useEffect(() => {
+    if (!panelOn || finished || !active || completedRef.current) return;
+    const t = window.setTimeout(() => {
+      completedRef.current = true;
+      onCompleteRef.current?.();
+    }, PANEL_SHOW_MS + END_HOLD_MS);
+    return () => window.clearTimeout(t);
+  }, [panelOn, finished, active]);
+
   /* ==============================================================
      RESET
      active/finished ikisi de false olunca her şey başa döner.
@@ -1240,7 +1260,8 @@ export default function RoadmapSection({
     if (!active) return;
 
     const from = avatarRef.current;
-    const to = G.middle.length - 1;
+    /* geniş ekranda son (uzatma) bölüm ekran dışında: kişi orada durur */
+    const to = G.middle.length - 1 - (portrait ? 0 : STEPS);
 
     if (from >= to - 0.001) return;
 
@@ -1334,15 +1355,7 @@ export default function RoadmapSection({
       setMoving(false);
       setArrived(NODES.length);
 
-      /* nehrin çıkışına ulaştık: panel yanmış haldeyken biraz bekle,
-         sonra sayfa geçişi */
-      if (!completedRef.current) {
-        completedRef.current = true;
-        endTimerRef.current = window.setTimeout(
-          () => onCompleteRef.current?.(),
-          END_HOLD_MS,
-        );
-      }
+      /* nehrin çıkışına ulaştık: sayfa geçişi panel açılınca (aşağıda) */
     };
 
     frame = requestAnimationFrame(animate);
@@ -1460,6 +1473,8 @@ export default function RoadmapSection({
         viewBox={`0 0 ${VW} ${VH}`}
         preserveAspectRatio="none"
         className="absolute"
+        /* nehir çizim alanının dışına da taşar (panel keser) */
+        overflow="visible"
         style={{
           /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
           left: panX,

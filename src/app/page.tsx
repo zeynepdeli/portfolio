@@ -26,8 +26,8 @@ import { ThemeStyles } from "@/components/ui/Theme";
      çizmez, içindeki animasyonlar ekranı yormaz.
 ========================================================= */
 
-const HERO_TO_ROADMAP_MS = 2200;
-const ROADMAP_TO_PROJECTS_MS = 2200;
+const HERO_TO_ROADMAP_MS = 1600;
+const ROADMAP_TO_PROJECTS_MS = 1600;
 /** telefonda / dar ekranda geçişler daha kısa (ms) */
 const MOBILE_TRANSITION_MS = 1000;
 /** telefonda yeni sayfanın animasyonu geçişin bu oranında başlar
@@ -42,8 +42,23 @@ const subscribeResize = (cb: () => void) => {
 /* SAYFA GEÇİŞİ — yeni sayfa alttan, üst kenarına düşen gölgeyle
    yükselir; eski sayfa ondan YAVAŞ yukarı kayar (derinlik / paralaks)
    ve kararır. */
-/** eski sayfanın yukarı kayması (yeni sayfanın yolunun oranı) */
-const PARALLAX = 0.3;
+
+/* KART GEÇİŞİ: eski sayfa bir kart gibi derinliğe çekilir (küçülür,
+   hafif yukarı kayar, kararır); yeni sayfa alttan, kendi kartı biraz
+   küçükken yükselir ve yerine otururken tam boya açılır. Hepsi yalnızca
+   transform + opacity (ekran kartı yapar → titremez). */
+/** geride kalan sayfanın en küçük boyu */
+const OUT_SCALE = 0.9;
+/** gelen sayfanın başlangıç boyu */
+const IN_SCALE = 0.94;
+const outTransform = (t: number) =>
+  `translate3d(0, ${(-5 * t).toFixed(3)}%, 0) scale(${(1 - (1 - OUT_SCALE) * t).toFixed(4)})`;
+const inTransform = (t: number) =>
+  `translate3d(0, ${((1 - t) * 100).toFixed(3)}%, 0) scale(${(IN_SCALE + (1 - IN_SCALE) * t).toFixed(4)})`;
+/** yalnızca geçiş sırasında ayrı katman (telefonda bellek / titreme) */
+const layer = (el: HTMLElement, moving: boolean) => {
+  el.style.willChange = moving ? "transform" : "auto";
+};
 /** eski sayfanın en fazla kararması */
 const OUT_DIM = 0.55;
 
@@ -105,9 +120,10 @@ const FOOTER_MS: Record<FooterMode, number> = {
     null: yalnızca aşağı kaydırınca açılır */
 const FOOTER_AUTO_MS: number | null = 4000;
 
-/* yumuşak başlayıp yumuşak biten geçiş (easeInOutCubic) */
+/* yumuşak başlayıp yumuşak biten geçiş (easeInOutQuart: başı ve sonu
+   daha uzun, ortası hızlı → "yerine oturma" hissi) */
 const easeInOut = (v: number) =>
-  v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
+  v < 0.5 ? 8 * v * v * v * v : 1 - Math.pow(-2 * v + 2, 4) / 2;
 
 /** duration boyunca 0→1 ilerleme üretir, her karede apply çağırır */
 function tween(duration: number, apply: (p: number) => void) {
@@ -184,8 +200,9 @@ export default function Home() {
     const crt = crtRef.current;
     const dim = recedeRef.current;
     if (hero) {
-      /* geride kalır: yavaşça yukarı kayar ve kararır */
-      hero.style.transform = `translate3d(0, ${-PARALLAX * h * 100}%, 0)`;
+      /* geride kalır: kart gibi derinliğe çekilir ve kararır */
+      hero.style.transform = h > 0 ? outTransform(h) : "none";
+      layer(hero, h > 0 && h < 1);
       if (heroDimRef.current)
         heroDimRef.current.style.opacity = String(dimOpacity(h));
       hero.style.pointerEvents = h < 0.5 ? "auto" : "none";
@@ -193,7 +210,9 @@ export default function Home() {
     }
     if (road) {
       /* alttan gölgeyle yükselir; sonra projelere yer açarken geride kalır */
-      road.style.transform = `translate3d(0, ${(1 - h) * 100 - PARALLAX * p * 100}%, 0)`;
+      road.style.transform =
+        p > 0 ? outTransform(p) : h < 1 ? inTransform(h) : "none";
+      layer(road, (h > 0 && h < 1) || (p > 0 && p < 1));
       if (roadShadowRef.current)
         roadShadowRef.current.style.opacity = String(riseShadowOpacity(h));
       if (roadDimRef.current)
@@ -202,7 +221,8 @@ export default function Home() {
       show(road, h > 0 && p < 1);
     }
     if (proj) {
-      let transform = `translate3d(0, ${(1 - p) * 100}%, 0)`;
+      let transform = p < 1 ? inTransform(p) : "translate3d(0, 0, 0)";
+      layer(proj, (p > 0 && p < 1) || (f > 0 && f < 1));
       let filter = "none";
       let shadow = "none";
       if (projShadowRef.current)
@@ -415,7 +435,15 @@ export default function Home() {
     projectsComplete && !footerOpen && (footerSeen || FOOTER_AUTO_MS === null);
 
   return (
-    <main className="fixed inset-0 overflow-hidden">
+    <main
+      className="fixed inset-0 overflow-hidden"
+      /* geçişte kartların arkasında kalan sahne: sitenin zemin renginin
+         derin tonu */
+      style={{
+        background:
+          "radial-gradient(ellipse 80% 70% at 50% 35%, rgb(var(--bg-2,52,66,104)), rgb(var(--bg-4,26,35,62)))",
+      }}
+    >
       {/* GERİ ÇEKİLME katmanı: bulanıklık (backdrop-filter) pahalıdır —
           yalnızca geniş ekranda; telefonda biraz daha koyu kararma */}
       <style>{`
@@ -443,7 +471,8 @@ export default function Home() {
       {/* HERO */}
       <section
         ref={heroRef}
-        className="absolute inset-0 z-0 will-change-transform"
+        className="absolute inset-0 z-0"
+        style={{ transformOrigin: "50% 30%" }}
       >
         {hero}
         <Dim ref={heroDimRef} />
@@ -452,8 +481,12 @@ export default function Home() {
       {/* ROADMAP */}
       <section
         ref={roadmapRef}
-        className="absolute inset-0 z-10 will-change-transform"
-        style={{ transform: "translate3d(0, 100%, 0)", visibility: "hidden" }}
+        className="absolute inset-0 z-10"
+        style={{
+          transform: "translate3d(0, 100%, 0)",
+          transformOrigin: "50% 30%",
+          visibility: "hidden",
+        }}
       >
         <RiseShadow ref={roadShadowRef} />
         {roadmap}
@@ -463,8 +496,12 @@ export default function Home() {
       {/* PROJECTS — roadmap'in hemen altında */}
       <section
         ref={projectsRef}
-        className="absolute inset-0 z-20 will-change-transform"
-        style={{ transform: "translate3d(0, 100%, 0)", visibility: "hidden" }}
+        className="absolute inset-0 z-20"
+        style={{
+          transform: "translate3d(0, 100%, 0)",
+          transformOrigin: "50% 30%",
+          visibility: "hidden",
+        }}
       >
         <RiseShadow ref={projShadowRef} />
         {projects}
@@ -507,7 +544,7 @@ export default function Home() {
       {/* FOOTER — geçişi FOOTER_MODE belirler (paint) */}
       <section
         ref={footerRef}
-        className={`absolute inset-x-0 bottom-0 will-change-transform ${
+        className={`absolute inset-x-0 bottom-0 ${
           FOOTER_MODE === "curtain" ? "z-15" : "z-30"
         }`}
         style={{ transform: "translate3d(0, 105%, 0)", visibility: "hidden" }}

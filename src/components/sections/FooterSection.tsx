@@ -538,7 +538,7 @@ export default function FooterSection({
         />
         <div
           data-footer-scroll
-          className="relative z-10 flex flex-col gap-6 overflow-y-auto px-5 pb-1 pt-24 sm:px-8 lg:px-12 xl:overflow-visible xl:pb-1 xl:pt-28"
+          className="relative z-10 flex flex-col gap-4 overflow-y-auto px-4 pb-1 pt-16 sm:gap-6 sm:px-8 sm:pt-24 lg:px-12 xl:overflow-visible xl:pb-1 xl:pt-28"
           style={scrollerStyle}
         >
           {/* ÜST: söz + e-posta */}
@@ -596,19 +596,28 @@ export default function FooterSection({
           {/* ALT: portlar · menü yuvaları · güç kaynağı YAN YANA
               (avatar, güç kaynağının fanının ÖNÜNDE oturur) */}
           <div className="grid items-end gap-5 md:grid-cols-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.75fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,1.25fr)_minmax(0,.8fr)_minmax(0,1.15fr)] xl:gap-7">
-            <div data-ft-in style={ftI(2)}>
-              <IOShield powered={powered} />
-            </div>
-            <div data-ft-in style={ftI(3)}>
-              <ExpansionSlots powered={powered} />
-            </div>
-            <div
-              data-ft-in
-              className="md:col-span-2 lg:col-span-1"
-              style={ftI(4)}
-            >
-              <PSU powered={powered} fanRef={spotRef} />
-            </div>
+            {phone ? (
+              /* TELEFON: portlar + menü + saat + fan TEK kutuda, küçük */
+              <div data-ft-in style={ftI(2)}>
+                <PhoneDeck powered={powered} fanRef={spotRef} />
+              </div>
+            ) : (
+              <>
+                <div data-ft-in style={ftI(2)}>
+                  <IOShield powered={powered} />
+                </div>
+                <div data-ft-in style={ftI(3)}>
+                  <ExpansionSlots powered={powered} />
+                </div>
+                <div
+                  data-ft-in
+                  className="md:col-span-2 lg:col-span-1"
+                  style={ftI(4)}
+                >
+                  <PSU powered={powered} fanRef={spotRef} />
+                </div>
+              </>
+            )}
           </div>
 
           {/* telif satırı */}
@@ -1050,6 +1059,169 @@ function Led({
         animation: on && blink ? "ftBlink 1.6s ease-in-out infinite" : "none",
       }}
     />
+  );
+}
+
+/* =========================================================
+   TELEFON KUTUSU — web'deki üç kutunun hepsi tek bir güç kaynağı
+   kutusunda, küçültülmüş: üstte saat + fan, ortada sosyal portlar,
+   altta menü yuvaları ve BAŞA DÖN anahtarı.
+========================================================= */
+function PhoneDeck({
+  powered,
+  fanRef,
+}: {
+  powered: boolean;
+  fanRef?: Ref<HTMLDivElement>;
+}) {
+  return (
+    <div className="relative flex flex-col">
+      <div className="mb-1.5 flex h-4 items-center justify-between font-mono text-[9px] tracking-[.22em] text-[rgba(var(--ft-t),.6)]">
+        <span>PSU · I/O · SLOTS</span>
+        <span className="flex items-center gap-1.5">
+          <Led on={powered} color="#5df2a6" blink />
+          {powered ? "LINK UP" : "NO SIGNAL"}
+        </span>
+      </div>
+      <div
+        className="relative flex flex-col gap-3 rounded-xl p-3"
+        style={metal(8)}
+      >
+        {[
+          "left-1.5 top-1.5",
+          "right-1.5 top-1.5",
+          "left-1.5 bottom-1.5",
+          "right-1.5 bottom-1.5",
+        ].map((c) => (
+          <Screw key={c} small className={`absolute ${c}`} />
+        ))}
+
+        {/* saat + BAŞA DÖN + fan */}
+        <div className="flex items-center gap-3 pt-1">
+          <div className="min-w-0 flex-1">
+            <LcdClock powered={powered} />
+          </div>
+          <a
+            href="/home"
+            aria-label="Başa dön"
+            className="flex flex-col items-center gap-0.5 outline-hidden"
+          >
+            <span
+              className="relative flex h-9 w-6 flex-col overflow-hidden rounded-sm"
+              style={{
+                background: "#020b17",
+                border: `1px solid rgba(${ICE},.45)`,
+              }}
+            >
+              <span
+                className="flex flex-1 items-center justify-center font-mono text-[9px] font-bold"
+                style={{
+                  background: powered
+                    ? `linear-gradient(180deg, rgb(${ICE}), rgb(${EDGE}))`
+                    : `rgba(${NAVY},1)`,
+                  color: powered ? `rgb(${DEEP})` : T_DIM,
+                }}
+              >
+                I
+              </span>
+              <span
+                className="flex flex-1 items-center justify-center font-mono text-[9px] font-bold"
+                style={{ color: T_DIM }}
+              >
+                O
+              </span>
+            </span>
+            <span className="font-mono text-[7px] tracking-[.12em] text-[rgba(var(--ft-t),.6)]">
+              BAŞA DÖN
+            </span>
+          </a>
+          <div ref={fanRef} className="relative size-19 shrink-0">
+            <Fan powered={powered} />
+          </div>
+        </div>
+
+        {/* sosyal portlar: tek sıra, küçük */}
+        <div
+          className="grid grid-cols-5 gap-1 rounded-lg px-1 py-2"
+          style={{ background: "rgba(2,11,23,.45)" }}
+        >
+          {PORTS.map((p, i) => {
+            const Icon = p.icon;
+            return (
+              <a
+                key={p.label}
+                {...linkProps(p.href)}
+                aria-label={p.label}
+                className="ft-port flex flex-col items-center gap-1 outline-hidden"
+              >
+                <span className="ft-hole flex h-6 items-center justify-center">
+                  <span className="origin-center scale-[.62]">
+                    <PortShape kind={p.kind} />
+                  </span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <Led
+                    on={powered}
+                    color={`rgb(${EDGE})`}
+                    delay={powered ? 250 + i * POWER_STEP_MS : 0}
+                  />
+                  <Icon className="size-2.75 shrink-0 text-[rgb(var(--ft-t))]" />
+                </span>
+                <span className="ft-plabel whitespace-nowrap font-mono text-[8.5px] tracking-[.02em] text-[rgb(var(--ft-t))]">
+                  {p.label}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+
+        {/* menü yuvaları: 2×2, küçük */}
+        <nav className="grid grid-cols-2 gap-1.5" aria-label="Footer">
+          {SLOTS.map((sl, i) => {
+            const cls =
+              "ft-slot relative flex h-7.5 items-center gap-2 rounded-md px-2 outline-hidden";
+            const style: CSSProperties = {
+              ...metal(sl.href ? 4 : -2),
+              color: sl.href ? T_HI : `rgba(${TURQ},.35)`,
+            };
+            const inner = (
+              <>
+                <Led
+                  on={powered && !!sl.href}
+                  color={`rgb(${EDGE})`}
+                  delay={powered ? 250 + (PORTS.length + i) * POWER_STEP_MS : 0}
+                />
+                <span className="flex-1 text-right font-mono text-[9.5px] tracking-[.16em]">
+                  {sl.label}
+                </span>
+                <span
+                  aria-hidden
+                  className="ft-slot-glow pointer-events-none absolute inset-0 rounded-md opacity-0 transition-opacity duration-300"
+                  style={{
+                    boxShadow: `inset 3px 0 0 ${T_HI}, 0 0 12px rgba(${TURQ},.35)`,
+                    background: `linear-gradient(90deg, rgba(${TURQ},.2), transparent 70%)`,
+                  }}
+                />
+              </>
+            );
+            return sl.href ? (
+              <a key={sl.label} href={sl.href} className={cls} style={style}>
+                {inner}
+              </a>
+            ) : (
+              <span
+                key={sl.label}
+                className={cls}
+                style={style}
+                title="Yakında"
+              >
+                {inner}
+              </span>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
   );
 }
 
