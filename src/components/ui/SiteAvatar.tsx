@@ -509,10 +509,35 @@ export default function SiteAvatar({
       stage === "pinch" ||
       stage === "descending";
     if (stage !== "land" && stage !== "onName" && !releasing) return;
-    /* telefonda yazı çökme filtresi yok: her karede yazıyı yeniden
-       işlemek (SVG filtresi) telefonu kasıyordu */
-    if (window.matchMedia?.("(max-width: 1023px), (hover: none)").matches)
+    /* TELEFON: ağır SVG filtresi yerine yazı, basılınca belirgin
+       biçimde ezilip yaylanır (yalnızca transform: akıcı) */
+    if (window.matchMedia?.("(max-width: 1023px), (hover: none)").matches) {
+      const txt = document.querySelector<HTMLElement>("[data-avatar-name]");
+      if (!txt || releasing) return;
+      txt.style.transformOrigin = "50% 100%";
+      /* yarıda kesilmez: kendi süresi bitince yazı düzelir */
+      const frames =
+        stage === "land"
+          ? [
+              { transform: "none" },
+              { transform: "scale(1.06, .72)", offset: 0.18 },
+              { transform: "scale(.97, 1.08)", offset: 0.5 },
+              { transform: "scale(1.01, .96)", offset: 0.75 },
+              { transform: "none" },
+            ]
+          : [
+              { transform: "none" },
+              { transform: "scale(1.02, .9)" },
+              { transform: "none" },
+              { transform: "scale(1.02, .92)" },
+              { transform: "none" },
+            ];
+      txt.animate(frames, {
+        duration: stage === "land" ? LAND_MS + 160 : NAME_RUN_MS,
+        easing: stage === "land" ? "ease-out" : "ease-in-out",
+      });
       return;
+    }
     if (releasing && dentT.current.released) return;
     const el = document.querySelector<HTMLElement>("[data-avatar-name]");
     const img = dentImgRef.current;

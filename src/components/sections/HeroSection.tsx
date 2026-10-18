@@ -1089,10 +1089,11 @@ export default function HeroSection({
               />
             </div>
             <div ref={portRef1}>
-              {/* FENER: portreye tutulan ışık sayfa açılır açılmaz yanık */}
+              {/* FENER: portre sahneye gelir gelmez DOĞRUDAN fotoğrafa
+                  tutulur (karanlıkta da yanık); isim ışığı fişle yanar */}
               <SidePort
                 type="audio"
-                lit={powered || !CINEMATIC_INTRO}
+                lit={powered || portraitGo || !CINEMATIC_INTRO}
                 swing={spots[1]?.swing ?? 0}
                 beamAngle={spots[1]?.beamAngle ?? 0}
                 beamLength={spots[1]?.len ?? 650}
@@ -1145,7 +1146,10 @@ export default function HeroSection({
                       background:
                         "radial-gradient(closest-side, rgba(var(--c-d7eeff,215,238,255),.18), rgba(var(--c-c8ebff,200,235,255),.07) 55%, transparent)",
                       mixBlendMode: "screen",
-                      opacity: powered || (i === 1 && !CINEMATIC_INTRO) ? 1 : 0,
+                      opacity:
+                        powered || (i === 1 && (portraitGo || !CINEMATIC_INTRO))
+                          ? 1
+                          : 0,
                       transition: `opacity ${POWER_FADE_MS}ms ease ${powered ? POWER_LIGHT_MS : 0}ms`,
                     }}
                   />
@@ -1210,6 +1214,9 @@ export default function HeroSection({
             style={{
               background:
                 "radial-gradient(ellipse 75% 70% at 55% 50%, rgba(var(--c-040c1a,3,5,12),.5), rgba(var(--c-010204,3,5,12),.72))",
+              /* karanlıkta fenerin aydınlattığı portre açık kalır */
+              WebkitMaskImage: `radial-gradient(ellipse ${Math.round(pw * 0.75)}px ${Math.round(ph * 0.62)}px at ${Math.round(cx)}px ${Math.round(footY - ph * 0.5)}px, transparent 55%, #000 100%)`,
+              maskImage: `radial-gradient(ellipse ${Math.round(pw * 0.75)}px ${Math.round(ph * 0.62)}px at ${Math.round(cx)}px ${Math.round(footY - ph * 0.5)}px, transparent 55%, #000 100%)`,
               opacity: dim && !powered ? 1 : 0,
               transition: powered
                 ? `opacity ${POWER_FADE_MS}ms ease`

@@ -90,7 +90,7 @@ const FRONT_INTRO_UNTIL = 8 * STEPS;
     panel yanmış haldeyken sayfa sakin biter */
 /** yetenekler paneli tamamen açılıp liste görününce sayfa bu kadar
  *  bekler, sonra projelere geçer (ms) */
-const END_HOLD_MS = 1600;
+const END_HOLD_MS = 900;
 /** Alırken saçılan altın kıvılcımlar */
 const PICK_SPARKS: [number, number][] = [
   [-18, -46],
@@ -114,9 +114,9 @@ const TRAIL_LINES: [number, number, number, number][] = [
 const ORB_MS = Math.round(620 * RM_SLOW);
 
 /** Tüm yetenekler toplandıktan sonra panelin yanmasına kadar bekleme (ms) */
-const PANEL_ON_DELAY = Math.round(600 * RM_SLOW); // son yetenekten sonra panel
+const PANEL_ON_DELAY = 450; // son yetenekten sonra panel (ms)
 /** panelin açılış animasyonu + satırların sırayla gelmesi (ms) */
-const PANEL_SHOW_MS = Math.round(1100 * RM_SLOW) + 900;
+const PANEL_SHOW_MS = 1600;
 
 /** Karttaki kişi: sağ kenardan boşluk (genişlik oranı) ve dikey ortası (yükseklik oranı)
     — daha sağa: PERCH_RIGHT'ı küçült, daha yukarı: PERCH_Y'yi küçült */
@@ -915,6 +915,10 @@ const ROADMAP_CSS = `
     .rm-fine,
     .rm-hl {
       display: none;
+    }
+    .rm-svg {
+      transform: translateZ(0);
+      will-change: transform;
     }
     .rm-dark {
       filter: none;
@@ -1766,9 +1770,10 @@ export default function RoadmapSection({
         }}
       >
         <div className="rm-river-layer pointer-events-none absolute inset-0">
+          {/* nehir kendi katmanında: etiketler değişince koca nehir yeniden
+            çizilmez (telefonda takılmanın asıl sebebi) */}
+          <div className="rm-svg absolute inset-0">{riverSvg}</div>
           <div className="absolute inset-0">
-            {riverSvg}
-
             {/* ====================================================
             NEHİRDEKİ KİŞİ / IŞIK
 
@@ -1844,7 +1849,9 @@ export default function RoadmapSection({
             {size.w > 0 &&
               arrived >= 0 &&
               !finished &&
-              !((compactPanel || portrait) && panelOn) && (
+              /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
+              !panelOn &&
+              !(allCollected && !moving) && (
                 <WalkingAvatar
                   elRef={avatarElRef}
                   moving={moving}
