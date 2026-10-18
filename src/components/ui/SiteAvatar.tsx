@@ -396,6 +396,9 @@ type NameSpots = { land: Pt; end: Pt; jumpLeft: boolean };
 type SiteAvatarProps = {
   onSequenceComplete?: () => void;
   onPlugged?: () => void;
+  /** avatar aşağıdaki sayfaya dalmaya BAŞLADI (sayfa geçişi bununla
+   *  aynı anda başlar: avatar yükselen roadmap'e atlar) */
+  onExitStart?: () => void;
   hidden?: boolean;
   climbSrc?: string;
   walkSrc?: string;
@@ -407,6 +410,7 @@ type SiteAvatarProps = {
 export default function SiteAvatar({
   onSequenceComplete,
   onPlugged,
+  onExitStart,
   hidden = false,
   climbSrc = CLIMB_VIDEO,
   walkSrc = WALK_VIDEO,
@@ -695,6 +699,7 @@ export default function SiteAvatar({
     const t = setTimeout(() => {
       setStage(step[0]);
       if (step[0] === "plugged") onPlugged?.();
+      if (step[0] === "descending") onExitStart?.();
       if (step[0] === "done") onSequenceComplete?.();
     }, step[1]);
     return () => clearTimeout(t);
@@ -702,6 +707,7 @@ export default function SiteAvatar({
     stage,
     onPlugged,
     onSequenceComplete,
+    onExitStart,
     isActive,
     hops.length,
     plugGo,

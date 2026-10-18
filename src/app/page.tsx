@@ -29,7 +29,10 @@ import { ThemeStyles } from "@/components/ui/Theme";
 const HERO_TO_ROADMAP_MS = 2200;
 const ROADMAP_TO_PROJECTS_MS = 2200;
 /** telefonda / dar ekranda geçişler daha kısa (ms) */
-const MOBILE_TRANSITION_MS = 1300;
+const MOBILE_TRANSITION_MS = 1000;
+/** telefonda yeni sayfanın animasyonu geçişin bu oranında başlar
+ *  (geçişin sonunu beklemez: sayfa daha erken "gelir") */
+const MOBILE_ARRIVE_AT = 0.7;
 const isNarrow = () => typeof window !== "undefined" && window.innerWidth < 768;
 const subscribeResize = (cb: () => void) => {
   window.addEventListener("resize", cb);
@@ -100,7 +103,7 @@ const FOOTER_MS: Record<FooterMode, number> = {
 };
 /** projeler bitince footer KENDİLİĞİNDEN açılır (ms sonra).
     null: yalnızca aşağı kaydırınca açılır */
-const FOOTER_AUTO_MS: number | null = 1800;
+const FOOTER_AUTO_MS: number | null = 4000;
 
 /* yumuşak başlayıp yumuşak biten geçiş (easeInOutCubic) */
 const easeInOut = (v: number) =>
@@ -139,6 +142,8 @@ const show = (el: HTMLElement | null, on: boolean) => {
 export default function Home() {
   const [powered, setPowered] = useState(false);
   const [heroTransitioning, setHeroTransitioning] = useState(false);
+  /** hero avatarı dalışını bitirdi (geçiş dalışla birlikte başlar) */
+  const [heroAvatarGone, setHeroAvatarGone] = useState(false);
   /* TELEFON: yeni sayfanın animasyonu (kayan avatar, fan…) geçiş BİTİNCE
      başlar — geçişle aynı anda iki ağır animasyon telefonu kasıyordu */
   const narrow = useSyncExternalStore(subscribeResize, isNarrow, () => false);
@@ -267,7 +272,7 @@ export default function Home() {
       (v) => {
         prog.current.hero = v;
         paint();
-        if (v >= 1) setRoadmapArrived(true);
+        if (v >= MOBILE_ARRIVE_AT) setRoadmapArrived(true);
       },
     );
   }, [heroTransitioning, paint]);
@@ -280,7 +285,7 @@ export default function Home() {
       (v) => {
         prog.current.projects = v;
         paint();
-        if (v >= 1) setProjectsArrived(true);
+        if (v >= MOBILE_ARRIVE_AT) setProjectsArrived(true);
       },
     );
   }, [roadmapComplete, paint]);
@@ -387,10 +392,11 @@ export default function Home() {
       <ProjectsSection
         active={projectsActive}
         onComplete={onProjectsDone}
-        riderHidden={footerOpen}
+        /* oturan avatar footer TAMAMEN gelince kaybolur */
+        riderHidden={footerArrived}
       />
     ),
-    [projectsActive, onProjectsDone, footerOpen],
+    [projectsActive, onProjectsDone, footerArrived],
   );
   const footer = useMemo(
     () => (
@@ -528,8 +534,12 @@ export default function Home() {
       {/* HERO AVATAR */}
       <SiteAvatar
         onPlugged={() => setPowered(true)}
-        onSequenceComplete={() => setHeroTransitioning(true)}
-        hidden={heroTransitioning}
+        onExitStart={() => setHeroTransitioning(true)}
+        onSequenceComplete={() => {
+          setHeroTransitioning(true);
+          setHeroAvatarGone(true);
+        }}
+        hidden={heroAvatarGone}
       />
     </main>
   );

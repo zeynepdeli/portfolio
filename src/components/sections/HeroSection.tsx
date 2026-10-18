@@ -127,11 +127,12 @@ const ALL_SHOWN: boolean[] = Array<boolean>(SOCIAL_COUNT).fill(true);
 
 /* =========================================================
    AÇILIŞ
-   CINEMATIC_INTRO = false → sayfa karanlıkta beklemeden açılır: fener
-   (portre ışığı) baştan yanık, portre el sallar, yazılar terminalde
-   yazılıyormuş gibi hızla gelir. true → eski sinematik açılış.
+   CINEMATIC_INTRO = true → sinematik açılış (ışık, aydınlatma…).
+   Sahne karardığı AN avatar tırmanmaya başlar: fişi takınca ışıklar
+   yanar, karanlıkta bekleme kısa sürer.
+   false → sinematik açılış olmadan, doğrudan aydınlık açılır.
 ========================================================= */
-const CINEMATIC_INTRO = false;
+const CINEMATIC_INTRO = true;
 /** hızlı açılışta avatarın tırmanmaya başlaması (ms) */
 const QUICK_INTRO_MS = 700;
 /** terminal yazma hızı (harf / sn) */
@@ -139,8 +140,12 @@ const TYPE_CPS_NAME = 38;
 const TYPE_CPS_TEXT = 90;
 /** isim yazılmaya başlama gecikmesi (ms) */
 const TYPE_NAME_DELAY = 180;
+/** isim yazıldıktan sonra alt yazının başlama gecikmesi (ms).
+ *  Sinematik açılışta isim uçarak gelir (yazılmaz): alt yazı hemen başlar */
 const nameTypeMs = (text: string) =>
-  TYPE_NAME_DELAY + (text.length * 1000) / TYPE_CPS_NAME + 80;
+  CINEMATIC_INTRO
+    ? 150
+    : TYPE_NAME_DELAY + (text.length * 1000) / TYPE_CPS_NAME + 80;
 /** mobilde teknolojiler unvandan sonra sırayla yazılır */
 const stackDelay = (i: number) =>
   nameTypeMs(NAME) +
@@ -1238,7 +1243,13 @@ export default function HeroSection({
           chipAngle={CHIP_SPIN + 45}
           onTitleLanded={() => setNameLanded(true)}
           onCoreLanded={() => setPortraitLanded(true)}
-          onSettle={() => setDim(true)}
+          onSettle={() => {
+            setDim(true);
+            /* karanlıkta uzun bekleme olmasın: sahne kararınca avatar
+               HEMEN tırmanmaya başlar ve fişi takar (ışıklar yanar) */
+            window.dispatchEvent(new Event("hero:built"));
+            window.dispatchEvent(new Event("hero:plug"));
+          }}
           /* avatar açılış animasyonu BİTENE kadar görünmez; bitince
              tırmanır, porta yürür ve fişi takar */
           onAvatarGo={() => {}}

@@ -170,49 +170,22 @@ type RoadmapSectionProps = {
 ================================================================ */
 
 const SECTIONS: [P, P][] = [
+  /* SOL ÜST KÖŞEDEN girer, çapraz inerek sağa döner */
   [
-    [438, -42],
-    [326, -42],
+    [490, -80],
+    [430, -80],
   ],
   [
-    [445, 18],
-    [312, 18],
+    [515, 20],
+    [462, 34],
   ],
   [
-    [450, 58],
-    [300, 58],
+    [542, 108],
+    [494, 126],
   ],
   [
-    [450, 85],
-    [310, 82],
-  ],
-  [
-    [430, 108],
-    [285, 108],
-  ],
-  [
-    [380, 130],
-    [225, 132],
-  ],
-  [
-    [330, 152],
-    [165, 160],
-  ],
-  [
-    [310, 178],
-    [140, 190],
-  ],
-  [
-    [318, 197],
-    [155, 215],
-  ],
-  [
-    [355, 212],
-    [215, 238],
-  ],
-  [
-    [430, 219],
-    [410, 255],
+    [572, 178],
+    [530, 202],
   ],
   [
     [600, 227],
@@ -543,17 +516,19 @@ const TURN_OUT = 548;
 
 /** panelin oranına göre (th = TW * panelH / panelW) yılan nehir */
 function buildTall(th: number) {
-  const y1 = th * 0.15;
+  const y1 = th * 0.19;
   const y2 = th * 0.45;
-  const y3 = th * 0.75;
+  const y3 = th * 0.73;
   const D = y2 - y1;
   const wob = Math.min(26, D * 0.06);
   const L = TW - TURN_IN; // sol kıvrımın iç noktası
   const Lo = TW - TURN_OUT; // sol kıvrımın uç noktası
   const middle: P[] = [
-    [-90, y1 + wob],
-    [40, y1],
-    [190, y1 - wob],
+    /* SOL ÜST KÖŞEDEN girer */
+    [-70, -70],
+    [10, y1 * 0.45],
+    [90, y1 - wob * 0.4],
+    [200, y1 - wob],
     [340, y1 + wob * 0.6],
     [TURN_IN, y1 + D * 0.03],
     [TURN_OUT - 14, y1 + D * 0.22],
@@ -568,9 +543,10 @@ function buildTall(th: number) {
     [Lo + 14, y2 + D * 0.78],
     [L, y3 - D * 0.03],
     [300, y3 + wob * 0.6],
-    [450, y3 - wob],
-    [600, y3],
-    [TW + 90, y3 + wob],
+    [440, y3 - wob * 0.4],
+    [560, y3 + (th - y3) * 0.3],
+    /* SAĞ ALT KÖŞEDEN çıkar */
+    [TW + 70, th + 70],
   ];
   const sections: [P, P][] = middle.map(([x, y], i) => {
     const [px, py] = middle[Math.max(0, i - 1)];
@@ -768,14 +744,38 @@ function layoutChips(
        boyunca kaydır */
     let cx = clampX(p.left + nx * base);
     let cy = clampY(p.top + ny * base);
+    /* boş yer yoksa: diğer etiketlerle EN AZ çakışan yer */
+    const overlap = (x: number, y: number) =>
+      placed.reduce(
+        (sum, r) =>
+          sum +
+          Math.max(0, Math.min(x + w / 2, r.x1) - Math.max(x - w / 2, r.x0)) *
+            Math.max(0, Math.min(y + h / 2, r.y1) - Math.max(y - h / 2, r.y0)),
+        0,
+      );
+    let best = Infinity;
+    let found = false;
     for (const [push, slide] of portrait ? CANDIDATES_TALL : CANDIDATES_WIDE) {
       const x = clampX(p.left + nx * (base + push) - ny * slide);
       const y = clampY(p.top + ny * (base + push) + nx * slide);
       if (!hits(x, y)) {
         cx = x;
         cy = y;
+        found = true;
         break;
       }
+      if (portrait) {
+        const o = overlap(x, y);
+        if (o < best) {
+          best = o;
+          cx = x;
+          cy = y;
+        }
+      }
+    }
+    if (!found && !portrait) {
+      cx = clampX(p.left + nx * base);
+      cy = clampY(p.top + ny * base);
     }
     placed.push({
       x0: cx - w / 2,
