@@ -509,6 +509,10 @@ export default function SiteAvatar({
       stage === "pinch" ||
       stage === "descending";
     if (stage !== "land" && stage !== "onName" && !releasing) return;
+    /* telefonda yazı çökme filtresi yok: her karede yazıyı yeniden
+       işlemek (SVG filtresi) telefonu kasıyordu */
+    if (window.matchMedia?.("(max-width: 1023px), (hover: none)").matches)
+      return;
     if (releasing && dentT.current.released) return;
     const el = document.querySelector<HTMLElement>("[data-avatar-name]");
     const img = dentImgRef.current;

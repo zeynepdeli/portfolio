@@ -136,7 +136,7 @@ const DEPTH = {
   front: 24,
   tiltMin: 3,
   tiltMax: 10,
-  fade: 30,
+  fade: 14, // üstteki sis az: nehrin sol üst köşedeki başlangıcı görünür
 };
 
 const flowVars = (d: string): CSSVars => ({ "--d": d });
@@ -497,57 +497,30 @@ const GEO = buildGeometry(SECTIONS, {
 });
 
 /* ================================================================
-   TELEFON (DİKEY EKRAN) NEHRİ — masaüstündeki gibi EN SOLDAN girer,
-   EN SAĞDAN çıkar. Dar ve uzun ekrana sığmak için yılan gibi üç kez
-   kıvrılır: soldan sağa → sağdan sola → soldan sağa.
+   TELEFON (DİKEY EKRAN) NEHRİ — KAYDIRAK: sol üst köşeden girer,
+   hafif bir kavisle çapraz inerek sağ alt köşeden çıkar.
    Koordinatlar: genişlik TW (= lacivert panelin genişliği), yükseklik
    panelin oranına göre hesaplanır; nehir panelden DIŞARI taşmaz.
 ================================================================ */
 const TW = 640;
 /** nehrin yarı genişliği (koordinat birimi) */
-const TALL_HALF = 38;
+const TALL_HALF = 40;
 /** telefonda etiketin en fazla genişliği (px): sığmazsa iki satıra iner */
 const CHIP_MAX_PHONE = 118;
 const CHIP_FONT_PHONE = 9.5;
 const CHIP_FONT = 11.5;
-/** telefonda geniş kıvrımın sağ / sol uç noktası (TW içinde) */
-const TURN_IN = 470;
-const TURN_OUT = 548;
+/** kaydırağın kavisi (koordinat birimi): 0 = dümdüz çapraz */
+const SLIDE_BEND = 46;
 
-/** panelin oranına göre (th = TW * panelH / panelW) yılan nehir */
+/** panelin oranına göre (th = TW * panelH / panelW) kaydırak nehir */
 function buildTall(th: number) {
-  const y1 = th * 0.19;
-  const y2 = th * 0.45;
-  const y3 = th * 0.73;
-  const D = y2 - y1;
-  const wob = Math.min(26, D * 0.06);
-  const L = TW - TURN_IN; // sol kıvrımın iç noktası
-  const Lo = TW - TURN_OUT; // sol kıvrımın uç noktası
-  const middle: P[] = [
-    /* SOL ÜST KÖŞEDEN girer */
-    [-70, -70],
-    [10, y1 * 0.45],
-    [90, y1 - wob * 0.4],
-    [200, y1 - wob],
-    [340, y1 + wob * 0.6],
-    [TURN_IN, y1 + D * 0.03],
-    [TURN_OUT - 14, y1 + D * 0.22],
-    [TURN_OUT, y1 + D * 0.5],
-    [TURN_OUT - 14, y1 + D * 0.78],
-    [TURN_IN, y2 - D * 0.03],
-    [330, y2 + wob * 0.6],
-    [190, y2 - wob * 0.6],
-    [L, y2 + D * 0.03],
-    [Lo + 14, y2 + D * 0.22],
-    [Lo, y2 + D * 0.5],
-    [Lo + 14, y2 + D * 0.78],
-    [L, y3 - D * 0.03],
-    [300, y3 + wob * 0.6],
-    [440, y3 - wob * 0.4],
-    [560, y3 + (th - y3) * 0.3],
-    /* SAĞ ALT KÖŞEDEN çıkar */
-    [TW + 70, th + 70],
-  ];
+  const N = 10;
+  const middle: P[] = Array.from({ length: N + 1 }, (_, i) => {
+    const t = i / N;
+    /* köşeden köşeye; ortada hafif S kavisi (kaydırak) */
+    const bend = Math.sin(t * Math.PI * 2) * SLIDE_BEND;
+    return [-70 + (TW + 140) * t + bend * 0.6, -70 + (th + 140) * t - bend];
+  });
   const sections: [P, P][] = middle.map(([x, y], i) => {
     const [px, py] = middle[Math.max(0, i - 1)];
     const [nx, ny] = middle[Math.min(middle.length - 1, i + 1)];
@@ -563,32 +536,18 @@ function buildTall(th: number) {
     ];
   });
   return buildGeometry(sections, {
-    /* panelin içindeki kısım (girişten hemen sonra, çıkıştan hemen önce) */
+    /* panelin içinde kalan kısım (uçlar hariç) */
     range: (m) => {
       const iFrom = Math.max(
         0,
-        m.findIndex((p) => p.x >= 20),
+        m.findIndex((p) => p.x >= 30 && p.y >= th * 0.05),
       );
       let iTo = m.length - 1;
-      while (iTo > iFrom && m[iTo].x > TW - 30) iTo--;
+      while (iTo > iFrom && (m[iTo].x > TW - 30 || m[iTo].y > th * 0.95)) iTo--;
       return [iFrom, iTo];
     },
-    /* yalnızca yatay ilerleme: etiketler üç düz kolun üstüne/altına */
-    weight: (a, b) => {
-      const dx = Math.abs(b.x - a.x);
-      return dx > Math.abs(b.y - a.y) * 1.3 ? dx : 0;
-    },
-    /* sırayla bir üst, bir alt kıyı; kıvrımlarda dış kıyı ekran
-       kenarına çok yakınsa etiket iç kıyıya geçer */
-    onTop: (k, m, top, bottom) => {
-      const first = k % 2 === 0;
-      const e = first ? top : bottom;
-      const len = Math.hypot(e.x - m.x, e.y - m.y) || 1;
-      const nx = (e.x - m.x) / len;
-      if ((nx > 0.55 && m.x > TW * 0.72) || (nx < -0.55 && m.x < TW * 0.28))
-        return !first;
-      return first;
-    },
+    /* sırayla bir sağ-üst, bir sol-alt kıyı */
+    onTop: (k) => k % 2 === 0,
   });
 }
 
@@ -632,6 +591,9 @@ const PANEL_T = 0.015;
 const PANEL_W = 1 - PANEL_L * 2;
 const PANEL_H = 1 - PANEL_T * 2;
 
+/** geniş ekranda nehrin girişinin x'i (koordinat): ekranın sol kenarı */
+const DESK_START_X = 490;
+
 type Frame = { sc: number; px: number; py: number; vw: number; vh: number };
 
 /** geniş ekran: nehir ekranı kaplar ve ortalanır.
@@ -649,7 +611,14 @@ function frameOf(w: number, h: number, portrait: boolean): Frame {
     };
   }
   const sc = Math.max(w / W, h / H);
-  return { sc, px: (w - W * sc) / 2, py: (h - H * sc) / 2, vw: W, vh: H };
+  /* nehrin girişi (DESK_START_X) panelin SOL ÜST köşesine hizalanır */
+  return {
+    sc,
+    px: w * PANEL_L - DESK_START_X * sc,
+    py: (h - H * sc) / 2,
+    vw: W,
+    vh: H,
+  };
 }
 
 /* ================================================================
@@ -890,7 +859,7 @@ const ROADMAP_CSS = `
    * - mask: üst kısım uzaklıkta sise karışır.
    */
   .rm-river-layer {
-    transform-origin: 50% 100%;
+    transform-origin: 0% 100%; /* sol kenar sabit: nehir tam sol üst köşeden başlar */
     transform:
       perspective(1600px)
       translateY(calc((var(--rm-p, .5) - .5) * var(--rm-river)))
@@ -1414,21 +1383,10 @@ export default function RoadmapSection({
     [G, size.w, size.h, portrait],
   );
 
-  return (
-    <div
-      ref={containerRef}
-      className="relative size-full overflow-hidden rounded-2xl select-none"
-      style={ROOT_VARS}
-    >
-      <style>{ROADMAP_CSS}</style>
-
-      {/* ======================================================
-          EN ARKA: BACKGROUND + CAM PANEL
-
-          Bu katman sabit durur. Nehir bunun önünde
-          ama ön plan kartlarının arkasında kalır.
-      ====================================================== */}
-
+  /* PERFORMANS: arka plan ve nehir SVG'si her yetenek toplandığında
+     (her render'da) yeniden kurulmasın — yalnızca boyut değişince */
+  const background = useMemo(
+    () => (
       <SciFiBackground>
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -1493,6 +1451,289 @@ export default function RoadmapSection({
           />
         </svg>
       </SciFiBackground>
+    ),
+    [],
+  );
+  const riverSvg = useMemo(
+    () => (
+      <svg
+        viewBox={`0 0 ${VW} ${VH}`}
+        preserveAspectRatio="none"
+        className="absolute"
+        style={{
+          /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
+          left: panX,
+          top: panY,
+          width: VW * scale,
+          height: VH * scale,
+        }}
+      >
+        <defs>
+          {/* WATER */}
+
+          <linearGradient
+            id="rm-water"
+            gradientUnits="userSpaceOnUse"
+            x1="150"
+            y1="0"
+            x2={VW}
+            y2={VH}
+          >
+            <stop offset="0" stopColor="#061f3a" />
+            <stop offset=".22" stopColor="#0a2c52" />
+            <stop offset=".46" stopColor="#0e3b6b" />
+            <stop offset=".66" stopColor="#0b3058" />
+            <stop offset=".84" stopColor="#072444" />
+            <stop offset="1" stopColor="#04162e" />
+          </linearGradient>
+
+          {/* CORE */}
+
+          <linearGradient
+            id="rm-core"
+            gradientUnits="userSpaceOnUse"
+            x1="150"
+            y1="0"
+            x2={VW}
+            y2={VH}
+          >
+            <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
+            <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
+            <stop offset=".55" stopColor={C.ice} stopOpacity=".26" />
+            <stop offset=".74" stopColor={C.steel} stopOpacity=".12" />
+            <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
+          </linearGradient>
+
+          {/* DEPTH */}
+
+          <linearGradient id="rm-depth" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#0a2240" />
+            <stop offset=".55" stopColor="#081c36" />
+            <stop offset="1" stopColor="#051328" />
+          </linearGradient>
+
+          {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
+
+          <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="white" stopOpacity="0" />
+            <stop offset=".2" stopColor="white" stopOpacity=".8" />
+            <stop offset=".85" stopColor="white" stopOpacity=".9" />
+            <stop offset="1" stopColor="white" stopOpacity="0" />
+          </linearGradient>
+
+          <mask id="rm-mask" maskUnits="userSpaceOnUse">
+            <rect width={VW} height={VH} fill="url(#rm-fade)" />
+          </mask>
+
+          {/* RIVER CLIP */}
+
+          <clipPath id="rm-clip">
+            <path d={G.river} />
+          </clipPath>
+
+          {/* WATER WAVE */}
+
+          <filter id="rm-wave" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.002 0.009"
+              numOctaves="1"
+              seed="4"
+            />
+            <feDisplacementMap in="SourceGraphic" scale="12" />
+          </filter>
+
+          {/* GLOW */}
+
+          <filter id="rm-glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <filter id="rm-soft" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="7" />
+          </filter>
+        </defs>
+
+        {/* DERE TABANI */}
+
+        <path d={G.river} fill="url(#rm-depth)" />
+
+        {/* SU */}
+
+        <g clipPath="url(#rm-clip)">
+          <path d={G.surface} fill="url(#rm-water)" />
+
+          {/* KOYU DERİNLİK BANTLARI */}
+
+          {DARK_BANDS.map((ratio) => (
+            <path
+              key={ratio}
+              d={G.lane(ratio)}
+              fill="none"
+              stroke="#04142b"
+              strokeWidth="34"
+              opacity=".28"
+              filter="url(#rm-soft)"
+              className="rm-dark"
+            />
+          ))}
+
+          {/* İÇ CAM */}
+
+          <path d={G.core} fill="url(#rm-core)" opacity=".75" />
+
+          {/* AKIŞ ÇİZGİLERİ
+
+                PERFORMANS: akan çizgiler hareketli olduğu için üzerlerinde
+                SVG filtresi (bulanıklık / dalga) YOK — filtre her karede
+                yeniden hesaplanıp ekranı yavaşlatıyordu. Parlaklık, çizgi
+                kalınlığı ve opaklığıyla veriliyor. */}
+
+          {/* SOFT STREAMS */}
+
+          {SOFT_STREAMS.map((ratio, i) => (
+            <path
+              key={ratio}
+              d={G.lane(ratio)}
+              fill="none"
+              stroke={C.edge}
+              strokeWidth="5"
+              strokeOpacity=".25"
+              strokeDasharray={`${320 + i * 100} ${280 + i * 70}`}
+              strokeLinecap="round"
+              className="rm-flow"
+              style={flowVars(`${7 + i}s`)}
+            />
+          ))}
+
+          {/* FINE STREAMS */}
+
+          <g mask="url(#rm-mask)" className="rm-fine">
+            {FINE_STREAMS.map((stream, i) => (
+              <path
+                key={`${stream.f}-${i}`}
+                d={G.lane(stream.f)}
+                fill="none"
+                stroke={C.iceSoft}
+                strokeWidth={stream.width}
+                strokeOpacity={stream.opacity}
+                strokeDasharray={stream.dash}
+                strokeLinecap="round"
+                className="rm-flow"
+                style={flowVars(`${stream.duration}s`)}
+              />
+            ))}
+          </g>
+
+          {/* HIGHLIGHTS */}
+
+          <g className="rm-hl">
+            {HIGHLIGHTS.map((ratio, i) => (
+              <path
+                key={ratio}
+                d={G.lane(ratio)}
+                fill="none"
+                stroke={C.ice}
+                strokeWidth="1.2"
+                strokeOpacity=".62"
+                strokeDasharray={`${500 + i * 150} ${380 + i * 100}`}
+                strokeLinecap="round"
+                className="rm-flow"
+                style={flowVars(`${6 + i}s`)}
+              />
+            ))}
+          </g>
+
+          {/* MAIN STREAMS */}
+
+          {STREAMS.map((stream, i) => (
+            <path
+              key={`${stream.f}-${i}`}
+              d={G.lane(stream.f)}
+              fill="none"
+              stroke={i % 3 === 0 ? C.edge : C.steel}
+              strokeWidth={stream.width}
+              strokeOpacity={stream.opacity}
+              strokeDasharray={stream.dash}
+              strokeLinecap="round"
+              className="rm-flow"
+              style={flowVars(`${stream.duration}s`)}
+            />
+          ))}
+
+          {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
+
+          <g mask="url(#rm-mask)">
+            {BINARY_LANES.map(([ratio, opacity, offset], i) => (
+              <g key={ratio}>
+                <path id={`rm-lane-${i}`} d={G.lane(ratio)} fill="none" />
+
+                <text
+                  fontFamily={MONO}
+                  fontSize={BINARY_SIZE}
+                  letterSpacing={BINARY_SPACING}
+                  fill={C.ice}
+                  opacity={opacity}
+                >
+                  <textPath href={`#rm-lane-${i}`} startOffset={offset}>
+                    {BINARY[i]}
+                  </textPath>
+                </text>
+              </g>
+            ))}
+          </g>
+        </g>
+
+        {/* DERE KENARLARI */}
+
+        <path
+          d={G.top}
+          fill="none"
+          stroke={C.steel}
+          strokeWidth="1"
+          opacity=".35"
+        />
+
+        <path
+          d={G.bottom}
+          fill="none"
+          stroke={C.steelDim}
+          strokeWidth="1"
+          opacity=".3"
+        />
+      </svg>
+    ),
+    [G, VW, VH, scale, panX, panY],
+  );
+
+  const panelH = compactPanel
+    ? Math.round(size.h * (portrait ? 0.88 : 0.9))
+    : Math.min(Math.max(size.h * 0.86, 560), 820);
+  const skillsPanel = useMemo(
+    () => <CollectedSkillsPanel height={panelH} compact={compactPanel} />,
+    [panelH, compactPanel],
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative size-full overflow-hidden rounded-2xl select-none"
+      style={ROOT_VARS}
+    >
+      <style>{ROADMAP_CSS}</style>
+
+      {/* ======================================================
+          EN ARKA: BACKGROUND + CAM PANEL
+
+          Bu katman sabit durur. Nehir bunun önünde
+          ama ön plan kartlarının arkasında kalır.
+      ====================================================== */}
+
+      {background}
 
       {/* ======================================================
           ORTA KATMAN: NEHİR + CHIP + IŞIK
@@ -1511,268 +1752,7 @@ export default function RoadmapSection({
       >
         <div className="rm-river-layer pointer-events-none absolute inset-0">
           <div className="absolute inset-0">
-            <svg
-              viewBox={`0 0 ${VW} ${VH}`}
-              preserveAspectRatio="none"
-              className="absolute"
-              style={{
-                /* nehir, node'larla aynı kamerada: toPx ile birebir hizalı */
-                left: panX,
-                top: panY,
-                width: VW * scale,
-                height: VH * scale,
-              }}
-            >
-              <defs>
-                {/* WATER */}
-
-                <linearGradient
-                  id="rm-water"
-                  gradientUnits="userSpaceOnUse"
-                  x1="150"
-                  y1="0"
-                  x2={VW}
-                  y2={VH}
-                >
-                  <stop offset="0" stopColor="#061f3a" />
-                  <stop offset=".22" stopColor="#0a2c52" />
-                  <stop offset=".46" stopColor="#0e3b6b" />
-                  <stop offset=".66" stopColor="#0b3058" />
-                  <stop offset=".84" stopColor="#072444" />
-                  <stop offset="1" stopColor="#04162e" />
-                </linearGradient>
-
-                {/* CORE */}
-
-                <linearGradient
-                  id="rm-core"
-                  gradientUnits="userSpaceOnUse"
-                  x1="150"
-                  y1="0"
-                  x2={VW}
-                  y2={VH}
-                >
-                  <stop offset="0" stopColor={C.steel} stopOpacity=".08" />
-                  <stop offset=".38" stopColor={C.edge} stopOpacity=".2" />
-                  <stop offset=".55" stopColor={C.ice} stopOpacity=".26" />
-                  <stop offset=".74" stopColor={C.steel} stopOpacity=".12" />
-                  <stop offset="1" stopColor="#0f2f58" stopOpacity=".03" />
-                </linearGradient>
-
-                {/* DEPTH */}
-
-                <linearGradient id="rm-depth" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#0a2240" />
-                  <stop offset=".55" stopColor="#081c36" />
-                  <stop offset="1" stopColor="#051328" />
-                </linearGradient>
-
-                {/* AKIŞ ÇİZGİLERİ İÇİN UÇLARDA SÖNME */}
-
-                <linearGradient id="rm-fade" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0" stopColor="white" stopOpacity="0" />
-                  <stop offset=".2" stopColor="white" stopOpacity=".8" />
-                  <stop offset=".85" stopColor="white" stopOpacity=".9" />
-                  <stop offset="1" stopColor="white" stopOpacity="0" />
-                </linearGradient>
-
-                <mask id="rm-mask" maskUnits="userSpaceOnUse">
-                  <rect width={VW} height={VH} fill="url(#rm-fade)" />
-                </mask>
-
-                {/* RIVER CLIP */}
-
-                <clipPath id="rm-clip">
-                  <path d={G.river} />
-                </clipPath>
-
-                {/* WATER WAVE */}
-
-                <filter id="rm-wave" x="-5%" y="-5%" width="110%" height="110%">
-                  <feTurbulence
-                    type="fractalNoise"
-                    baseFrequency="0.002 0.009"
-                    numOctaves="1"
-                    seed="4"
-                  />
-                  <feDisplacementMap in="SourceGraphic" scale="12" />
-                </filter>
-
-                {/* GLOW */}
-
-                <filter
-                  id="rm-glow"
-                  x="-30%"
-                  y="-30%"
-                  width="160%"
-                  height="160%"
-                >
-                  <feGaussianBlur stdDeviation="4" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-
-                <filter
-                  id="rm-soft"
-                  x="-20%"
-                  y="-20%"
-                  width="140%"
-                  height="140%"
-                >
-                  <feGaussianBlur stdDeviation="7" />
-                </filter>
-              </defs>
-
-              {/* DERE TABANI */}
-
-              <path d={G.river} fill="url(#rm-depth)" />
-
-              {/* SU */}
-
-              <g clipPath="url(#rm-clip)">
-                <path d={G.surface} fill="url(#rm-water)" />
-
-                {/* KOYU DERİNLİK BANTLARI */}
-
-                {DARK_BANDS.map((ratio) => (
-                  <path
-                    key={ratio}
-                    d={G.lane(ratio)}
-                    fill="none"
-                    stroke="#04142b"
-                    strokeWidth="34"
-                    opacity=".28"
-                    filter="url(#rm-soft)"
-                    className="rm-dark"
-                  />
-                ))}
-
-                {/* İÇ CAM */}
-
-                <path d={G.core} fill="url(#rm-core)" opacity=".75" />
-
-                {/* AKIŞ ÇİZGİLERİ
-
-                PERFORMANS: akan çizgiler hareketli olduğu için üzerlerinde
-                SVG filtresi (bulanıklık / dalga) YOK — filtre her karede
-                yeniden hesaplanıp ekranı yavaşlatıyordu. Parlaklık, çizgi
-                kalınlığı ve opaklığıyla veriliyor. */}
-
-                {/* SOFT STREAMS */}
-
-                {SOFT_STREAMS.map((ratio, i) => (
-                  <path
-                    key={ratio}
-                    d={G.lane(ratio)}
-                    fill="none"
-                    stroke={C.edge}
-                    strokeWidth="5"
-                    strokeOpacity=".25"
-                    strokeDasharray={`${320 + i * 100} ${280 + i * 70}`}
-                    strokeLinecap="round"
-                    className="rm-flow"
-                    style={flowVars(`${7 + i}s`)}
-                  />
-                ))}
-
-                {/* FINE STREAMS */}
-
-                <g mask="url(#rm-mask)" className="rm-fine">
-                  {FINE_STREAMS.map((stream, i) => (
-                    <path
-                      key={`${stream.f}-${i}`}
-                      d={G.lane(stream.f)}
-                      fill="none"
-                      stroke={C.iceSoft}
-                      strokeWidth={stream.width}
-                      strokeOpacity={stream.opacity}
-                      strokeDasharray={stream.dash}
-                      strokeLinecap="round"
-                      className="rm-flow"
-                      style={flowVars(`${stream.duration}s`)}
-                    />
-                  ))}
-                </g>
-
-                {/* HIGHLIGHTS */}
-
-                <g className="rm-hl">
-                  {HIGHLIGHTS.map((ratio, i) => (
-                    <path
-                      key={ratio}
-                      d={G.lane(ratio)}
-                      fill="none"
-                      stroke={C.ice}
-                      strokeWidth="1.2"
-                      strokeOpacity=".62"
-                      strokeDasharray={`${500 + i * 150} ${380 + i * 100}`}
-                      strokeLinecap="round"
-                      className="rm-flow"
-                      style={flowVars(`${6 + i}s`)}
-                    />
-                  ))}
-                </g>
-
-                {/* MAIN STREAMS */}
-
-                {STREAMS.map((stream, i) => (
-                  <path
-                    key={`${stream.f}-${i}`}
-                    d={G.lane(stream.f)}
-                    fill="none"
-                    stroke={i % 3 === 0 ? C.edge : C.steel}
-                    strokeWidth={stream.width}
-                    strokeOpacity={stream.opacity}
-                    strokeDasharray={stream.dash}
-                    strokeLinecap="round"
-                    className="rm-flow"
-                    style={flowVars(`${stream.duration}s`)}
-                  />
-                ))}
-
-                {/* BINARY — küçük ve sık; uçlarda söner (rm-mask) */}
-
-                <g mask="url(#rm-mask)">
-                  {BINARY_LANES.map(([ratio, opacity, offset], i) => (
-                    <g key={ratio}>
-                      <path id={`rm-lane-${i}`} d={G.lane(ratio)} fill="none" />
-
-                      <text
-                        fontFamily={MONO}
-                        fontSize={BINARY_SIZE}
-                        letterSpacing={BINARY_SPACING}
-                        fill={C.ice}
-                        opacity={opacity}
-                      >
-                        <textPath href={`#rm-lane-${i}`} startOffset={offset}>
-                          {BINARY[i]}
-                        </textPath>
-                      </text>
-                    </g>
-                  ))}
-                </g>
-              </g>
-
-              {/* DERE KENARLARI */}
-
-              <path
-                d={G.top}
-                fill="none"
-                stroke={C.steel}
-                strokeWidth="1"
-                opacity=".35"
-              />
-
-              <path
-                d={G.bottom}
-                fill="none"
-                stroke={C.steelDim}
-                strokeWidth="1"
-                opacity=".3"
-              />
-            </svg>
+            {riverSvg}
 
             {/* ====================================================
             NEHİRDEKİ KİŞİ / IŞIK
@@ -1825,9 +1805,11 @@ export default function RoadmapSection({
                         transform: collected
                           ? "scale(.4) translateY(-14px)"
                           : "scale(1)",
-                        filter: collected
-                          ? "blur(4px) brightness(1.8)"
-                          : "none",
+                        /* telefonda bulanıklık yok (pahalı) */
+                        filter:
+                          collected && !portrait
+                            ? "blur(4px) brightness(1.8)"
+                            : "none",
                         transition: collected
                           ? "opacity 320ms ease-in 140ms, transform 320ms cubic-bezier(.5,0,.8,.4) 140ms, filter 320ms ease-in 140ms, color 120ms, border-color 120ms, box-shadow 120ms"
                           : "none",
@@ -1883,14 +1865,7 @@ export default function RoadmapSection({
           className={`rm-panel ${compactPanel ? "rm-panel--compact" : ""} ${panelOn ? "is-on" : ""}`}
           aria-hidden={!panelOn}
         >
-          <CollectedSkillsPanel
-            height={
-              compactPanel
-                ? Math.round(size.h * (portrait ? 0.88 : 0.9))
-                : Math.min(Math.max(size.h * 0.86, 560), 820)
-            }
-            compact={compactPanel}
-          />
+          {skillsPanel}
         </div>
 
         {showPerch && (

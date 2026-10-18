@@ -419,6 +419,15 @@ export default function Home() {
       {/* GERİ ÇEKİLME katmanı: bulanıklık (backdrop-filter) pahalıdır —
           yalnızca geniş ekranda; telefonda biraz daha koyu kararma */}
       <style>{`
+        /* TELEFON / TABLET: hiçbir yerde canlı bulanıklık (backdrop-filter)
+           yok — hareketli sahnelerde her kare yeniden hesaplanıp donmaya
+           yol açıyordu */
+        @media (max-width: 1023px), (hover: none) {
+          main, main * {
+            -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+          }
+        }
         .pf-recede { background: linear-gradient(180deg, rgba(2,6,20,.55), rgba(2,6,20,.75)); }
         @media (min-width: 1024px) and (hover: hover) {
           .pf-recede {

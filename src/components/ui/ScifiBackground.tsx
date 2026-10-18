@@ -1308,7 +1308,19 @@ export default function SciFiBackground({
   };
 
   return (
-    <div className="absolute inset-0 isolate overflow-hidden">
+    <div className="sfb-root absolute inset-0 isolate overflow-hidden">
+      {/* TELEFON / TABLET: cam bulanıklığı (backdrop-filter) ve sürekli
+          yanıp sönen ışık tozu kapalı. Arkasında hareket olan her karede
+          bulanıklığı yeniden hesaplamak telefonu en çok kasan işti. */}
+      <style>{`
+        @media (max-width: 1023px), (hover: none) {
+          .sfb-root, .sfb-root * {
+            -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+          }
+          .sfb-root .po-tw { animation: none !important; will-change: auto !important; }
+        }
+      `}</style>
       <Background />
 
       {PANEL_STYLE === "glass" && (
