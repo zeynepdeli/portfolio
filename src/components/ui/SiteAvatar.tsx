@@ -145,8 +145,9 @@ const CROUCH_W = Math.round((CROUCH_H * 242) / 240);
    SVG displacement filtresi: ayak altında elips bir çukur. */
 const DENT_RX = 34; // çukurun yarı genişliği (px)
 const DENT_RY = 20; // yarı yüksekliği
-const DENT_HIT = 30; // iniş anındaki çökme gücü (~10px)
-const DENT_HOLD = 12; // üstünde koşarken kalan çökme (~4px)
+/* harflerin ezilmesi (oran): konma anı / üstünde koşarken */
+const BEND_HIT = 0.42;
+const BEND_HOLD = 0.16;
 const DENT_MAP =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(
@@ -499,8 +500,10 @@ export default function SiteAvatar({
     return () => cancelAnimationFrame(raf);
   }, [stage]);
 
-  /* İsim yazısının çökmesi: konunca sert çöker, üstünde koşarken
-     ayağının altında hafif çukur gezer, ayrılınca yaylanıp düzelir */
+  /* İsim yazısının çökmesi (web + telefon): avatarın bastığı yerdeki
+     harfler ezilir, yanlardakilerin ÜSTLERİ ayağa doğru eğilir; konunca
+     sert, üstünde koşarken hafif, ayrılınca yaylanıp düzelir.
+     Yalnızca harflerin transform'u değişir (SVG filtresi yok → akıcı). */
   useEffect(() => {
     const releasing =
       stage === "social" ||
@@ -509,77 +512,74 @@ export default function SiteAvatar({
       stage === "pinch" ||
       stage === "descending";
     if (stage !== "land" && stage !== "onName" && !releasing) return;
-    /* TELEFON: ağır SVG filtresi yerine yazı, basılınca belirgin
-       biçimde ezilip yaylanır (yalnızca transform: akıcı) */
-    if (window.matchMedia?.("(max-width: 1023px), (hover: none)").matches) {
-      const txt = document.querySelector<HTMLElement>("[data-avatar-name]");
-      if (!txt || releasing) return;
-      txt.style.transformOrigin = "50% 100%";
-      /* yarıda kesilmez: kendi süresi bitince yazı düzelir */
-      const frames =
-        stage === "land"
-          ? [
-              { transform: "none" },
-              { transform: "scale(1.06, .72)", offset: 0.18 },
-              { transform: "scale(.97, 1.08)", offset: 0.5 },
-              { transform: "scale(1.01, .96)", offset: 0.75 },
-              { transform: "none" },
-            ]
-          : [
-              { transform: "none" },
-              { transform: "scale(1.02, .9)" },
-              { transform: "none" },
-              { transform: "scale(1.02, .92)" },
-              { transform: "none" },
-            ];
-      txt.animate(frames, {
-        duration: stage === "land" ? LAND_MS + 160 : NAME_RUN_MS,
-        easing: stage === "land" ? "ease-out" : "ease-in-out",
-      });
-      return;
-    }
     if (releasing && dentT.current.released) return;
     const el = document.querySelector<HTMLElement>("[data-avatar-name]");
-    const img = dentImgRef.current;
-    const map = dentMapRef.current;
     const root = rootRef.current;
-    if (!el || !img || !map || !root) return;
+    if (!el || !root) return;
+    /* harfler (TerminalText bend): yoksa yazının tamamı ezilir */
+    const chars = Array.from(el.querySelectorAll<HTMLElement>("[data-bend]"));
     const now0 = performance.now();
     if (stage === "land") {
       dentT.current.hit = now0;
       dentT.current.released = false;
       dentT.current.release = 0;
-      el.style.filter = "url(#avNameDent)";
     }
     if (releasing && !dentT.current.release) dentT.current.release = now0;
+
+    const er = el.getBoundingClientRect();
+    const centers = chars.map((c) => {
+      const r = c.getBoundingClientRect();
+      return r.left + r.width / 2;
+    });
+    /* etki yarıçapı: yazı boyuna göre (~2-3 harf) */
+    const R = Math.max(16, er.height * 0.85);
+    if (!chars.length) el.style.transformOrigin = "50% 100%";
+
+    const reset = () => {
+      chars.forEach((c) => (c.style.transform = ""));
+      el.style.transform = "";
+    };
 
     let raf = 0;
     const tick = () => {
       const now = performance.now();
-      const er = el.getBoundingClientRect();
       if (!releasing) {
         const rr = root.getBoundingClientRect();
-        dentT.current.x = rr.left + rr.width / 2 - er.left;
+        dentT.current.x = rr.left + rr.width / 2;
       }
-      img.setAttribute("x", String(dentT.current.x - DENT_RX));
-      img.setAttribute("y", String(er.height * 0.2 - DENT_RY));
-      let sc: number;
+      let depth: number;
       if (releasing) {
         const t = now - dentT.current.release;
         if (t > 800) {
-          map.setAttribute("scale", "0");
-          el.style.filter = "";
+          reset();
           dentT.current.released = true;
           return;
         }
-        sc = DENT_HOLD * Math.exp(-t / 120) * Math.cos(t / 45);
+        depth = BEND_HOLD * Math.exp(-t / 120) * Math.cos(t / 45);
       } else {
         const t = now - dentT.current.hit;
-        sc =
-          DENT_HOLD +
-          (DENT_HIT - DENT_HOLD) * Math.exp(-t / 160) * Math.cos(t / 40);
+        depth =
+          BEND_HOLD +
+          (BEND_HIT - BEND_HOLD) * Math.exp(-t / 160) * Math.cos(t / 40);
       }
-      map.setAttribute("scale", sc.toFixed(2));
+      const fx = dentT.current.x;
+      if (chars.length) {
+        for (let i = 0; i < chars.length; i++) {
+          const dx = centers[i] - fx;
+          const inf = Math.exp(-(dx * dx) / (R * R));
+          if (inf < 0.01) {
+            if (chars[i].style.transform) chars[i].style.transform = "";
+            continue;
+          }
+          const d = depth * inf;
+          /* üstü ayağın olduğu yere doğru eğilir, kendisi ezilir */
+          const skew = Math.max(-1, Math.min(1, dx / R)) * d * 55;
+          chars[i].style.transform =
+            `skewX(${skew.toFixed(2)}deg) scale(${(1 + d * 0.15).toFixed(3)}, ${(1 - d).toFixed(3)})`;
+        }
+      } else {
+        el.style.transform = `scale(${(1 + depth * 0.1).toFixed(3)}, ${(1 - depth * 0.6).toFixed(3)})`;
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);

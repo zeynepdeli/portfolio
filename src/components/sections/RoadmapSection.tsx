@@ -516,7 +516,12 @@ const TW = 640;
 const TALL_HALF = 40;
 /** telefonda etiketin en fazla genişliği (px): sığmazsa iki satıra iner */
 const CHIP_MAX_PHONE = 118;
-const CHIP_FONT_PHONE = 9.5;
+const CHIP_FONT_PHONE = 10;
+/** telefonda nehir kenarında her PHONE_EVERY yetenekten biri görünür
+ *  (hepsi yine toplanır ve panelde listelenir; telefon kasmasın diye) */
+const PHONE_EVERY = 2;
+const phoneHidden = (portrait: boolean, i: number) =>
+  portrait && i % PHONE_EVERY !== 0;
 const CHIP_FONT = 11.5;
 /** kaydırağın kavisi (koordinat birimi): 0 = dümdüz çapraz */
 const SLIDE_BEND = 46;
@@ -555,8 +560,9 @@ function buildTall(th: number) {
       while (iTo > iFrom && (m[iTo].x > TW - 30 || m[iTo].y > th * 0.95)) iTo--;
       return [iFrom, iTo];
     },
-    /* sırayla bir sağ-üst, bir sol-alt kıyı */
-    onTop: (k) => k % 2 === 0,
+    /* telefonda her iki yetenekten biri görünür: görünenler sırayla
+       bir sağ-üst, bir sol-alt kıyıda */
+    onTop: (k) => Math.floor(k / PHONE_EVERY) % 2 === 0,
   });
 }
 
@@ -678,6 +684,10 @@ function layoutChips(
     : [];
   const riverHalfPx = TALL_HALF * scale + 4;
   G.banks.forEach(({ at, nx, ny }, i) => {
+    if (phoneHidden(portrait, i)) {
+      chipPositions.push({ left: -9999, top: -9999 });
+      return;
+    }
     const p = toPx(at);
     /* telefonda etiket en fazla CHIP_MAX_PHONE genişliğinde; uzun
        olan iki satıra iner */
@@ -833,6 +843,11 @@ const ROADMAP_CSS = `
     100% { opacity: 1;   filter: none;                       transform: translateY(-50%); }
   }
 
+  @keyframes rmPanelOnLite {
+    0%   { opacity: 0; transform: translateY(-50%) scale(.97); }
+    100% { opacity: 1; transform: translateY(-50%); }
+  }
+
   .rm-panel {
     position: absolute;
     left: 2%;
@@ -919,6 +934,10 @@ const ROADMAP_CSS = `
     .rm-svg {
       transform: translateZ(0);
       will-change: transform;
+    }
+    /* panel telefonda bulanıklık/parlaklık filtresi olmadan açılır */
+    .rm-panel.is-on {
+      animation: rmPanelOnLite .7s cubic-bezier(.16,1,.3,1) both;
     }
     .rm-dark {
       filter: none;
@@ -1785,6 +1804,7 @@ export default function RoadmapSection({
             KIYIDAKİ YETENEKLER — her biri geçilince altın yanıp söner */}
             {size.w > 0 &&
               NODES.map((node, i) => {
+                if (phoneHidden(portrait, i)) return null;
                 const pos = chipPositions[i];
                 const collected = arrived >= node.number;
                 const Icon = node.icon;

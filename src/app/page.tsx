@@ -118,7 +118,7 @@ const FOOTER_MS: Record<FooterMode, number> = {
 };
 /** projeler bitince footer KENDİLİĞİNDEN açılır (ms sonra).
     null: yalnızca aşağı kaydırınca açılır */
-const FOOTER_AUTO_MS: number | null = 4000;
+const FOOTER_AUTO_MS: number | null = 3000;
 
 /* yumuşak başlayıp yumuşak biten geçiş (easeInOutQuart: başı ve sonu
    daha uzun, ortası hızlı → "yerine oturma" hissi) */

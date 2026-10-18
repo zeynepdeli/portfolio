@@ -26,13 +26,14 @@ import { useEffect, useRef, type RefObject } from "react";
 /** TÜM AÇILIŞIN HIZI: 1 = aşağıdaki süreler aynen, 1.35 = %35 daha hızlı.
  *  Bütün adımlar (çip, yörünge, butonlar, isim) birlikte hızlanır,
  *  geçişlerin birbirine göre zamanlaması bozulmaz. */
-const SPEED = 1.35;
+const SPEED = 1.45;
 
-const T_CHIP_RING = 0.45; // parçacıklar halka olarak doğar
-const T_CHIP_FORM = 0.75; // halka → çip
-const CHIP_MORPH = 0.6;
-const CHIP_STAGGER = 0.18;
-const T_CHIP_REVEAL = 1.3; // gerçek çip belirir, parçacıklar söner
+/* alttaki çember (parçacık halkası → çip) DAHA ERKEN ve HIZLI oluşur */
+const T_CHIP_RING = 0.15; // parçacıklar halka olarak doğar
+const T_CHIP_FORM = 0.4; // halka → çip
+const CHIP_MORPH = 0.5;
+const CHIP_STAGGER = 0.14;
+const T_CHIP_REVEAL = 0.9; // gerçek çip belirir, parçacıklar söner
 const REVEAL = 0.65; // çipin parıltıyla belirme süresi
 const T_RING = 1.85; // çip kalkar
 const RING_UP = 1.3; // kalkış (uzun → yumuşak)
@@ -74,13 +75,16 @@ const RING_OUTER_MAX = 4.2;
 
 const LIGHT_ON = 0.2;
 
-const SWEEP_AT = 0.5;
-const SWEEP = 0.75;
+/* FENER: yanar yanmaz DOĞRUDAN fotoğrafa tutulur (eskiden önce sola,
+   yanlış yere düşüp sonra kişiyi buluyordu). Yalnızca hafifçe daralır. */
+const SWEEP_AT = 0.2;
+const SWEEP = 0.35;
 
-const SWEEP_FROM_X = -0.3;
-const SWEEP_FROM_Y = -0.18;
+const SWEEP_FROM_X = 0;
+const SWEEP_FROM_Y = 0;
 
-const LIGHT_LEAD = 1.05;
+/** ışık yandıktan sonra çip / isim animasyonunun başlama gecikmesi (sn) */
+const LIGHT_LEAD = 0.45;
 
 const SPOT_EDGE_IN = 84;
 const SPOT_EDGE_OUT = 97;
@@ -147,9 +151,15 @@ function sampleShape(
   return pts;
 }
 
+/** telefon / küçük ekran: daha az parçacık, düşük çözünürlüklü tuval
+ *  (her karede binlerce nokta çizmek telefonu kasıyordu) */
+const isLow = () =>
+  typeof window !== "undefined" &&
+  (window.innerWidth < 768 || window.matchMedia?.("(hover: none)").matches);
+
 function makeCanvas(W: number, H: number) {
   const el = document.createElement("canvas");
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(isLow() ? 1.25 : 2, window.devicePixelRatio || 1);
   el.width = Math.round(W * dpr);
   el.height = Math.round(H * dpr);
   el.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none;`;
@@ -531,9 +541,9 @@ export default function CinematicIntro({
         c.translate(B / 2, B / 2);
         c.rotate(ang);
       };
-      const N = Math.round(
-        Math.min(2600, Math.max(1200, (plate * plate) / 90)),
-      );
+      const N = isLow()
+        ? Math.round(Math.min(900, Math.max(600, (plate * plate) / 160)))
+        : Math.round(Math.min(2600, Math.max(1200, (plate * plate) / 90)));
 
       const body = sampleShape(
         (c) => {
@@ -694,9 +704,9 @@ export default function CinematicIntro({
       const box = document.createElement("div");
       box.style.cssText = `position:absolute;left:0;top:0;width:${r.width}px;height:${r.height}px;will-change:transform,opacity;opacity:0;`;
       box.appendChild(makeWire(real));
-      const n = Math.round(
-        Math.min(520, Math.max(170, (r.width * r.height) / 32)),
-      );
+      const n = isLow()
+        ? Math.round(Math.min(180, Math.max(80, (r.width * r.height) / 70)))
+        : Math.round(Math.min(520, Math.max(170, (r.width * r.height) / 32)));
       const left = r.left - rr.left;
       const top = r.top - rr.top;
       const rnd = rng(31 + i * 7);
@@ -788,7 +798,7 @@ export default function CinematicIntro({
 
     layer.insertBefore(beam.el, spot);
     const mr = rng(2718);
-    const motes = Array.from({ length: MOTES }, () => ({
+    const motes = Array.from({ length: isLow() ? 40 : MOTES }, () => ({
       u: 0.12 + mr() * 0.85, // hüzme boyunca
       v: mr() * 2 - 1, // hüzmenin enine
       ph: mr() * Math.PI * 2,

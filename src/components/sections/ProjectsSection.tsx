@@ -126,7 +126,7 @@ const PANEL_TOPBOT = 0.015; // yüksekliğe oran
 const PANEL_RADIUS = 14;
 
 // Tüm animasyon hızı: küçüldükçe hızlanır (1 = orijinal)
-const SPEED = 0.6; // nehir + avatar + fan oluşumu (küçük = hızlı)
+const SPEED = 0.5; // nehir + avatar + fan oluşumu (küçük = hızlı; eskiden 0.6)
 const ms = (v: number) => v * SPEED;
 
 /* ZAMAN ÇİZELGESİ (ms)
@@ -717,10 +717,10 @@ function buildCard(
    aynı fotoğraf yuvarlak portre olarak fanın ortasına oturur.
    Görsel: public/images/zeynep-comelme.png */
 
-/* GÖBEKTE OTURAN KİŞİ — public/images/zeynep-oturma.png
+/* GÖBEKTE OTURAN KİŞİ — public/images/zeynepOturma.png
    Görselin piksel boyutu ve kişinin görsel içindeki yeri (ölçüldü).
    Görselin boyutu farklıysa SIT_W / SIT_H'yi gerçek boyutla değiştir. */
-const SIT_SRC = "/images/zeynep-oturma.png";
+const SIT_SRC = "/images/zeynepOturma.png";
 const SIT_W = 1584;
 const SIT_H = 672;
 /** kişinin görseldeki yatay ortası, tepesi ve boyu (px) */
@@ -2447,7 +2447,7 @@ function ProjectScreen({
 }
 
 /* ================================================================
-   OTURAN KİŞİ — AYAK SALLAMA (zeynep-oturma.png)
+   OTURAN KİŞİ — AYAK SALLAMA (zeynepOturma.png)
    Görsel üç parçaya ayrılır: gövde + uyluklar (sabit) ve dizden
    aşağı iki baldır. Baldırlar dizden, birbirine ters zamanda
    ileri-geri sallanır — oturduğu yerden ayak sallıyormuş gibi.

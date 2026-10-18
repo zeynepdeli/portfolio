@@ -165,6 +165,7 @@ function TerminalText({
   delay = 0,
   cps = TYPE_CPS_TEXT,
   keepCursor = false,
+  bend = false,
 }: {
   text: string;
   color?: string;
@@ -174,6 +175,8 @@ function TerminalText({
   cps?: number;
   /** yazı bitince imleç yanıp sönmeye devam etsin */
   keepCursor?: boolean;
+  /** harfler ayrı kutularda: avatar bastığında tek tek ezilip eğilir */
+  bend?: boolean;
 }) {
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -202,7 +205,17 @@ function TerminalText({
         {text}
       </span>
       <span className="absolute inset-0 text-left" aria-label={text}>
-        {text.slice(0, shown)}
+        {bend
+          ? Array.from(text.slice(0, shown)).map((ch, i) => (
+              <span
+                key={i}
+                data-bend
+                className="inline-block origin-bottom whitespace-pre"
+              >
+                {ch}
+              </span>
+            ))
+          : text.slice(0, shown)}
         {cursor && (
           <span
             aria-hidden
@@ -741,6 +754,7 @@ export default function HeroSection({
                     active={nameReady}
                     delay={TYPE_NAME_DELAY}
                     cps={TYPE_CPS_NAME}
+                    bend
                   />
                 </h1>
 
@@ -825,6 +839,7 @@ export default function HeroSection({
                     active={nameReady}
                     delay={TYPE_NAME_DELAY}
                     cps={TYPE_CPS_NAME}
+                    bend
                   />
                 </h1>
 
