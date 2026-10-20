@@ -134,8 +134,8 @@ const ms = (v: number) => v * SPEED;
       ucunda oturmuş halde kayar            0 → ARRIVE
    2) göbeğin kenarından yumuşak bir yayla ortasına süzülüp oturur
    3) kişi oturduktan SONRA fan yaprakları, ardından kart gövdesi oluşur */
-const ARRIVE = 2600; // kişinin göbeğin kenarına vardığı an
-const SPIRAL_DUR = 820; // kenardan göbeğin ortasına ZIPLAMA süresi
+const ARRIVE = 3300; // kişinin göbeğin kenarına vardığı an (eskiden 2600: avatar daha yavaş kayar)
+const SPIRAL_DUR = 1050; // kenardan göbeğin ortasına ZIPLAMA süresi
 /** zıplamanın yüksekliği (fan birimi, ekranda yukarı doğru) */
 const JUMP_H = 300;
 const SEATED = ARRIVE + SPIRAL_DUR + 120; // yere inip oturma anı
@@ -735,11 +735,11 @@ const RIDE_LEDGE = 0.95; // zemin çizgisi (kalça / eller = su yüzeyi)
 const RIDE_SEAT_X = 0.4; // kalçanın yatay yeri (genişliğe oran)
 const RIDE_TILT = 22; // kaydırak eğimi (derece) — yol haritasıyla aynı
 /** akıntıdaki kişinin boyu (viewBox birimi) */
-const RIDE_S = 150;
+const RIDE_S = 190; // eskiden 150: avatar daha büyük
 const RIDE_W = (RIDE_S * 680) / 364;
 const RIDE_FRONT_SRC = "/images/zeynep-kayma-on.png";
 const RIDE_FRONT_LEDGE = 0.91;
-const RIDE_FRONT_S = 180;
+const RIDE_FRONT_S = 228;
 const RIDE_FRONT_W = (RIDE_FRONT_S * 360) / 457;
 /** ekrana dönme: ekranda aşağı eğim / yatay oranı bu aralıkta 0 → 1 */
 const RIDE_FRONT_FROM = 0.6;

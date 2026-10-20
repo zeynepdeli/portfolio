@@ -121,7 +121,7 @@ const T_HI = `rgb(${TURQ})`;
 const T_DIM = `rgba(${TURQ},.58)`;
 
 /* ---- avatar ---- */
-const AV_H = 150; // nehirde oturan avatarın boyu (px)
+const AV_H = 180; // nehirde oturan avatarın boyu (px; eskiden 150)
 /** dar ekranda oturduğu yer (nehir genişliğine oran) */
 const SEAT_X = 0.84;
 
@@ -133,7 +133,7 @@ const CLIMB_ASPECT = 486 / 420; // video oranı
 const CLIMB_LEDGE = 0.86; // videoda kenar çizgisi (sonda, diz çökünce)
 const CLIMB_GRIP = 0.74; // başta ellerin tutunduğu kenar
 const CLIMB_K = 0.8; // tırmanma kutusu boyu (avatar boyuna oran)
-const CLIMB_RATE = 3.4; // video oynatma hızı (ana sayfadakinden hızlı)
+const CLIMB_RATE = 2.8; // video oynatma hızı (eskiden 3.4: daha sakin)
 const CLIMB_MS = Math.round(5000 / CLIMB_RATE);
 /** video yüklenemezse / bitmezse en geç bu süre sonra devam et */
 const CLIMB_FALLBACK_MS = CLIMB_MS + 1200;
@@ -145,12 +145,12 @@ const JUMP_K = 0.95; // boyu (avatar boyuna oran)
 const JUMP_FEET = 0.997; // görselde ayak tabanı (yüksekliğe oran)
 /** suya girerken boyunun ne kadarı suya batar (oran) */
 const JUMP_SINK = 0.3;
-const FALL_MS = 950; // üst kenardan nehre düşüş
+const FALL_MS = 1250; // üst kenardan nehre düşüş (eskiden 950)
 const HOP_UP = 34; // kenardan kalkarken küçük sıçrama (px)
 /** üst kenar: zemine karışan bölümün ortasında, panelin belirdiği yer
     (topFade'e oran) */
 const EDGE_IN_FADE = 0.55;
-const SPLASH_MS = 520; // suya değip toparlanma
+const SPLASH_MS = 650; // suya değip toparlanma
 
 /* ---- 0-1 nehri ---- */
 const RIVER_H = 120;
@@ -238,7 +238,7 @@ export default function FooterSection({
   const short = phone && vh < 720;
   const riverH = vh < 560 ? 90 : phone ? 96 : RIVER_H;
   /* telefonda avatar küçük ve SAĞ KÖŞEDE oturur: butonların önüne geçmez */
-  const avH = vh < 560 ? 96 : phone ? (vh < 760 ? 86 : 100) : AV_H;
+  const avH = vh < 560 ? 108 : phone ? (vh < 760 ? 100 : 116) : AV_H;
   /* içerik ekranı aşarsa kendi içinde kayar (nehir altta sabit kalır) */
   const scrollerStyle: CSSProperties =
     vw >= 1280
