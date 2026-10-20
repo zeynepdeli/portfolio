@@ -9,6 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import AlphaVideo from "./AlphaVideo";
+import { whenVideosReady } from "./videoCache";
 
 /* =========================================================
    SİTE AVATARI — senin videolarınla
@@ -85,7 +86,7 @@ const ms = (v: number) => Math.round(v * SLOW);
 
 /* HIZ — kullanıcı beklemesin diye her şey hızlı ama akıcı.
    Videolar da aynı oranda hızlı oynar (adım/kol uyumu bozulmaz). */
-const CLIMB_RATE = 2.6; // tırmanma videosu hızı (eskiden 3.2): daha sakin tırmanır
+const CLIMB_RATE = 1.9; // tırmanma videosu hızı (eskiden 2.6): tırmanış belirgin, acele etmez
 const RUN_RATE = 2.1 / SLOW; // koşma videosu oynatma hızı
 
 /* Tırmanma videosu yüklenemezse / bitmezse en geç bu süre sonra devam et */
@@ -377,6 +378,12 @@ const AVATAR_CSS = `
           90%  { transform: translateY(0) rotate(0deg); }
           100% { transform: translateY(-${Math.round(HANG_H * 0.18)}px) rotate(0deg); }
         }
+        @keyframes avClimbGlow {
+          0%   { opacity: 0; transform: scale(.6); }
+          15%  { opacity: 1; transform: scale(1.05); }
+          80%  { opacity: .85; transform: scale(1); }
+          100% { opacity: .35; transform: scale(.95); }
+        }
         @keyframes avPinch {
           0%   { transform: scale(1.04, .9); }
           60%  { transform: scale(.97, 1.05); }
@@ -524,8 +531,38 @@ export default function SiteAvatar({
       window.clearTimeout(fb);
     };
   }, [sceneReady, plugGo]);
+  /* VİDEOLAR HAZIR OLMADAN BAŞLAMA: tırmanma / koşma videoları bellekte
+     hazır olmadan avatar yola çıkarsa (özellikle iPhone'da) tırmanma
+     görünmüyor, avatar her açılışta farklı yerde beliriyordu. En geç
+     birkaç saniye bekler (yavaş bağlantıda sonsuza dek beklemez). */
+  const [videosReady, setVideosReady] = useState(startDone);
+  useEffect(() => {
+    if (startDone) return;
+    let live = true;
+    void whenVideosReady([climbSrc, walkSrc], 6000).then(() => {
+      if (live) setVideosReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [startDone, climbSrc, walkSrc]);
+  /* yazı tipi yüklenmeden isim ölçülürse avatar yanlış yere konar */
+  const [fontsReady, setFontsReady] = useState(startDone);
+  useEffect(() => {
+    if (startDone) return;
+    let live = true;
+    const t = window.setTimeout(() => live && setFontsReady(true), 3000);
+    void document.fonts?.ready.then(() => live && setFontsReady(true));
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [startDone]);
   const isActive =
-    useIsActiveAvatar(onPlugged || onSequenceComplete ? 1 : 0) && sceneReady;
+    useIsActiveAvatar(onPlugged || onSequenceComplete ? 1 : 0) &&
+    sceneReady &&
+    videosReady &&
+    fontsReady;
 
   /* Geliştirme modunda: bileşen sayfada mı? (tarayıcı konsoluna yazar) */
   useEffect(() => {
@@ -1188,6 +1225,7 @@ export default function SiteAvatar({
       </svg>
       <div
         ref={rootRef}
+        data-site-avatar={stage}
         className="pointer-events-none fixed z-9999"
         style={{
           left: pos.left,
@@ -1215,6 +1253,23 @@ export default function SiteAvatar({
         <img src={HANG_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
+        {/* TIRMANIŞ IŞIĞI: üst kenardaki küçük avatar gözden kaçmasın —
+            arkasında sıcak bir ışık halesi, kenarı tuttuğu yerde parıltı */}
+        {stage === "climbing" && !UNDER_EDGE && (
+          <div
+            aria-hidden
+            className="av-anim pointer-events-none absolute"
+            style={{
+              left: W / 2 - 110,
+              top: H - 120,
+              width: 220,
+              height: 170,
+              borderRadius: "50%",
+              background: `radial-gradient(closest-side, rgba(${GOLD_LIGHT},.55), rgba(${GOLD},.22) 45%, transparent 75%)`,
+              animation: `avClimbGlow ${Math.round(5000 / CLIMB_RATE)}ms ease-out both`,
+            }}
+          />
+        )}
         {stage === "climbing" && !UNDER_EDGE && (
           <div
             className="absolute"
@@ -1227,6 +1282,8 @@ export default function SiteAvatar({
                aşağıdan başlar, diz çökerken yerine oturur */
               top: H - CLIMB_H * LEDGE,
               animation: `avClimbLedge ${Math.round(5000 / CLIMB_RATE)}ms linear both`,
+              /* lacivert zeminde seçilsin: ince altın ışık kenarı */
+              filter: `drop-shadow(0 0 3px rgba(${GOLD_LIGHT},.9)) drop-shadow(0 0 10px rgba(${GOLD},.55))`,
             }}
           >
             <AlphaVideo
@@ -1242,11 +1299,16 @@ export default function SiteAvatar({
         )}
 
         {/* ======== YÜRÜME / FİŞ ======== */}
-        {(stage !== "climbing" || UNDER_EDGE) && (
+        {/* tırmanırken de (gizli) yerinde durur: koşma videosu önceden
+            yüklenip ilk karesini çizer → kenara çıkınca avatar bir an
+            görünmez olmaz */}
+        {(
           /* ikonlar arası sekmede iç sıçrama (A/B dönüşümlü: her sekmede yeniden başlar) */
           <div
             className="absolute inset-0"
             style={{
+              visibility:
+                stage === "climbing" && !UNDER_EDGE ? "hidden" : "visible",
               animation: hopBounce
                 ? `${hopIdx % 2 ? "avHopA" : "avHopB"} ${HOP_AIR_MS}ms linear both`
                 : "none",
