@@ -367,6 +367,8 @@ export default function HeroSection({
   const [portraitLanded, setPortraitLanded] = useState(false);
   /* el sallama videosu bitti mi (bitince son karenin fotoğrafı kalır) */
   const [waveEnded, setWaveEnded] = useState(false);
+  /* video gerçekten oynamaya başladı mı (ilk kare çizildi) */
+  const [waveStarted, setWaveStarted] = useState(false);
   const [dim, setDim] = useState(false);
   const [camera, setCamera] = useState<"close" | "out" | "none">("none");
 
@@ -775,7 +777,9 @@ export default function HeroSection({
                 />
 
                 {/* unvanlar YAN YANA; dar ekranda düzgünce alt satıra sarar */}
+                {/* data-avatar-skills: avatar isimden sonra bu satıra asılır */}
                 <p
+                  data-avatar-skills
                   className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-mono text-accent/80 ${phone ? "text-[11px]" : "text-[15px]"}`}
                 >
                   {/* unvan kendi satırında; teknolojiler aralarında nokta ile,
@@ -856,6 +860,7 @@ export default function HeroSection({
                 {textWidth >=
                 SUBTITLE_ONE_LINE.length * 14 * 0.62 * textScale ? (
                   <p
+                    data-avatar-skills
                     className="font-mono text-accent/80"
                     style={{ fontSize: 14 * textScale }}
                   >
@@ -870,6 +875,7 @@ export default function HeroSection({
                   </p>
                 ) : (
                   <p
+                    data-avatar-skills
                     className="flex flex-col items-center gap-1 font-mono text-accent/80"
                     style={{ fontSize: 14 * textScale }}
                   >
@@ -1028,8 +1034,11 @@ export default function HeroSection({
                 style={{
                   /* video oynarken fotoğraf gizli; video bitince aynı son
                      kare fotoğraf olarak kalır (geçiş görünmez) */
-                  opacity: wavePlaying ? 0 : 1,
-                  transition: wavePlaying ? "none" : "opacity 200ms",
+                  /* video ilk karesini çizene kadar fotoğraf görünür kalır;
+                     video bitince fotoğraf ANINDA altta hazır olur, video
+                     üstünden yavaşça söner → yanıp sönme yok */
+                  opacity: wavePlaying && waveStarted ? 0 : 1,
+                  transition: "none",
                 }}
               >
                 <PortraitMorph
@@ -1063,14 +1072,15 @@ export default function HeroSection({
                   src={WAVE_VIDEO}
                   play={wavePlaying}
                   onEnded={() => setWaveEnded(true)}
+                  onStart={() => setWaveStarted(true)}
                   className="absolute"
                   style={{
                     left: 0,
                     top: 0,
                     width: ph * WAVE_ASPECT,
                     height: ph,
-                    opacity: wavePlaying ? 1 : 0,
-                    transition: "opacity 200ms",
+                    opacity: waveStarted && !waveEnded ? 1 : 0,
+                    transition: waveEnded ? "opacity 350ms ease 250ms" : "none",
                     WebkitMaskImage:
                       "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
                     maskImage:

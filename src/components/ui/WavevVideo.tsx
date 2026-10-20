@@ -18,6 +18,9 @@ type Props = {
   src: string;
   play: boolean;
   onEnded?: () => void;
+  /** video GERÇEKTEN oynamaya başlayıp ilk kareyi çizdiğinde (fotoğraf
+   *  ancak o zaman gizlenmeli: yoksa boş kare → yanıp sönme) */
+  onStart?: () => void;
   className?: string;
   style?: CSSProperties;
 };
@@ -53,6 +56,7 @@ export default function WaveVideo({
   src,
   play,
   onEnded,
+  onStart,
   className = "",
   style,
 }: Props) {
@@ -61,9 +65,11 @@ export default function WaveVideo({
   const drawRef = useRef<(() => void) | null>(null);
   const failRef = useRef<(() => void) | null>(null);
   const onEndedRef = useRef(onEnded);
+  const onStartRef = useRef(onStart);
 
   useEffect(() => {
     onEndedRef.current = onEnded;
+    onStartRef.current = onStart;
   });
 
   /* WebGL kurulumu + kare çizimi */
@@ -166,9 +172,14 @@ export default function WaveVideo({
       video as HTMLVideoElement & { requestVideoFrameCallback?: RVFC }
     ).requestVideoFrameCallback?.bind(video);
 
+    let started = false;
     const loop = () => {
       if (stopped) return;
       drawRef.current?.();
+      if (!started && video.currentTime > 0) {
+        started = true;
+        onStartRef.current?.();
+      }
       if (rvfc) rvfc(loop);
       else raf = requestAnimationFrame(loop);
     };

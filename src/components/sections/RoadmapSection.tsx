@@ -1282,6 +1282,21 @@ export default function RoadmapSection({
   useEffect(() => {
     if (!active) return;
 
+    /* KİŞİ PANELİN İÇİNDE BAŞLAR: nehrin girişi panelin köşesinde /
+       dışında kaldığı için (özellikle telefonda) kişi ilk anlarda
+       görünmüyordu. Başlangıç, kişinin tamamen göründüğü ilk nokta. */
+    {
+      const f = frameOf(size.w, size.h, portrait);
+      const minX = size.w * PANEL_L + 28;
+      const minY = size.h * PANEL_T + (portrait ? 92 : 80);
+      let k = 0;
+      while (k < G.middle.length - 1) {
+        const q = G.middle[k];
+        if (f.px + q.x * f.sc >= minX && f.py + q.y * f.sc >= minY) break;
+        k++;
+      }
+      if (avatarRef.current < k) avatarRef.current = k;
+    }
     const from = avatarRef.current;
     /* geniş ekranda son (uzatma) bölüm ekran dışında: kişi orada durur */
     const to = G.middle.length - 1 - (portrait ? 0 : STEPS);
