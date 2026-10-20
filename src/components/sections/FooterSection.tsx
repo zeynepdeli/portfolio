@@ -234,8 +234,11 @@ export default function FooterSection({
 
   const { w: vw, h: vh } = useViewport();
   const phone = vw < 640;
-  const riverH = vh < 560 ? 90 : phone ? 108 : RIVER_H;
-  const avH = vh < 560 ? 96 : phone ? 118 : AV_H;
+  /* kısa telefon (iPhone SE vb.): boşluklar daralır, telif satırı gizlenir */
+  const short = phone && vh < 720;
+  const riverH = vh < 560 ? 90 : phone ? 96 : RIVER_H;
+  /* telefonda avatar küçük ve SAĞ KÖŞEDE oturur: butonların önüne geçmez */
+  const avH = vh < 560 ? 96 : phone ? (vh < 760 ? 86 : 100) : AV_H;
   /* içerik ekranı aşarsa kendi içinde kayar (nehir altta sabit kalır) */
   const scrollerStyle: CSSProperties =
     vw >= 1280
@@ -265,9 +268,11 @@ export default function FooterSection({
   }
 
   const avHRef = useRef(avH);
+  const phoneRef = useRef(phone);
   useEffect(() => {
     avHRef.current = avH;
-  }, [avH]);
+    phoneRef.current = phone;
+  }, [avH, phone]);
 
   /* oturma yeri: nehrin SAĞ ucu (geniş ekranda en sağdaki boş sütun) */
   const measureSeat = useCallback((): Pt | null => {
@@ -281,7 +286,9 @@ export default function FooterSection({
     const x =
       spot && spot.width > 0
         ? spot.left - r.left + spot.width / 2
-        : v.left - r.left + v.width * SEAT_X;
+        : phoneRef.current
+          ? v.left - r.left + v.width - (avHRef.current * SIT_ASPECT) / 2 - 14
+          : v.left - r.left + v.width * SEAT_X;
     return { x, y: v.top - r.top + SURF };
   }, []);
 
@@ -538,14 +545,14 @@ export default function FooterSection({
         />
         <div
           data-footer-scroll
-          className="relative z-10 flex flex-col gap-4 overflow-y-auto px-4 pb-1 pt-16 sm:gap-6 sm:px-8 sm:pt-24 lg:px-12 xl:overflow-visible xl:pb-1 xl:pt-28"
+          className={`relative z-10 flex flex-col overflow-y-auto px-4 sm:gap-6 sm:px-8 sm:pb-1 sm:pt-24 lg:px-12 xl:overflow-visible xl:pb-1 xl:pt-28 ${short ? "gap-2.5 pb-4 pt-7" : "gap-4 pb-5 pt-12"}`}
           style={scrollerStyle}
         >
           {/* ÜST: söz + e-posta */}
           <div className="flex flex-col gap-x-10 gap-y-3 lg:flex-row lg:items-end lg:justify-between">
             <div data-ft-in className="flex flex-col gap-2.5" style={ftI(0)}>
               <h2
-                className="font-mono text-[clamp(22px,2.4vw,38px)] font-bold leading-[1.1] text-[#c4f7fb]"
+                className={`font-mono font-bold leading-[1.1] text-[#c4f7fb] ${short ? "text-[19px]" : "text-[clamp(22px,2.4vw,38px)]"}`}
                 style={{ textShadow: `0 0 22px rgba(${EDGE},.35)` }}
               >
                 Hayal ettiğin şey <br className="sm:hidden" />
@@ -599,7 +606,7 @@ export default function FooterSection({
             {phone ? (
               /* TELEFON: portlar + menü + saat + fan TEK kutuda, küçük */
               <div data-ft-in style={ftI(2)}>
-                <PhoneDeck powered={powered} fanRef={spotRef} />
+                <PhoneDeck powered={powered} compact={short} />
               </div>
             ) : (
               <>
@@ -623,7 +630,7 @@ export default function FooterSection({
           {/* telif satırı */}
           <div
             data-ft-in
-            className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t pt-3 pr-24 font-mono text-[9px] tracking-[.2em] text-[rgba(var(--ft-t),.6)] xl:pr-0"
+            className={`${short ? "hidden" : "flex"} flex-wrap items-center gap-x-6 gap-y-1 border-t pt-3 pr-24 font-mono text-[9px] tracking-[.2em] text-[rgba(var(--ft-t),.6)] xl:pr-0`}
             style={{ borderColor: `rgba(${ICE},.1)`, ...ftI(5) }}
           >
             <span>
@@ -1070,9 +1077,12 @@ function Led({
 function PhoneDeck({
   powered,
   fanRef,
+  compact = false,
 }: {
   powered: boolean;
   fanRef?: Ref<HTMLDivElement>;
+  /** kısa ekran: daha sık yerleşim */
+  compact?: boolean;
 }) {
   return (
     <div className="relative flex flex-col">
@@ -1084,7 +1094,7 @@ function PhoneDeck({
         </span>
       </div>
       <div
-        className="relative flex flex-col gap-3 rounded-xl p-3"
+        className={`relative flex flex-col rounded-xl ${compact ? "gap-2 p-2.5" : "gap-3 p-3"}`}
         style={metal(8)}
       >
         {[
@@ -1135,7 +1145,10 @@ function PhoneDeck({
               BAŞA DÖN
             </span>
           </a>
-          <div ref={fanRef} className="relative size-19 shrink-0">
+          <div
+            ref={fanRef}
+            className={`relative shrink-0 ${compact ? "size-15" : "size-19"}`}
+          >
             <Fan powered={powered} />
           </div>
         </div>

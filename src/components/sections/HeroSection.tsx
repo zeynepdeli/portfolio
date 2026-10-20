@@ -204,7 +204,14 @@ function TerminalText({
       <span aria-hidden className="invisible">
         {text}
       </span>
-      <span className="absolute inset-0 text-left" aria-label={text}>
+      {/* harfler ayrı kutudayken satır harf aralarından KIRILMASIN
+          (eskiden "DELİ" → "DEL" + alt satırda "İ" oluyordu) */}
+      <span
+        /* hizalama dıştaki kutudan gelir: iki satıra inen yazı (unvan +
+           teknolojiler) bitince görünmez kopyayla birebir aynı yerde durur */
+        className={`absolute inset-0 ${bend ? "whitespace-nowrap" : ""}`}
+        aria-label={text}
+      >
         {bend
           ? Array.from(text.slice(0, shown)).map((ch, i) => (
               <span
