@@ -50,8 +50,11 @@ type AlphaVideoProps = {
 };
 
 const IS_DEV = process.env.NODE_ENV !== "production";
-/** oynatma istendikten sonra bu süre içinde hiç kare gelmezse yedek görsel */
-const NO_FRAME_MS = 1600;
+/** video YÜKLENDİĞİ halde bu süre içinde ilerlemezse (oynatma engelli)
+ *  yedek görsel */
+const STUCK_MS = 2500;
+/** hiç yüklenemezse (çok yavaş bağlantı / desteklenmeyen biçim) */
+const NO_DATA_MS = 7000;
 /** yedek görsele geçilince tek seferlik videonun "bitti" sayılma süresi */
 const FALLBACK_END_MS = 900;
 
@@ -281,11 +284,25 @@ export default function AlphaVideo({
         if ((e as { name?: string })?.name === "NotAllowedError") goFallback();
       });
     }
-    /* hiç kare gelmiyorsa (sessizce takılan cihazlar) yedeğe geç */
-    const t = window.setTimeout(() => {
-      if (v.readyState < 2 || v.currentTime === 0) goFallback();
-    }, NO_FRAME_MS);
-    return () => window.clearTimeout(t);
+    /* yüklendiği halde ilerlemiyorsa (oynatma sessizce engellenmiş) ya da
+       hiç yüklenemiyorsa yedeğe geç. Yavaş bağlantıda video henüz
+       yükleniyorsa BEKLENİR (yoksa önce duran görsel, sonra video
+       oynayıp "iki kez tırmanıyor" gibi görünüyordu). */
+    const stuck = window.setTimeout(() => {
+      if (v.readyState >= 2 && v.currentTime === 0) {
+        v.play().catch(() => goFallback());
+        window.setTimeout(() => {
+          if (v.currentTime === 0) goFallback();
+        }, 800);
+      }
+    }, STUCK_MS);
+    const noData = window.setTimeout(() => {
+      if (v.readyState < 2) goFallback();
+    }, NO_DATA_MS);
+    return () => {
+      window.clearTimeout(stuck);
+      window.clearTimeout(noData);
+    };
   }, [playing, src, goFallback]);
 
   /* Kareleri canvas'a işle */
@@ -400,9 +417,10 @@ export default function AlphaVideo({
     };
   }, [src, report, goFallback]);
 
-  /* yedek görsel: video oynatılamıyorsa ya da ilk kare henüz gelmediyse
-     (kısa an boyunca kişi kaybolmasın) */
-  const showFallback = !!fallbackSrc && (blocked || !hasFrame);
+  /* yedek görsel: video oynatılamıyorsa. Döngülü videoda (koşma) ilk
+     kare gelene kadar da görünür; tek seferlik videoda (tırmanma) HAYIR —
+     yoksa önce son poz görünüp sonra video baştan oynuyordu */
+  const showFallback = !!fallbackSrc && (blocked || (loop && !hasFrame));
 
   return (
     <div

@@ -123,6 +123,14 @@ const PINCH_IMG = "/images/zeynep-burun.png";
 const PINCH_MS = ms(260); // burnunu tutup hazırlanma
 const PINCH_H = 58; // ayakta boyu (px)
 const PINCH_W = Math.round((PINCH_H * 223) / 720);
+/* İSİMDEN SONRA: alttaki yetenek satırına sarkıp asılır (elleri satırın
+   üstünde, başı arkadan görünür), sonra bırakıp ikonlara atlar */
+const HANG_IMG = "/images/zeynep1.png";
+const HANG_W = 84; // görselin genişliği (px): yakın plan, eller ve baş seçilsin
+const HANG_H = Math.round((HANG_W * 791) / 1989);
+const HANG_LEDGE = 0.843; // görselde ellerin tuttuğu çizgi (yükseklik oranı)
+const TO_HANG_MS = ms(300); // isimden satıra düşüş
+const HANG_MS = ms(650); // asılı kalma
 /* ÇIKIŞ: son ikondan yere atlar, yerde KOŞARAK ekranın en soluna gider,
    oradan alttaki sayfaya iner (yol haritasındaki nehir de soldan başlar) */
 const TO_FLOOR_MS = ms(380); // son ikondan yere atlama
@@ -346,6 +354,14 @@ const AVATAR_CSS = `
           50%  { transform: translateY(-${HOP_HEIGHT}px); animation-timing-function: cubic-bezier(.6,0,.8,.3); }
           100% { transform: translateY(0); }
         }
+        @keyframes avHang {
+          0%   { transform: translateY(-6px) scale(.96); opacity: .6; }
+          18%  { transform: translateY(2px) rotate(-3deg); opacity: 1; }
+          40%  { transform: translateY(0) rotate(2.5deg); }
+          62%  { transform: rotate(-1.5deg); }
+          82%  { transform: rotate(1deg); }
+          100% { transform: none; }
+        }
         @keyframes avPinch {
           0%   { transform: scale(1.04, .9); }
           60%  { transform: scale(.97, 1.05); }
@@ -383,6 +399,8 @@ type Stage =
   | "jump" // porttan aşağıdaki isim yazısının üstüne zıplar
   | "land" // isme konar: çömelir, yazı içe göçer
   | "onName" // ismin üstünde koşar
+  | "toHang" // isimden alttaki yetenek satırına düşer
+  | "hang" // satıra asılı kalır
   | "social" // sosyal ikonların üstünde tek tek sekerek geçer
   | "toFloor" // son ikondan yere atlar
   | "toLeft" // yerde koşarak ekranın en soluna gider
@@ -392,7 +410,7 @@ type Stage =
 
 type Pt = { x: number; y: number };
 /* İsim yazısının üstündeki iniş ve koşu noktaları (ekran px, ayak hizası) */
-type NameSpots = { land: Pt; end: Pt; jumpLeft: boolean };
+type NameSpots = { land: Pt; end: Pt; jumpLeft: boolean; hang: Pt | null };
 
 type SiteAvatarProps = {
   onSequenceComplete?: () => void;
@@ -493,9 +511,20 @@ export default function SiteAvatar({
       end = { x: vw * 0.32, y: vh * 0.45 };
     }
     const nowX = vw / 2 - CONN_X + W / 2;
+    /* asılacağı yetenek satırı (HeroSection: data-avatar-skills) */
+    let hang: Pt | null = null;
+    const sk = document.querySelector("[data-avatar-skills]");
+    if (sk) {
+      const r = sk.getBoundingClientRect();
+      if (r.width > 20 && r.top > end.y + 8)
+        hang = {
+          x: Math.min(Math.max(end.x, r.left + 24), r.right - 24),
+          y: r.top + 2,
+        };
+    }
     /* ölçüm sonucu bir sonraki karede state'e yazılır */
     const raf = requestAnimationFrame(() =>
-      setSpots({ land, end, jumpLeft: land.x < nowX - 8 }),
+      setSpots({ land, end, jumpLeft: land.x < nowX - 8, hang }),
     );
     return () => cancelAnimationFrame(raf);
   }, [stage]);
@@ -506,6 +535,8 @@ export default function SiteAvatar({
      Yalnızca harflerin transform'u değişir (SVG filtresi yok → akıcı). */
   useEffect(() => {
     const releasing =
+      stage === "toHang" ||
+      stage === "hang" ||
       stage === "social" ||
       stage === "toFloor" ||
       stage === "toLeft" ||
@@ -584,6 +615,21 @@ export default function SiteAvatar({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+  }, [stage]);
+
+  /* Asılınca yetenek satırı ağırlıkla hafifçe aşağı esner */
+  useEffect(() => {
+    if (stage !== "hang") return;
+    const sk = document.querySelector<HTMLElement>("[data-avatar-skills]");
+    sk?.animate(
+      [
+        { transform: "none" },
+        { transform: "translateY(4px)", offset: 0.2 },
+        { transform: "translateY(-1px)", offset: 0.5 },
+        { transform: "none" },
+      ],
+      { duration: 520, easing: "ease-out" },
+    );
   }, [stage]);
 
   /* Bileşen kaldırılırsa yazı filtresini temizle */
@@ -697,6 +743,8 @@ export default function SiteAvatar({
     Math.max(ms(300), (floorStartX - floorEndX) / FLOOR_RUN_SPEED),
   );
 
+  const hasHang = !!spots?.hang;
+
   /* Aşama zamanlayıcıları (tırmanma videoyla biter; bu süre yedek) */
   useEffect(() => {
     const next: Partial<Record<Stage, [Stage, number]>> = {
@@ -712,7 +760,10 @@ export default function SiteAvatar({
       descending: ["done", hops.length ? EXIT_MS : DESCEND_MS],
     };
     /* İsimden sonra: ikon varsa onlara, yoksa eskisi gibi sol alta */
-    next.onName = [hops.length ? "social" : "descending", NAME_RUN_MS];
+    const afterName: Stage = hops.length ? "social" : "descending";
+    next.onName = [hasHang ? "toHang" : afterName, NAME_RUN_MS];
+    next.toHang = ["hang", TO_HANG_MS];
+    next.hang = [afterName, HANG_MS];
     if (!isActive) return;
     /* portta fiş iznini bekle; izin gelince kalan yürüme süresi kadar */
     if (stage === "toPort") {
@@ -738,6 +789,7 @@ export default function SiteAvatar({
     onSequenceComplete,
     onExitStart,
     isActive,
+    hasHang,
     hops.length,
     plugGo,
     floorRunMs,
@@ -814,6 +866,8 @@ export default function SiteAvatar({
           ? at(spots.land)
           : stage === "onName" && spots
             ? at(spots.end)
+            : (stage === "toHang" || stage === "hang") && spots?.hang
+              ? at(spots.hang)
             : stage === "social" && hops[hopIdx]
               ? at(hops[hopIdx])
               : stage === "toFloor" && hops.length
@@ -852,6 +906,10 @@ export default function SiteAvatar({
         ? `left ${JUMP_MS}ms linear, top ${JUMP_MS}ms cubic-bezier(.3,-0.3,.65,1)`
         : stage === "onName"
           ? `left ${NAME_RUN_MS}ms linear, top ${NAME_RUN_MS}ms linear`
+          : stage === "toHang"
+            ? `left ${TO_HANG_MS}ms ease-out, top ${TO_HANG_MS}ms cubic-bezier(.4,-0.4,.9,.8)`
+            : stage === "hang"
+              ? "none"
           : stage === "social"
             ? hopIdx === 0
               ? `left ${TO_SOCIAL_MS}ms linear, top ${TO_SOCIAL_MS}ms cubic-bezier(.3,-0.7,.7,1)`
@@ -877,7 +935,11 @@ export default function SiteAvatar({
     (stage === "descending" && !hops.length);
   /* Sosyal ikonlarda bir önceki noktaya göre yön */
   const hopPrevX =
-    hopIdx === 0 ? (spots ? spots.end.x : 0) : (hops[hopIdx - 1]?.x ?? 0);
+    hopIdx === 0
+      ? spots
+        ? (spots.hang ?? spots.end).x
+        : 0
+      : (hops[hopIdx - 1]?.x ?? 0);
   const hopLeft =
     stage === "social" && !!hops[hopIdx] && hops[hopIdx].x < hopPrevX - 4;
   /* Sola giderken görsel aynalanır */
@@ -890,7 +952,11 @@ export default function SiteAvatar({
       !!spots?.jumpLeft);
   const plugged = stage === "plugged";
   const airborne =
-    stage === "jump" || stage === "toFloor" || (stage === "social" && !squat);
+    stage === "jump" ||
+    stage === "toFloor" ||
+    stage === "toHang" ||
+    stage === "hang" ||
+    (stage === "social" && !squat);
   /* Kenarda zıplamaya hazırlanırken ve isme konunca fotoğraf pozu
      (ikonlarda eğilmez, koşar adım basıp geçer) */
   const crouching = stage === "prejump" || stage === "land";
@@ -906,6 +972,8 @@ export default function SiteAvatar({
   /* Burnunu tutup atlama (ayakta, ekrana dönük) */
   const pinching =
     hops.length > 0 && (stage === "pinch" || stage === "descending");
+  /* yetenek satırına asılı (elleri satırda) */
+  const hanging = stage === "hang";
   /* Konma anları: ayak altında ışık halkası */
   const impactKey =
     stage === "land"
@@ -1089,6 +1157,8 @@ export default function SiteAvatar({
         {/* burun tutma görseli önceden yüklensin (atlarken boş kare olmasın) */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={PINCH_IMG} alt="" aria-hidden style={{ display: "none" }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={HANG_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
@@ -1213,6 +1283,25 @@ export default function SiteAvatar({
                     }}
                   />
                 )}
+                {/* Yetenek satırına asılı: elleri satırın üstünde, başı
+                    satırın arkasından görünür; hafifçe sallanır */}
+                {hanging && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={HANG_IMG}
+                    alt=""
+                    draggable={false}
+                    className="av-anim absolute max-w-none"
+                    style={{
+                      width: HANG_W,
+                      height: HANG_H,
+                      left: (W - HANG_W) / 2,
+                      top: H - HANG_H * HANG_LEDGE,
+                      transformOrigin: `50% ${HANG_LEDGE * 100}%`,
+                      animation: `avHang ${HANG_MS}ms ease-out both`,
+                    }}
+                  />
+                )}
                 {/* Burnunu tutmuş, ayakta: suya atlar gibi aşağı dalar */}
                 {pinching && (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -1245,7 +1334,7 @@ export default function SiteAvatar({
                   playing={walking}
                   playbackRate={RUN_RATE}
                   className="absolute inset-0"
-                  style={{ opacity: crouching || pinching ? 0 : 1 }}
+                  style={{ opacity: crouching || pinching || hanging ? 0 : 1 }}
                 />
 
                 {/* Elindeki kablo + fiş */}
