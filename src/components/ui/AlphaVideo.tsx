@@ -110,7 +110,7 @@ function makeGL(canvas: HTMLCanvasElement): Renderer | null {
     premultipliedAlpha: true,
     alpha: true,
     antialias: false,
-    preserveDrawingBuffer: true,
+    preserveDrawingBuffer: false,
   });
   if (!gl) return null;
   const sh = (type: number, src: string) => {

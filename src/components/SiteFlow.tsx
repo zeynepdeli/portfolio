@@ -15,7 +15,8 @@ import RoadmapSection from "@/components/sections/RoadmapSection";
 import ProjectsSection from "@/components/sections/ProjectsSection";
 import FooterSection from "@/components/sections/FooterSection";
 import SiteAvatar from "@/components/ui/SiteAvatar";
-import MobileMenu, { type MenuKey } from "@/components/layout/MobileMenu";
+import { type MenuKey } from "@/components/layout/MobileMenu";
+import SiteMenu from "@/components/layout/SiteMenu";
 import FinalState from "@/components/ui/FinalState";
 import { ThemeStyles } from "@/components/ui/Theme";
 
@@ -114,6 +115,9 @@ const START_INDEX: Record<FlowStart, number> = {
   projects: 2,
   footer: 3,
 };
+
+/** menüde hangi buton yanık: footer'da hiçbiri */
+const MENU_OF: (MenuKey | null)[] = ["home", "skills", "projects", null];
 
 /* ---------------- BÖLÜM BAŞLIKLARI (hikâye) ---------------- */
 const CHAPTERS: { no: string; title: string; sub: string }[] = [
@@ -656,19 +660,13 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         </div>
       )}
 
-      {/* MENÜ — hero'nun kendi menüsü var; diğer bölümlerde sağ üstte */}
+      {/* MENÜ — hero'nun kendi menüsü var; diğer bölümlerde sağ üstte
+          (bilgisayarda butonlar, telefonda çekmeceli menü) */}
       {index > 0 && (
-        <div
-          className="fixed z-90"
-          style={{
-            top: "calc(1.5% + 12px)",
-            right: "calc(1% + 12px)",
-            width: 58,
-            height: 50,
-          }}
-        >
-          <MobileMenu powered style={{ left: 0, top: 0 }} onNavigate={onMenu} />
-        </div>
+        <SiteMenu
+          current={MENU_OF[index]}
+          onNavigate={onMenu}
+        />
       )}
 
       {/* aşağı kaydır ipucu */}
