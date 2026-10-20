@@ -18,6 +18,7 @@ import CollectedSkillsPanel, {
 } from "@/components/sections/CollectedSkillsPanel";
 import RoadmapPerch, { PERCH_ASPECT } from "@/components/sections/RoadmapPerch";
 import SciFiBackground from "../ui/ScifiBackground";
+import { smoothClock } from "../ui/smoothClock";
 
 /* ================================================================
    AYARLAR
@@ -634,6 +635,22 @@ function frameOf(w: number, h: number, portrait: boolean): Frame {
     vw: W,
     vh: H,
   };
+}
+
+/** Kişinin nehirde başladığı nokta: nehrin girişi panelin köşesinde /
+ *  dışında kaldığı için (özellikle telefonda) kişinin TAMAMEN göründüğü
+ *  ilk nokta. */
+function startIndexOf(w: number, h: number, portrait: boolean, G: Geo) {
+  const f = frameOf(w, h, portrait);
+  const minX = w * PANEL_L + 28;
+  const minY = h * PANEL_T + (portrait ? 92 : 80);
+  let k = 0;
+  while (k < G.middle.length - 1) {
+    const q = G.middle[k];
+    if (f.px + q.x * f.sc >= minX && f.py + q.y * f.sc >= minY) break;
+    k++;
+  }
+  return k;
 }
 
 /* ================================================================
@@ -1266,6 +1283,15 @@ export default function RoadmapSection({
     [size.w, size.h, portrait, G],
   );
 
+  /* KİŞİ SAYFAYLA BİRLİKTE GELİR: hareket başlamadan önce de nehrin
+     başında (panelin içinde, tamamen görünür ilk noktada) durur; sayfa
+     alttan yükselirken kişi de onunla gelir — sonradan belirmez */
+  useLayoutEffect(() => {
+    if (active || finished || size.w <= 0) return;
+    const k = startIndexOf(size.w, size.h, portrait, G);
+    if (avatarRef.current < k) avatarRef.current = k;
+  }, [active, finished, size.w, size.h, portrait, G]);
+
   /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
      kişiyi ve kamerayı son konuma yeniden yerleştir */
   useLayoutEffect(() => {
@@ -1286,15 +1312,7 @@ export default function RoadmapSection({
        dışında kaldığı için (özellikle telefonda) kişi ilk anlarda
        görünmüyordu. Başlangıç, kişinin tamamen göründüğü ilk nokta. */
     {
-      const f = frameOf(size.w, size.h, portrait);
-      const minX = size.w * PANEL_L + 28;
-      const minY = size.h * PANEL_T + (portrait ? 92 : 80);
-      let k = 0;
-      while (k < G.middle.length - 1) {
-        const q = G.middle[k];
-        if (f.px + q.x * f.sc >= minX && f.py + q.y * f.sc >= minY) break;
-        k++;
-      }
+      const k = startIndexOf(size.w, size.h, portrait, G);
       if (avatarRef.current < k) avatarRef.current = k;
     }
     const from = avatarRef.current;
@@ -1314,7 +1332,8 @@ export default function RoadmapSection({
     }
     pathLen *= sc;
 
-    const start = performance.now();
+    /* takılmada kişi ileri SIÇRAMAZ: kaldığı yerden devam eder */
+    const clock = smoothClock();
     /* telefonda nehir küçük ölçekte: biraz daha yavaş, kamera rahat izlesin */
     const duration =
       Math.max(600, (pathLen / WALK_SPEED) * 1000) * (portrait ? 1.5 : 1);
@@ -1333,7 +1352,7 @@ export default function RoadmapSection({
     });
 
     const animate = (now: number) => {
-      const progress = Math.min(1, (now - start) / duration);
+      const progress = Math.min(1, clock(now) / duration);
 
       /* sabit hız; yalnızca başta ve sonda yumuşak kalkış-duruş */
       const k = 0.06;
@@ -1882,7 +1901,6 @@ export default function RoadmapSection({
               })}
 
             {size.w > 0 &&
-              arrived >= 0 &&
               !finished &&
               /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
               !panelOn &&

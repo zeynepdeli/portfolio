@@ -12,6 +12,7 @@ import {
 
 import SciFiBackground from "@/components/ui/ScifiBackground";
 import { useViewport } from "@/components/ui/ChipLayout";
+import { smoothClock } from "@/components/ui/smoothClock";
 
 /** CSS özel değişkenleri (--d gibi) için tip */
 type CSSVars = CSSProperties & Record<`--${string}`, string | number>;
@@ -1014,7 +1015,8 @@ function ProjectFan({
     if (!play) return;
 
     /* finished: zaman çizelgesinin sonundan başla → ilk karede son hal */
-    const start = performance.now() - (finished ? buildEnd : 0);
+    /* takılmada zaman çizelgesi sıçramaz (kişi bir anda göbekte belirmez) */
+    const clock = smoothClock(finished ? buildEnd : 0);
     let raf = 0;
     let spinStarted = false;
     let landed = false;
@@ -1023,7 +1025,7 @@ function ProjectFan({
     let landTarget = 0;
 
     const tick = (now: number) => {
-      const elapsed = now - start;
+      const elapsed = clock(now);
       setT(Math.min(elapsed, buildEnd));
 
       // Proje fotoğrafı, avatar göbeğe oturduktan sonra açılsın
@@ -1059,7 +1061,9 @@ function ProjectFan({
 
   /* kişi suyun ucunda: su kişinin hemen önünde akar; kişi göbeğe
      varınca su da göbeğe dolar */
-  const rideP = rideEnd * easeInOutCubic(phase(t, 0, ARRIVE));
+  /* kişi sayfa yükselirken HEMEN ekrana girer (yavaş kalkışla üst
+     kenarın dışında beklemesin), göbeğe yaklaşırken yavaşlar */
+  const rideP = rideEnd * (1 - Math.pow(1 - phase(t, 0, ARRIVE), 2));
   const streamP =
     t < ARRIVE
       ? Math.min(1, rideP + 0.012)

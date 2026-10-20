@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { cachedVideo } from "./videoCache";
 
 /**
  * Saydam arka planlı video oynatıcı ("packed alpha").
@@ -273,6 +274,9 @@ export default function AlphaVideo({
   }
 
   const webm = src.replace(/\.mp4$/i, ".webm");
+  /* sayfa açılışında indirilmiş kopya varsa doğrudan o oynar (iPhone
+     videoyu ancak play() ile indirmeye başlıyordu → gecikme) */
+  const [cached] = useState(() => cachedVideo(src));
 
   /* yedek görsele geçiş: tek seferlik video ise akış "bitti" sayılır */
   const blockedRef = useRef(false);
@@ -473,7 +477,11 @@ export default function AlphaVideo({
         onEnded={() => onEndedRef.current?.()}
         style={HIDDEN_VIDEO_STYLE}
       >
-        <source src={webm} type="video/webm" />
+        {cached ? (
+          <source src={cached.url} type={cached.type} />
+        ) : (
+          <source src={webm} type="video/webm" />
+        )}
         <source
           src={src}
           type="video/mp4"
