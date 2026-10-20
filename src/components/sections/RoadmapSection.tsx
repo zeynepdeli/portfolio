@@ -92,6 +92,11 @@ const FRONT_INTRO_UNTIL = 8 * STEPS;
  *  bekler, sonra projelere geçer (ms) */
 const END_HOLD_MS = 1600;
 /** Alırken saçılan altın kıvılcımlar */
+/** suya inişte sıçrayan damlalar (px) */
+const SPLASH_DROPS: [number, number][] = [
+  [-26, -22], [-14, -34], [0, -40], [14, -32], [26, -20], [-34, -8], [34, -10],
+];
+
 const PICK_SPARKS: [number, number][] = [
   [-18, -46],
   [-6, -58],
@@ -170,7 +175,17 @@ type RoadmapSectionProps = {
   /** true: sayfa ekrana yükselirken avatar nehrin girişinde HAZIR
    *  bekler (görünür); `active` olunca oradan kaymaya başlar */
   staged?: boolean;
+  /** true: kişi bir önceki sayfadan (yukarıdan) nehrin girişine düşer;
+   *  suya inince `active` ise kaymaya başlar */
+  entering?: boolean;
 };
+
+/** yukarıdan nehre düşüş süresi (ms) — SiteFlow ROADMAP_FALL_MS ile aynı */
+const FALL_MS = 800;
+/** düşerken burnunu tutmuş poz (hero'da atladığı pozun aynısı) */
+const FALL_SRC = "/images/zeynep-burun.webp";
+const FALL_H = 66;
+const FALL_W = Math.round((FALL_H * 223) / 720);
 
 /** Avatar ana saatinde bir karede en fazla bu kadar ilerler (ms):
  *  telefon bir an takılırsa kişi nehirde ileri ışınlanmaz */
@@ -839,19 +854,15 @@ const ROADMAP_CSS = `
     }
   }
 
-  /* Yetenekler paneli: ekran açılıyormuş gibi titreyerek yanar */
+  /* Yetenekler paneli: yumuşakça yükselip belirir (titreme yok) */
   @keyframes rmPanelOn {
-    0%   { opacity: 0;   filter: blur(12px) brightness(2.4); transform: translateY(-50%) scale(.97); }
-    18%  { opacity: .85; filter: blur(3px)  brightness(1.8); }
-    24%  { opacity: .2; }
-    32%  { opacity: 1;   filter: blur(1px)  brightness(1.5); }
-    40%  { opacity: .55; }
-    55%  { opacity: 1;   filter: blur(0)    brightness(1.2); }
-    100% { opacity: 1;   filter: none;                       transform: translateY(-50%); }
+    0%   { opacity: 0; transform: translateY(calc(-50% + 22px)) scale(.97); }
+    60%  { opacity: 1; }
+    100% { opacity: 1; transform: translateY(-50%); }
   }
 
   @keyframes rmPanelOnLite {
-    0%   { opacity: 0; transform: translateY(-50%) scale(.97); }
+    0%   { opacity: 0; transform: translateY(calc(-50% + 18px)) scale(.97); }
     100% { opacity: 1; transform: translateY(-50%); }
   }
 
@@ -869,7 +880,7 @@ const ROADMAP_CSS = `
   .rm-panel.is-on {
     opacity: 1;
     pointer-events: auto;
-    animation: rmPanelOn ${(1.1 * RM_SLOW).toFixed(2)}s cubic-bezier(.16,1,.3,1) both;
+    animation: rmPanelOn 1.2s cubic-bezier(.22,1,.36,1) both;
   }
 
   .rm-flow {
@@ -944,7 +955,7 @@ const ROADMAP_CSS = `
     }
     /* panel telefonda bulanıklık/parlaklık filtresi olmadan açılır */
     .rm-panel.is-on {
-      animation: rmPanelOnLite .7s cubic-bezier(.16,1,.3,1) both;
+      animation: rmPanelOnLite 1s cubic-bezier(.22,1,.36,1) both;
     }
     .rm-dark {
       filter: none;
@@ -993,6 +1004,20 @@ const AVATAR_CSS = `
     15%  { opacity: 1; }
     100% { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
   }
+  /* yukarıdan suya düşüş (yerçekimi: yavaş başlar, hızlanır) */
+  @keyframes rmAvFall {
+    0%   { transform: translateY(var(--fall)) rotate(-6deg); }
+    85%  { transform: translateY(0) rotate(2deg) scale(1, 1); }
+    100% { transform: translateY(6px) scale(1.06, .9); }
+  }
+  @keyframes rmAvSplashRing {
+    0%   { transform: translate(-50%, -50%) scale(.2); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+  }
+  @keyframes rmAvDrop {
+    0%   { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+  }
   @keyframes rmAvRing {
     0%   { transform: translate(-50%, -50%) scale(.3); opacity: .9; }
     100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
@@ -1010,6 +1035,7 @@ export default function RoadmapSection({
   onComplete,
   finished = false,
   staged = false,
+  entering = false,
 }: RoadmapSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -1022,6 +1048,22 @@ export default function RoadmapSection({
   const onCompleteRef = useRef(onComplete);
 
   const [size, setSize] = useState({ w: 0, h: 0 });
+
+  /* DÜŞÜŞ: "falling" → suya iniş → "landed" (kayma bundan sonra başlar).
+     Hikâye dışında (staged hiç olmadıysa) düşüş yok. */
+  const [fall, setFall] = useState<"none" | "falling" | "landed">("none");
+  const [prevEntering, setPrevEntering] = useState(entering);
+  if (prevEntering !== entering) {
+    setPrevEntering(entering);
+    setFall(entering ? "falling" : "none");
+  }
+  useEffect(() => {
+    if (fall !== "falling") return;
+    const t = window.setTimeout(() => setFall("landed"), FALL_MS);
+    return () => window.clearTimeout(t);
+  }, [fall]);
+  /* kayma: hikâyede kişi suya indikten sonra */
+  const rideGo = active && (!staged || fall === "landed");
 
   /* PERFORMANS: kişinin nehirdeki yeri ve dikey ekrandaki kamera kayması
      React state ile DEĞİL, doğrudan stil yazılarak güncellenir — her
@@ -1308,7 +1350,7 @@ export default function RoadmapSection({
   ============================================================== */
 
   useEffect(() => {
-    if (!active) return;
+    if (!rideGo) return;
 
     /* KİŞİ PANELİN İÇİNDE BAŞLAR (entryK — yukarıda) */
     if (avatarRef.current < entryK) avatarRef.current = entryK;
@@ -1423,7 +1465,7 @@ export default function RoadmapSection({
       cancelAnimationFrame(kick);
       cancelAnimationFrame(frame);
     };
-  }, [active, portrait, size.w, size.h, placeAvatar, G, entryK]);
+  }, [rideGo, portrait, size.w, size.h, placeAvatar, G, entryK]);
 
   /* ==============================================================
      KAMERA
@@ -1904,7 +1946,7 @@ export default function RoadmapSection({
 
             {size.w > 0 &&
               /* sayfa yükselirken de girişte görünür (staged) */
-              (arrived >= 0 || staged) &&
+              (arrived >= 0 || (staged && fall !== "none")) &&
               !finished &&
               /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
               !panelOn &&
@@ -1916,6 +1958,14 @@ export default function RoadmapSection({
                   facingScreen={facingScreen}
                   collecting={moving && arrived >= 1 && arrived <= NODES.length}
                   pickKey={arrived}
+                  falling={fall === "falling"}
+                  splash={fall === "landed" && arrived < 0}
+                  fallFrom={
+                    frameOf(size.w, size.h, portrait).py +
+                    pointAt(G.middle, entryK).y *
+                      frameOf(size.w, size.h, portrait).sc +
+                    AV_H * 1.6
+                  }
                 />
               )}
           </div>
@@ -2008,7 +2058,16 @@ function WalkingAvatar({
   facingScreen,
   collecting,
   pickKey,
+  falling = false,
+  splash = false,
+  fallFrom = 0,
 }: {
+  /** yukarıdan nehre düşüyor (burnunu tutmuş) */
+  falling?: boolean;
+  /** suya yeni indi: sıçrayan su */
+  splash?: boolean;
+  /** düşüşün başladığı yükseklik (px, ayak noktasının üstünde) */
+  fallFrom?: number;
   /** konumu üst bileşen doğrudan yazar (transform) */
   elRef: Ref<HTMLDivElement>;
   moving: boolean;
@@ -2057,12 +2116,65 @@ function WalkingAvatar({
         />
       ))}
 
+      {/* DÜŞÜŞ: bir önceki sayfadan burnunu tutarak suya atlar */}
+      {falling && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={FALL_SRC}
+          alt=""
+          draggable={false}
+          className="absolute max-w-none"
+          style={
+            {
+              width: FALL_W,
+              height: FALL_H,
+              left: AV_W * SEAT_X - FALL_W / 2,
+              top: AV_H - FALL_H,
+              "--fall": `${-fallFrom}px`,
+              animation: `rmAvFall ${FALL_MS}ms cubic-bezier(.45,0,.9,.55) both`,
+            } as CSSVars
+          }
+        />
+      )}
+      {/* suya iniş: sıçrayan su halkası + damlalar */}
+      {splash && (
+        <div className="absolute" style={{ left: AV_W * SEAT_X, top: AV_H - 4 }}>
+          <span
+            className="absolute rounded-[50%]"
+            style={{
+              width: AV_W * 1.8,
+              height: 16,
+              border: `2px solid rgba(${C.edgeRGB},.9)`,
+              boxShadow: `0 0 12px rgba(${C.edgeRGB},.7)`,
+              animation: "rmAvSplashRing 700ms ease-out both",
+            }}
+          />
+          {SPLASH_DROPS.map(([dx, dy], i) => (
+            <span
+              key={i}
+              className="absolute size-1.5 rounded-full"
+              style={
+                {
+                  background: `rgba(${C.edgeRGB},.95)`,
+                  boxShadow: `0 0 6px rgba(${C.edgeRGB},.9)`,
+                  "--dx": `${dx}px`,
+                  "--dy": `${dy}px`,
+                  animation: `rmAvDrop 620ms cubic-bezier(.2,.7,.5,1) ${i * 15}ms both`,
+                } as CSSVars
+              }
+            />
+          ))}
+        </div>
+      )}
+
       <div
         className="absolute inset-0"
         style={{
+          /* düşerken oturma pozları gizli; suya inince belirir */
+          opacity: falling ? 0 : 1,
           /* hep ileriye (sağa) bakar; nehir sola kıvrılsa da geri dönmez */
           transform: facingLeft && FLIP_ON_LEFT ? "scaleX(-1)" : "none",
-          transition: "transform 220ms",
+          transition: "transform 220ms, opacity 160ms ease",
         }}
       >
         {/* Hız izi: kayarken arkasında buz mavisi ışık çizgileri */}

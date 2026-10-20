@@ -279,11 +279,11 @@ export default function CollectedSkillsPanel({
     >
       <style>{`
         @keyframes tlContentIn {
-          from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
-          to   { opacity: 1; transform: none;             filter: blur(0); }
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: none; }
         }
         @keyframes tlRowIn {
-          from { opacity: 0; transform: translateX(-10px); }
+          from { opacity: 0; transform: translate(-14px, 6px) scale(.98); }
           to   { opacity: 1; transform: none; }
         }
         @keyframes tlKnobPulse {
@@ -651,7 +651,7 @@ export default function CollectedSkillsPanel({
                 H - contentH - (compact ? 12 : 24),
               ),
             ),
-            animation: "tlContentIn 520ms cubic-bezier(.16,1,.3,1) both",
+            animation: "tlContentIn 800ms cubic-bezier(.22,1,.36,1) both",
           }}
         >
           {/* Başlık satırı: ikon + bölüm adı + rozet */}
@@ -724,7 +724,7 @@ function TechList({ techs }: { techs: Tech[] }) {
             background: glassSurface("8,26,52", 0.45),
             border: "1px solid rgba(255,255,255,0.16)",
             boxShadow: glassShadow({ depth: 3, glow: 0.18, drop: false }),
-            animation: `tlRowIn .4s ease-out ${150 + i * 70}ms both`,
+            animation: `tlRowIn .75s cubic-bezier(.22,1,.36,1) ${220 + i * 95}ms both`,
           }}
         >
           <div className="min-w-0 flex-1">
