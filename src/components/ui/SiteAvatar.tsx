@@ -126,7 +126,7 @@ const PINCH_W = Math.round((PINCH_H * 223) / 720);
 /* İSİMDEN SONRA: alttaki yetenek satırına sarkıp asılır (elleri satırın
    üstünde, başı arkadan görünür), sonra bırakıp ikonlara atlar */
 const HANG_IMG = "/images/zeynep1.png";
-const HANG_W = 84; // görselin genişliği (px): yakın plan, eller ve baş seçilsin
+const HANG_W = 96; // görselin genişliği (px): yakın plan, eller ve baş seçilsin
 const HANG_H = Math.round((HANG_W * 791) / 1989);
 const HANG_LEDGE = 0.843; // görselde ellerin tuttuğu çizgi (yükseklik oranı)
 const TO_HANG_MS = ms(300); // isimden satıra düşüş
@@ -1299,6 +1299,8 @@ export default function SiteAvatar({
                       top: H - HANG_H * HANG_LEDGE,
                       transformOrigin: `50% ${HANG_LEDGE * 100}%`,
                       animation: `avHang ${HANG_MS}ms ease-out both`,
+                      /* koyu saç lacivert zeminde kaybolmasın: ince ışık kenarı */
+                      filter: `drop-shadow(0 0 2px rgba(${GOLD_LIGHT},.95)) drop-shadow(0 0 8px rgba(${GOLD},.7))`,
                     }}
                   />
                 )}

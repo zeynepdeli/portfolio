@@ -44,6 +44,15 @@ void main() {
   gl_FragColor = vec4(rgb * a, a);
 }`;
 
+/** çizimi doğrulamak için okunan noktalar (tuvalin oranı; alttan) */
+const SAMPLE_POINTS: [number, number][] = [
+  [0.5, 0.5],
+  [0.5, 0.65],
+  [0.45, 0.35],
+  [0.55, 0.75],
+  [0.5, 0.25],
+];
+
 function compile(gl: WebGLRenderingContext, type: number, src: string) {
   const s = gl.createShader(type);
   if (!s) return null;
@@ -64,6 +73,9 @@ export default function WaveVideo({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<(() => void) | null>(null);
   const failRef = useRef<(() => void) | null>(null);
+  /** tuvalde gerçekten görüntü var mı (bazı iPhone'larda video WebGL'e
+   *  boş/siyah gelir: o zaman fotoğraf hiç gizlenmez) */
+  const visibleRef = useRef(false);
   const onEndedRef = useRef(onEnded);
   const onStartRef = useRef(onStart);
 
@@ -140,7 +152,31 @@ export default function WaveVideo({
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      /* ilk karelerde çizimi doğrula: ortadaki birkaç noktada görünür
+         piksel var mı? (yalnızca doğrulanana kadar; sonra okunmaz) */
+      if (!visibleRef.current && video.currentTime > 0) {
+        const px = new Uint8Array(4);
+        for (const [fx, fy] of SAMPLE_POINTS) {
+          gl.readPixels(
+            Math.floor(w * fx),
+            Math.floor(h * fy),
+            1,
+            1,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            px,
+          );
+          if (px[3] > 8) {
+            visibleRef.current = true;
+            break;
+          }
+        }
+        blankFrames += visibleRef.current ? 0 : 1;
+        /* uzun süre boş kare geliyorsa: video bu cihazda çizilemiyor */
+        if (!visibleRef.current && blankFrames > 24) failRef.current?.();
+      }
     };
+    let blankFrames = 0;
     drawRef.current = draw;
 
     /* ilk kare: oynamadan önce de çizilsin (fotoğrafla aynı kare) */
@@ -173,10 +209,13 @@ export default function WaveVideo({
     ).requestVideoFrameCallback?.bind(video);
 
     let started = false;
+    visibleRef.current = false;
     const loop = () => {
       if (stopped) return;
       drawRef.current?.();
-      if (!started && video.currentTime > 0) {
+      /* fotoğraf ancak videonun karesi tuvalde GERÇEKTEN göründüğünde
+         gizlenir */
+      if (!started && visibleRef.current) {
         started = true;
         onStartRef.current?.();
       }
@@ -236,7 +275,9 @@ export default function WaveVideo({
           position: "absolute",
           width: 1,
           height: 1,
-          opacity: 0,
+          /* 0 olursa iPhone Safari videoyu çözmeyip WebGL'e boş kare
+             verebiliyor */
+          opacity: 0.001,
           pointerEvents: "none",
         }}
       />

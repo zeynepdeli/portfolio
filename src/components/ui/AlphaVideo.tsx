@@ -105,7 +105,14 @@ void main() {
   gl_FragColor = vec4(rgb * a, a);
 }`;
 
+/** çizer; tuvalde şimdiye kadar görünür piksel olduysa true */
 type Renderer = (video: HTMLVideoElement) => boolean;
+
+/** WebGL çiziminin gerçekten görüntü verdiğini doğrulamak için okunan
+ *  noktalar (5×5 ızgara). Bazı iPhone'larda video WebGL'e boş gelir. */
+const GRID: [number, number][] = [];
+for (let i = 1; i <= 5; i++)
+  for (let j = 1; j <= 5; j++) GRID.push([i / 6, j / 6]);
 
 /** WebGL çizici; kurulamazsa null */
 function makeGL(canvas: HTMLCanvasElement): Renderer | null {
@@ -149,6 +156,8 @@ function makeGL(canvas: HTMLCanvasElement): Renderer | null {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
+  let seen = false;
+  const px = new Uint8Array(4);
   return (video) => {
     const w = video.videoWidth;
     const h = Math.floor(video.videoHeight / 2);
@@ -161,7 +170,25 @@ function makeGL(canvas: HTMLCanvasElement): Renderer | null {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    return true;
+    /* görüntü doğrulanana kadar birkaç pikseli oku (sonra okunmaz) */
+    if (!seen) {
+      for (const [fx, fy] of GRID) {
+        gl.readPixels(
+          Math.floor(w * fx),
+          Math.floor(h * fy),
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          px,
+        );
+        if (px[3] > 8) {
+          seen = true;
+          break;
+        }
+      }
+    }
+    return seen;
   };
 }
 
@@ -322,6 +349,8 @@ export default function AlphaVideo({
     let lastT = -1;
     let failed = false;
     let drewOnce = false;
+    /** video ilerlediği halde tuvale hiç görüntü gelmeyen kare sayısı */
+    let blank = 0;
 
     const draw = (force = false) => {
       if (failed) return;
@@ -341,10 +370,17 @@ export default function AlphaVideo({
       lastT = video.currentTime;
 
       try {
-        render(video);
-        if (!drewOnce) {
+        const visible = render(video);
+        if (visible && !drewOnce) {
           drewOnce = true;
           setHasFrame(true);
+        }
+        /* video oynuyor ama tuval hep boş: bu cihazda çizilemiyor →
+           yedek görsel (kişi görünmez kalmasın) */
+        if (!visible && video.currentTime > 0 && ++blank > 60) {
+          failed = true;
+          goFallback();
+          return;
         }
         onFrameRef.current?.(video.currentTime);
       } catch (e) {
