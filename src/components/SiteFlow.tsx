@@ -18,8 +18,6 @@ import { type MenuKey } from "@/components/layout/MobileMenu";
 import SiteMenu from "@/components/layout/SiteMenu";
 import FinalState from "@/components/ui/FinalState";
 import { ThemeStyles } from "@/components/ui/Theme";
-import { smoothClock } from "@/components/ui/smoothClock";
-import { preloadVideo } from "@/components/ui/videoCache";
 
 /* =========================================================
    SİTE AKIŞI — Hero → Roadmap → Projects → Footer
@@ -48,7 +46,7 @@ const MOBILE_TRANSITION_MS = 1500;
 const FOOTER_MS = 1400;
 /** yeni bölümün animasyonu geçiş BİTİNCE ve kısa bir nefesten sonra
  *  başlar: kişinin nehre girişi, fanın oluşumu baştan görünsün */
-const ARRIVE_PAUSE_MS = 150;
+const ARRIVE_PAUSE_MS = 350;
 /** hikâyede projeler bitince footer bu kadar sonra kendiliğinden açılır */
 const FOOTER_AUTO_MS = 3500;
 /** bir geçiş bittikten sonra tekerlek bu süre yok sayılır (dokunmatik
@@ -74,10 +72,9 @@ const riseShadowOpacity = (t: number) =>
   t > 0 && t < 1 ? Math.sin(Math.PI * t) : 0;
 const dimOpacity = (t: number) => (t > 0 && t < 1 ? OUT_DIM * t : 0);
 
-/* yumuşak başlayıp yumuşak biten geçiş (easeInOutSine). Eskiden
-   easeInOutQuart'tı: ilk yarım saniye neredeyse hiç kımıldamıyordu —
-   avatar aşağı daldığı halde sayfa bir an donmuş gibi bekliyordu. */
-const easeInOut = (v: number) => -(Math.cos(Math.PI * v) - 1) / 2;
+/* yumuşak başlayıp yumuşak biten geçiş (easeInOutQuart) */
+const easeInOut = (v: number) =>
+  v < 0.5 ? 8 * v * v * v * v : 1 - Math.pow(-2 * v + 2, 4) / 2;
 
 /** from → to arası yumuşak geçiş; her karede apply */
 function tweenTo(
@@ -87,33 +84,15 @@ function tweenTo(
   apply: (p: number) => void,
 ) {
   let raf = 0;
-  /* takılmada geçiş sıçramaz, yalnızca bir an yavaşlar */
-  const clock = smoothClock();
+  const start = performance.now();
   const dur = Math.max(1, duration * Math.abs(to - from));
   const tick = (now: number) => {
-    const raw = Math.min(1, clock(now) / dur);
+    const raw = Math.min(1, (now - start) / dur);
     apply(raw >= 1 ? to : from + (to - from) * easeInOut(raw));
     if (raw < 1) raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
   return () => cancelAnimationFrame(raf);
-}
-
-/** bölümdeki tüm resimleri önceden çöz (geçiş başlarken telefon resim
- *  çözmekle uğraşıp donmasın) */
-function decodeImages(el: HTMLElement | null) {
-  if (!el) return;
-  el.querySelectorAll("img").forEach((img) => {
-    img.decode?.().catch(() => {});
-  });
-  el.querySelectorAll("image").forEach((im) => {
-    const href =
-      im.getAttribute("href") || im.getAttributeNS("http://www.w3.org/1999/xlink", "href");
-    if (!href) return;
-    const pre = new Image();
-    pre.src = href;
-    pre.decode?.().catch(() => {});
-  });
 }
 
 const show = (el: HTMLElement | null, on: boolean) => {
@@ -215,10 +194,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const busy = useRef(false);
   const lastNavEnd = useRef(0);
   const cancelRef = useRef<(() => void) | null>(null);
-  /** ÖN HAZIRLIK: sıradaki bölüm, geçişten çok önce ekranın dışında
-   *  (altta) görünür yapılır; resimleri çözülür, katmanı hazırlanır.
-   *  Geçiş başladığında telefon ilk kez çizmeye uğraşmaz → donmaz. */
-  const warm = useRef({ road: false, proj: false, foot: false });
 
   /* tüm bölümlerin stilini mevcut ilerlemeye göre yazar */
   const paint = useCallback(() => {
@@ -242,68 +217,26 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       if (roadDimRef.current)
         roadDimRef.current.style.opacity = String(dimOpacity(p));
       road.style.pointerEvents = h > 0.5 && p < 0.5 ? "auto" : "none";
-      show(road, (h > 0 || warm.current.road) && p < 1);
+      show(road, h > 0 && p < 1);
     }
     if (proj) {
       proj.style.transform = p < 1 ? inTransform(p) : REST;
       if (projShadowRef.current)
         projShadowRef.current.style.opacity = String(riseShadowOpacity(p));
       proj.style.pointerEvents = p > 0.5 && f < 0.5 ? "auto" : "none";
-      show(proj, p > 0 || warm.current.proj);
+      show(proj, p > 0);
     }
     /* footer gelirken proje panelinin içi kararır (geri çekilme) */
     if (recedeRef.current) recedeRef.current.style.opacity = String(f);
     if (foot) {
       foot.style.transform = `translate3d(0, ${((1 - f) * 105).toFixed(3)}%, 0)`;
       foot.style.pointerEvents = f > 0.5 ? "auto" : "none";
-      show(foot, f > 0 || warm.current.foot);
+      show(foot, f > 0);
     }
   }, []);
 
   /* ilk kare */
   useEffect(paint, [paint]);
-
-  /* AVATAR VİDEOLARI VE GÖRSELLERİ hemen indirilir / çözülür: sırası
-     gelince bekleme olmadan, her açılışta aynı şekilde oynasın */
-  useEffect(() => {
-    void preloadVideo("/videos/zeynep-tirmanma.mp4");
-    void preloadVideo("/videos/zeynep-kosma.mp4");
-    void preloadVideo("/videos/zeynep-wave.mp4", false);
-    [
-      "/images/zeynep-comelme.png",
-      "/images/zeynep-kosma-kare.png",
-      "/images/zeynep-tirmanma-kare.png",
-      "/images/zeynep-asilma.png",
-      "/images/zeynep-burun.png",
-      "/images/zeynep-kayma.png",
-      "/images/zeynep-kayma-on.png",
-      "/images/zeynep-oturma.png",
-      "/images/zeynep-wave-end.png",
-    ].forEach((src) => {
-      const im = new Image();
-      im.src = src;
-      im.decode?.().catch(() => {});
-    });
-  }, []);
-
-  /* bir bölüme varınca, kısa bir nefesten sonra SIRADAKİ bölüm hazırlanır */
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      const next =
-        index === 0 ? "road" : index === 1 ? "proj" : index === 2 ? "foot" : null;
-      if (!next || warm.current[next]) return;
-      warm.current[next] = true;
-      paint();
-      decodeImages(
-        next === "road"
-          ? roadmapRef.current
-          : next === "proj"
-            ? projectsRef.current
-            : footerRef.current,
-      );
-    }, index === 0 ? 1500 : 900);
-    return () => window.clearTimeout(t);
-  }, [index, paint]);
   useEffect(() => () => cancelRef.current?.(), []);
 
   /** bir adımlık geçiş: step 0 (hero↔roadmap), 1 (roadmap↔projects),
@@ -352,11 +285,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       let r1 = 0;
       let r2 = 0;
       let stop: (() => void) | null = null;
-      /* PROJELER: nehir ve kişi sayfa yükselirken akmaya başlar —
-         sayfa boş gelip içerik sonradan belirmesin */
-      let early = 0;
-      if (dir > 0 && key === "projects")
-        early = window.setTimeout(() => setProjectsArrived(true), dur * 0.1);
       r1 = requestAnimationFrame(() => {
         r2 = requestAnimationFrame(() => {
           stop = tweenTo(prog.current[key], to, dur, (v) => {
@@ -365,7 +293,8 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
             if (v === to) {
               if (dir > 0 && key === "hero")
                 window.setTimeout(() => setRoadmapArrived(true), ARRIVE_PAUSE_MS);
-              if (dir > 0 && key === "projects") setProjectsArrived(true);
+              if (dir > 0 && key === "projects")
+                window.setTimeout(() => setProjectsArrived(true), ARRIVE_PAUSE_MS);
               busy.current = false;
               lastNavEnd.current = performance.now();
               indexRef.current = dir > 0 ? target : step;
@@ -377,7 +306,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         });
       });
       cancelRef.current = () => {
-        window.clearTimeout(early);
         cancelAnimationFrame(r1);
         cancelAnimationFrame(r2);
         stop?.();

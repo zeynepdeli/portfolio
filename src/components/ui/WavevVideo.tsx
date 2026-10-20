@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { cachedVideo } from "./videoCache";
+import { useEffect, useRef, type CSSProperties } from "react";
 
 /* ================================================================
    ŞEFFAF ARKA PLANLI VİDEO (el sallama)
@@ -79,8 +78,6 @@ export default function WaveVideo({
   const visibleRef = useRef(false);
   const onEndedRef = useRef(onEnded);
   const onStartRef = useRef(onStart);
-  /* sayfa açılışında indirilmiş kopya (iPhone play()'de indirmesin) */
-  const [file] = useState(() => cachedVideo(src)?.url ?? src);
 
   useEffect(() => {
     onEndedRef.current = onEnded;
@@ -268,7 +265,7 @@ export default function WaveVideo({
     <>
       <video
         ref={videoRef}
-        src={file}
+        src={src}
         muted
         playsInline
         crossOrigin="anonymous"
