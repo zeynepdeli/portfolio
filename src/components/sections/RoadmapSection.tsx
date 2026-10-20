@@ -57,7 +57,7 @@ const C = {
 const SIT_SRC = "/images/zeynep-kayma.png";
 const SIT_LEDGE = 0.95; // fotoğrafta zemin çizgisi (kalça / eller = su yüzeyi)
 /** Kişinin boyu (ekran px) */
-const AV_H = 58;
+const AV_H = 74; // eskiden 58: avatar daha büyük
 const AV_W = Math.round((AV_H * 680) / 364); // görselin oranı
 /** kaydırak eğimi (derece): büyüdükçe ayaklar daha aşağı, gövde daha yukarı */
 const SLIDE_TILT = 22;
@@ -69,7 +69,7 @@ const FLIP_ON_LEFT = false;
 /* YOL HARİTASI HIZI — 1 = eski hız; büyüdükçe kayma, yetenek toplama,
    ışık topu ve panelin yanması aynı oranda YAVAŞLAR */
 const RM_SLOW = 3; // eskiden 2.4
-const WALK_SPEED = 1150 / RM_SLOW;
+const WALK_SPEED = 1150 / RM_SLOW / 1.25; // avatar ayrıca %25 daha yavaş kayar
 /** Her yetenekte eğilip alma süresi (ms) — kısa ve tok */
 /* EKRANA DÖNÜK POZ — nehir aşağı (izleyiciye doğru) aktığı kıvrımlarda
    kişi ekrana döner (public/images/zeynep-kayma-on.png) */
