@@ -85,11 +85,16 @@ const ms = (v: number) => Math.round(v * SLOW);
 
 /* HIZ — kullanıcı beklemesin diye her şey hızlı ama akıcı.
    Videolar da aynı oranda hızlı oynar (adım/kol uyumu bozulmaz). */
-const CLIMB_RATE = 2.6; // tırmanma videosu hızı (eskiden 3.2): daha sakin tırmanır
+const CLIMB_RATE = 1.9; // tırmanma videosu hızı (eskiden 2.6): tırmanış daha okunaklı
 const RUN_RATE = 2.1 / SLOW; // koşma videosu oynatma hızı
 
+/** tırmanışın ekrandaki süresi (ms) — video 5 sn */
+const CLIMB_MS = Math.round(5000 / CLIMB_RATE);
 /* Tırmanma videosu yüklenemezse / bitmezse en geç bu süre sonra devam et */
-const CLIMB_FALLBACK_MS = Math.round(5000 / CLIMB_RATE) + 1200;
+const CLIMB_FALLBACK_MS = CLIMB_MS + 1200;
+/** tırmanış ışık halesi (kutu birimi; kenarda EDGE_SCALE ile küçülür) */
+const CLIMB_HALO_W = 230;
+const CLIMB_HALO_H = 120;
 
 /* Hız izi çizgileri: [yükseklik oranı, uzunluk px, opaklık, titreşim ms] */
 const TRAILS: [number, number, number, number][] = [
@@ -122,14 +127,14 @@ const HOP_HEIGHT = 26; // ikonlar arası sekme yüksekliği (px)
 const EXIT_MS = ms(450); // ekranın en solundan aşağı atlayıp çıkış
 /* SONDA: en solda durur, burnunu tutar ve suya atlar gibi aşağıdaki
    roadmap sayfasına zıplar (footer'daki ile aynı görsel) */
-const PINCH_IMG = "/images/zeynep-burun.png";
+const PINCH_IMG = "/images/zeynep-burun.webp";
 const PINCH_MS = ms(260); // burnunu tutup hazırlanma
 const PINCH_H = 58; // ayakta boyu (px)
 const PINCH_W = Math.round((PINCH_H * 223) / 720);
 /* İSİMDEN SONRA: isimden düşer, alttaki yetenek satırının BAŞINDAN
    tek eliyle (kolu yukarıda) tutunur, sallanır, sonra bırakıp ikonlara
    atlar. Görsel zeynep3.png'den üretildi: kol yukarı kaldırıldı. */
-const HANG_IMG = "/images/zeynep-asilma.png";
+const HANG_IMG = "/images/zeynep-asilma.webp";
 const HANG_H = 60; // asılı boy (px, AV_SCALE'den önce)
 const HANG_W = Math.round((HANG_H * 140) / 360);
 /** görselde elin satırı kavradığı nokta (genişlik / yükseklik oranı) */
@@ -149,7 +154,7 @@ const LEFT_EDGE_PAD = 10;
 
 /* ÇÖMELME POZU — senin fotoğrafından (arka planı silindi).
    Eller kenara dayalı; resmin %95.4'ündeki çizgi = basılan yüzey. */
-const CROUCH_IMG = "/images/zeynep-comelme.png";
+const CROUCH_IMG = "/images/zeynep-comelme.webp";
 const CROUCH_LEDGE = 0.954;
 const CROUCH_ABOVE = 34; // yüzeyin üstünde kalan boy (px)
 const CROUCH_H = Math.round(CROUCH_ABOVE / CROUCH_LEDGE);
@@ -310,6 +315,20 @@ const AVATAR_CSS = `
         @keyframes avClimbLedge {
           0%, 48% { transform: translateY(${CLIMB_SHIFT}px); }
           88%, 100% { transform: translateY(0); }
+        }
+        /* tırmanırken arkada açılan ışık halesi */
+        @keyframes avClimbHalo {
+          0%, 12% { opacity: 0; transform: scale(.5); }
+          30%     { opacity: 1; transform: scale(1.05); }
+          75%     { opacity: .85; transform: scale(1); }
+          100%    { opacity: 0; transform: scale(.9); }
+        }
+        /* eller kenara değince kenar boyunca parlayan çizgi */
+        @keyframes avLedgeFlash {
+          0%, 14% { opacity: 0; transform: scaleX(.2); }
+          24%     { opacity: 1; transform: scaleX(1); }
+          55%     { opacity: .55; transform: scaleX(1.1); }
+          100%    { opacity: 0; transform: scaleX(1.2); }
         }
         @keyframes avShadow {
           0%, 50%, 100% { transform: scaleX(1);   opacity: .5; }
@@ -524,8 +543,14 @@ export default function SiteAvatar({
       window.clearTimeout(fb);
     };
   }, [sceneReady, plugGo]);
-  const isActive =
-    useIsActiveAvatar(onPlugged || onSequenceComplete ? 1 : 0) && sceneReady;
+  /* owner: sayfadaki avatar kopyalarından görünecek olan bu mu.
+     ÖNCEDEN YÜKLEME: sahne hazır olmadan da (açılış animasyonu sürerken)
+     avatar gizli olarak kurulur; tırmanma ve koşma videoları şimdiden
+     iner ve ilk karede bekler. Eskiden video ancak tırmanma başlarken
+     inmeye başlıyordu: kimi açılışta tırmanış yarıda görünüyor ya da hiç
+     görünmüyor, avatar portun yanında birden beliriyordu. */
+  const owner = useIsActiveAvatar(onPlugged || onSequenceComplete ? 1 : 0);
+  const isActive = owner && sceneReady;
 
   /* Geliştirme modunda: bileşen sayfada mı? (tarayıcı konsoluna yazar) */
   useEffect(() => {
@@ -850,7 +875,9 @@ export default function SiteAvatar({
   ]);
 
   /* İkinci kopya: hiçbir şey çizme */
-  if (!isActive) return null;
+  if (!owner) return null;
+  /* sahne hazır değil: gizli, videolar yükleniyor (aşağıda) */
+  const preloading = !sceneReady;
 
   /* ---- Geliştirme modunda sağ altta teşhis kutusu ---- */
   const debugBadge = IS_DEV && (
@@ -1203,7 +1230,14 @@ export default function SiteAvatar({
               : move === "none"
                 ? "none"
                 : `${move}, transform 200ms ease`,
-          opacity: stage === "descending" && !hops.length ? 0.9 : 1,
+          /* sahne hazır olana kadar görünmez (videolar bu sırada iner).
+             visibility değil opacity: tuval kendi görünürlüğünü açıkça
+             "visible" yazdığı için gizli üst kutuyu deliyordu */
+          opacity: preloading
+            ? 0
+            : stage === "descending" && !hops.length
+              ? 0.9
+              : 1,
         }}
         aria-hidden
       >
@@ -1216,33 +1250,75 @@ export default function SiteAvatar({
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
-          <div
-            className="absolute"
-            style={{
-              width: CLIMB_W,
-              height: CLIMB_H,
-              left: (W - CLIMB_W) / 2,
-              /* videodaki duvar kenarı = panelin üst kenarı; eller tutunurken
-               kenar daha aşağıda olduğu için video önce CLIMB_SHIFT kadar
-               aşağıdan başlar, diz çökerken yerine oturur */
-              top: H - CLIMB_H * LEDGE,
-              animation: `avClimbLedge ${Math.round(5000 / CLIMB_RATE)}ms linear both`,
-            }}
-          >
-            <AlphaVideo
-              key={`c${run}`}
-              onStatus={(st) => setVideoStatus("tırmanma → " + st)}
-              src={climbSrc}
-              fallbackSrc="/images/zeynep-tirmanma-kare.png"
-              onEnded={handleClimbEnded}
-              playbackRate={CLIMB_RATE}
-              className="absolute inset-0"
-            />
-          </div>
+          <>
+            {/* TIRMANIŞ VURGUSU: üst kenar dar olduğu için avatar büyütülemiyor;
+                onun yerine elleri kenara değdiği an kenar parlar, arkasında
+                yumuşak bir ışık halesi açılır, kişinin çevresinde ince ışık
+                kenarı olur → koyu sahnede tırmanış net seçilir */}
+            {isActive && (
+              <>
+                <span
+                  className="av-anim pointer-events-none absolute rounded-[50%]"
+                  style={{
+                    left: W / 2 - CLIMB_HALO_W / 2,
+                    top: H - CLIMB_HALO_H * 0.62,
+                    width: CLIMB_HALO_W,
+                    height: CLIMB_HALO_H,
+                    background: `radial-gradient(closest-side, rgba(${GOLD_LIGHT},.55), rgba(${PLUG_CYAN},.28) 45%, rgba(${PLUG_CYAN},0) 100%)`,
+                    animation: `avClimbHalo ${CLIMB_MS}ms ease-out both`,
+                  }}
+                />
+                <span
+                  className="av-anim pointer-events-none absolute rounded-full"
+                  style={{
+                    left: W / 2 - CLIMB_W * 0.75,
+                    top: H - 2,
+                    width: CLIMB_W * 1.5,
+                    height: 4,
+                    background: `linear-gradient(90deg, transparent, rgba(${GOLD_LIGHT},1) 30%, rgba(${GOLD_LIGHT},1) 70%, transparent)`,
+                    boxShadow: `0 0 10px rgba(${PLUG_CYAN},.95), 0 0 22px rgba(${PLUG_CYAN},.6)`,
+                    animation: `avLedgeFlash ${CLIMB_MS}ms ease-out both`,
+                  }}
+                />
+              </>
+            )}
+            <div
+              className="absolute"
+              style={{
+                width: CLIMB_W,
+                height: CLIMB_H,
+                left: (W - CLIMB_W) / 2,
+                /* videodaki duvar kenarı = panelin üst kenarı; eller tutunurken
+                 kenar daha aşağıda olduğu için video önce CLIMB_SHIFT kadar
+                 aşağıdan başlar, diz çökerken yerine oturur */
+                top: H - CLIMB_H * LEDGE,
+                /* video oynamaya başlayınca başlar (önceden yüklenirken bekler) */
+                animation: isActive
+                  ? `avClimbLedge ${CLIMB_MS}ms linear both`
+                  : "none",
+                transform: isActive ? undefined : `translateY(${CLIMB_SHIFT}px)`,
+                /* ince ışık kenarı: koyu saç/kazak lacivert zeminde kaybolmasın */
+                filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.95)) drop-shadow(0 0 5px rgba(${PLUG_CYAN},.75))`,
+              }}
+            >
+              <AlphaVideo
+                key={`c${run}`}
+                onStatus={(st) => setVideoStatus("tırmanma → " + st)}
+                src={climbSrc}
+                fallbackSrc="/images/zeynep-tirmanma-kare.webp"
+                onEnded={handleClimbEnded}
+                playing={isActive}
+                playbackRate={CLIMB_RATE}
+                className="absolute inset-0"
+              />
+            </div>
+          </>
         )}
 
-        {/* ======== YÜRÜME / FİŞ ======== */}
-        {(stage !== "climbing" || UNDER_EDGE) && (
+        {/* ======== YÜRÜME / FİŞ ========
+            Tırmanırken de kurulu (gizli, durmuş): koşma videosu önceden
+            iner, tırmanış bitince ilk karede hazır bekler */}
+        {(
           /* ikonlar arası sekmede iç sıçrama (A/B dönüşümlü: her sekmede yeniden başlar) */
           <div
             className="absolute inset-0"
@@ -1250,6 +1326,7 @@ export default function SiteAvatar({
               animation: hopBounce
                 ? `${hopIdx % 2 ? "avHopA" : "avHopB"} ${HOP_AIR_MS}ms linear both`
                 : "none",
+              opacity: stage === "climbing" && !UNDER_EDGE ? 0 : undefined,
             }}
           >
             <div
@@ -1389,7 +1466,7 @@ export default function SiteAvatar({
                   }}
                   onStatus={(st) => setVideoStatus("yürüme → " + st)}
                   src={walkSrc}
-                  fallbackSrc="/images/zeynep-kosma-kare.png"
+                  fallbackSrc="/images/zeynep-kosma-kare.webp"
                   loop
                   playing={walking}
                   playbackRate={RUN_RATE}

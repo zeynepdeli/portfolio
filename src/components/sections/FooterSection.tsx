@@ -138,8 +138,8 @@ const CLIMB_MS = Math.round(5000 / CLIMB_RATE);
 /** video yüklenemezse / bitmezse en geç bu süre sonra devam et */
 const CLIMB_FALLBACK_MS = CLIMB_MS + 1200;
 /* DÜŞÜŞ — tırmanınca, suya atlar gibi BURNUNU KAPATMIŞ ayakta pozla
-   doğrudan fanın önündeki nehre atlar (public/images/zeynep-burun.png) */
-const JUMP_SRC = "/images/zeynep-burun.png";
+   doğrudan fanın önündeki nehre atlar (public/images/zeynep-burun.webp) */
+const JUMP_SRC = "/images/zeynep-burun.webp";
 const JUMP_ASPECT = 223 / 720; // görsel oranı
 const JUMP_K = 0.95; // boyu (avatar boyuna oran)
 const JUMP_FEET = 0.997; // görselde ayak tabanı (yüksekliğe oran)
@@ -676,7 +676,7 @@ export default function FooterSection({
           >
             <AlphaVideo
               src={CLIMB_VIDEO}
-              fallbackSrc="/images/zeynep-tirmanma-kare.png"
+              fallbackSrc="/images/zeynep-tirmanma-kare.webp"
               playbackRate={CLIMB_RATE}
               onEnded={() => {
                 climbEndRef.current = true;
