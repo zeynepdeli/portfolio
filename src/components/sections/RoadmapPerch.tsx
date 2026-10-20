@@ -11,8 +11,8 @@ import { useId } from "react";
    Yetenekler panelinin tam karşısında.
 ================================================================ */
 
-/* GÖRSEL — ProjectsSection ile aynı ölçüler (public/images/zeynep-oturma.png) */
-const SIT_SRC = "/images/zeynep-oturma.png";
+/* GÖRSEL — ProjectsSection ile aynı ölçüler (public/images/zeynep-oturma.webp) */
+const SIT_SRC = "/images/zeynep-oturma.webp";
 const SIT_W = 1584;
 const SIT_H = 672;
 const SIT_CX = 795;

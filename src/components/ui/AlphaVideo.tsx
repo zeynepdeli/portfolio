@@ -467,7 +467,8 @@ export default function AlphaVideo({
         ref={videoRef}
         muted
         playsInline
-        autoPlay
+        /* önceden yüklenen (henüz oynamayan) video kendiliğinden başlamasın */
+        autoPlay={playing}
         preload="auto"
         loop={loop}
         onEnded={() => onEndedRef.current?.()}

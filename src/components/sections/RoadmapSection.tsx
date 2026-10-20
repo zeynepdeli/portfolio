@@ -49,12 +49,12 @@ const C = {
 
 /* ================================================================
    AVATAR — nehir boyunca kayarak yetenekleri toplar
-   (public/images/zeynep-comelme.png)
+   (public/images/zeynep-comelme.webp)
 ================================================================ */
 
 /* Yürümez: fotoğraftaki çömelme pozuyla nehrin üstünde oturup kayar */
-/* Oturup bacakları önde, nehirde kayan poz (public/images/zeynep-kayma.png) */
-const SIT_SRC = "/images/zeynep-kayma.png";
+/* Oturup bacakları önde, nehirde kayan poz (public/images/zeynep-kayma.webp) */
+const SIT_SRC = "/images/zeynep-kayma.webp";
 const SIT_LEDGE = 0.95; // fotoğrafta zemin çizgisi (kalça / eller = su yüzeyi)
 /** Kişinin boyu (ekran px) */
 const AV_H = 74; // eskiden 58: avatar daha büyük
@@ -72,8 +72,8 @@ const RM_SLOW = 3; // eskiden 2.4
 const WALK_SPEED = 1150 / RM_SLOW / 1.25; // avatar ayrıca %25 daha yavaş kayar
 /** Her yetenekte eğilip alma süresi (ms) — kısa ve tok */
 /* EKRANA DÖNÜK POZ — nehir aşağı (izleyiciye doğru) aktığı kıvrımlarda
-   kişi ekrana döner (public/images/zeynep-kayma-on.png) */
-const FRONT_SRC = "/images/zeynep-kayma-on.png";
+   kişi ekrana döner (public/images/zeynep-kayma-on.webp) */
+const FRONT_SRC = "/images/zeynep-kayma-on.webp";
 const FRONT_LEDGE = 0.91; // fotoğrafta zemin çizgisi (eller)
 const FRONT_H = 70;
 const FRONT_W = Math.round((FRONT_H * 360) / 457);
@@ -167,7 +167,14 @@ type RoadmapSectionProps = {
    *  (tüm yetenekler toplanmış, panel yanık, avatar çıkmış).
    *  Header menüsünden /roadmap'e gidince kullanılır. */
   finished?: boolean;
+  /** true: sayfa ekrana yükselirken avatar nehrin girişinde HAZIR
+   *  bekler (görünür); `active` olunca oradan kaymaya başlar */
+  staged?: boolean;
 };
+
+/** Avatar ana saatinde bir karede en fazla bu kadar ilerler (ms):
+ *  telefon bir an takılırsa kişi nehirde ileri ışınlanmaz */
+const MAX_FRAME_MS = 100;
 
 /* ================================================================
    NEHİR NOKTALARI
@@ -1002,6 +1009,7 @@ export default function RoadmapSection({
   active = false,
   onComplete,
   finished = false,
+  staged = false,
 }: RoadmapSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -1081,9 +1089,10 @@ export default function RoadmapSection({
   useEffect(() => {
     if (active || finished) return;
 
-    avatarRef.current = 0;
+    /* girişte bekleyen avatarın yeri korunur (aşağıda entryK) */
+    if (!staged) avatarRef.current = 0;
     completedRef.current = false;
-  }, [active, finished]);
+  }, [active, finished, staged]);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -1266,9 +1275,28 @@ export default function RoadmapSection({
     [size.w, size.h, portrait, G],
   );
 
+  /* KİŞİNİN GİRİŞ NOKTASI: nehrin girişi panelin köşesinde / dışında
+     kaldığı için (özellikle telefonda) kişi, tamamen göründüğü İLK
+     noktadan başlar. Sayfa yükselirken de (staged) burada bekler. */
+  const entryK = useMemo(() => {
+    if (!size.w) return 0;
+    const f = frameOf(size.w, size.h, portrait);
+    const minX = size.w * PANEL_L + 28;
+    const minY = size.h * PANEL_T + (portrait ? 92 : 80);
+    let k = 0;
+    while (k < G.middle.length - 1) {
+      const q = G.middle[k];
+      if (f.px + q.x * f.sc >= minX && f.py + q.y * f.sc >= minY) break;
+      k++;
+    }
+    return k;
+  }, [size.w, size.h, portrait, G]);
+
   /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
      kişiyi ve kamerayı son konuma yeniden yerleştir */
   useLayoutEffect(() => {
+    if ((staged || active) && avatarRef.current < entryK)
+      avatarRef.current = entryK;
     placeAvatar(avatarRef.current);
   });
 
@@ -1282,21 +1310,8 @@ export default function RoadmapSection({
   useEffect(() => {
     if (!active) return;
 
-    /* KİŞİ PANELİN İÇİNDE BAŞLAR: nehrin girişi panelin köşesinde /
-       dışında kaldığı için (özellikle telefonda) kişi ilk anlarda
-       görünmüyordu. Başlangıç, kişinin tamamen göründüğü ilk nokta. */
-    {
-      const f = frameOf(size.w, size.h, portrait);
-      const minX = size.w * PANEL_L + 28;
-      const minY = size.h * PANEL_T + (portrait ? 92 : 80);
-      let k = 0;
-      while (k < G.middle.length - 1) {
-        const q = G.middle[k];
-        if (f.px + q.x * f.sc >= minX && f.py + q.y * f.sc >= minY) break;
-        k++;
-      }
-      if (avatarRef.current < k) avatarRef.current = k;
-    }
+    /* KİŞİ PANELİN İÇİNDE BAŞLAR (entryK — yukarıda) */
+    if (avatarRef.current < entryK) avatarRef.current = entryK;
     const from = avatarRef.current;
     /* geniş ekranda son (uzatma) bölüm ekran dışında: kişi orada durur */
     const to = G.middle.length - 1 - (portrait ? 0 : STEPS);
@@ -1332,8 +1347,14 @@ export default function RoadmapSection({
       setArrived((a) => Math.max(a, 0));
     });
 
+    /* kendi saati: bir karede en fazla MAX_FRAME_MS ilerler */
+    let clock = 0;
+    let last = start;
+
     const animate = (now: number) => {
-      const progress = Math.min(1, (now - start) / duration);
+      clock += Math.min(MAX_FRAME_MS, Math.max(0, now - last));
+      last = now;
+      const progress = Math.min(1, clock / duration);
 
       /* sabit hız; yalnızca başta ve sonda yumuşak kalkış-duruş */
       const k = 0.06;
@@ -1402,7 +1423,7 @@ export default function RoadmapSection({
       cancelAnimationFrame(kick);
       cancelAnimationFrame(frame);
     };
-  }, [active, portrait, size.w, size.h, placeAvatar, G]);
+  }, [active, portrait, size.w, size.h, placeAvatar, G, entryK]);
 
   /* ==============================================================
      KAMERA
@@ -1882,7 +1903,8 @@ export default function RoadmapSection({
               })}
 
             {size.w > 0 &&
-              arrived >= 0 &&
+              /* sayfa yükselirken de girişte görünür (staged) */
+              (arrived >= 0 || staged) &&
               !finished &&
               /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
               !panelOn &&

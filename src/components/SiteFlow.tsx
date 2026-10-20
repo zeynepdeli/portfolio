@@ -18,6 +18,12 @@ import { type MenuKey } from "@/components/layout/MobileMenu";
 import SiteMenu from "@/components/layout/SiteMenu";
 import FinalState from "@/components/ui/FinalState";
 import { ThemeStyles } from "@/components/ui/Theme";
+import {
+  ALL_AVATAR_IMAGES,
+  IMG,
+  fontsReady,
+  preloadImages,
+} from "@/components/ui/assets";
 
 /* =========================================================
    SİTE AKIŞI — Hero → Roadmap → Projects → Footer
@@ -29,11 +35,18 @@ import { ThemeStyles } from "@/components/ui/Theme";
      BİTMİŞ haliyle açılır; aşağı / yukarı kaydırarak (tekerlek, parmak,
      klavye) diğer bölümlere aynı geçişlerle gidilir.
 
-   PERFORMANS: geçişlerde React yeniden çizmez; yalnızca bölümlerin
-   transform / opacity değerleri doğrudan yazılır. Bölümlerin katmanı
-   sabittir (açılıp kapanmaz) → geçişlerde "fotoğraf çeker gibi"
-   kırpışma olmaz. Gelecek bölüm, harekete başlamadan iki kare önce
-   görünür yapılır → ilk karede boş ekran olmaz.
+   PERFORMANS: sayfa geçişi tarayıcının KOMPOZİTÖRÜNDE oynar (Web
+   Animations API, yalnızca transform / opacity). Eskiden her kare
+   JavaScript'le yazılıyordu; aynı anda avatar, nehir ya da fan bir
+   işlem yaptığında geçiş donuyordu. Artık ana iş parçacığı meşgul
+   olsa bile kayma akıcı kalır. Bölümlerin katmanı sabittir (açılıp
+   kapanmaz) → "fotoğraf çeker gibi" kırpışma olmaz. Gelecek bölüm,
+   harekete başlamadan iki kare önce görünür yapılır.
+
+   HAZIRLIK: sahne, yazı tipleri ve o bölümün avatar görselleri hazır
+   olunca kurulur (en fazla ~1.5 sn beklenir). Böylece sayfa ile avatar
+   aynı anda görünür; ilk karede yanlış (masaüstü) yerleşim görünüp
+   sonra kaymaz.
 ========================================================= */
 
 export type FlowStart = "story" | "hero" | "roadmap" | "projects" | "footer";
@@ -45,8 +58,23 @@ const MOBILE_TRANSITION_MS = 1500;
 /** footer'ın yükselme süresi (ms) */
 const FOOTER_MS = 1400;
 /** yeni bölümün animasyonu geçiş BİTİNCE ve kısa bir nefesten sonra
- *  başlar: kişinin nehre girişi, fanın oluşumu baştan görünsün */
-const ARRIVE_PAUSE_MS = 350;
+ *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
+ *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
+const ARRIVE_PAUSE_MS = 140;
+/** sahne kurulmadan önce yazı tipi / görsel için en fazla bekleme (ms) */
+const READY_MAX_MS = 1500;
+/** her bölümün açılışta HAZIR olması gereken görselleri */
+const CRITICAL_IMAGES: Record<FlowStart, string[]> = {
+  story: [IMG.waveStart, IMG.climbStill],
+  hero: [IMG.waveEnd],
+  roadmap: [IMG.sit, IMG.ride, IMG.rideFront],
+  projects: [IMG.sit, IMG.ride],
+  footer: [IMG.sit, IMG.pinch],
+};
+/** geçiş eğrisi: easeInOutQuart (eskiden JS'teki eğrinin aynısı) */
+const EASE_CSS = "cubic-bezier(.76,0,.24,1)";
+/** kompozitör animasyonu için ara kare sayısı (gölge yayı için) */
+const SAMPLES = 8;
 /** hikâyede projeler bitince footer bu kadar sonra kendiliğinden açılır */
 const FOOTER_AUTO_MS = 3500;
 /** bir geçiş bittikten sonra tekerlek bu süre yok sayılır (dokunmatik
@@ -101,6 +129,39 @@ const show = (el: HTMLElement | null, on: boolean) => {
   if (el.style.visibility !== v) el.style.visibility = v;
 };
 
+type Prog = { hero: number; projects: number; footer: number };
+/** geçişte hareket eden katmanlar */
+type Layer =
+  | "hero"
+  | "heroDim"
+  | "road"
+  | "roadShadow"
+  | "roadDim"
+  | "proj"
+  | "projShadow"
+  | "recede"
+  | "foot";
+type LayerStyle = { transform?: string; opacity?: number };
+
+/** verilen ilerlemede her katmanın transform / opacity değeri */
+function layerStyles(
+  { hero: h, projects: p, footer: f }: Prog,
+): Record<Layer, LayerStyle> {
+  return {
+    hero: { transform: h > 0 ? outTransform(h) : REST },
+    heroDim: { opacity: dimOpacity(h) },
+    road: {
+      transform: p > 0 ? outTransform(p) : h < 1 ? inTransform(h) : REST,
+    },
+    roadShadow: { opacity: riseShadowOpacity(h) },
+    roadDim: { opacity: dimOpacity(p) },
+    proj: { transform: p < 1 ? inTransform(p) : REST },
+    projShadow: { opacity: riseShadowOpacity(p) },
+    recede: { opacity: f },
+    foot: { transform: `translate3d(0, ${((1 - f) * 105).toFixed(3)}%, 0)` },
+  };
+}
+
 /** bölümlerin sırası ve her adımın ilerleme anahtarı */
 type Key = "hero" | "projects" | "footer";
 const STEP_KEY: Key[] = ["hero", "projects", "footer"]; // 0→1, 1→2, 2→3
@@ -146,6 +207,30 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const startIndex = START_INDEX[start];
 
   const [powered, setPowered] = useState(!story);
+
+  /* HAZIRLIK: yazı tipleri + bu bölümün avatar görselleri (en fazla
+     READY_MAX_MS). Sonra sahne kurulur; kalan görseller arkadan iner. */
+  const [ready, setReady] = useState(false);
+  /* bekleme uzarsa (yavaş bağlantı) küçük bir yükleniyor yazısı */
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const slowT = window.setTimeout(() => setSlow(true), 350);
+    Promise.all([
+      fontsReady(READY_MAX_MS),
+      preloadImages(CRITICAL_IMAGES[start], READY_MAX_MS),
+    ]).then(() => {
+      if (!alive) return;
+      window.clearTimeout(slowT);
+      setReady(true);
+      /* diğer bölümlerin avatar görselleri: sahne kurulduktan sonra */
+      void preloadImages(ALL_AVATAR_IMAGES, 20000);
+    });
+    return () => {
+      alive = false;
+      window.clearTimeout(slowT);
+    };
+  }, [start]);
 
   /* hikâye durumu */
   const [heroTransitioning, setHeroTransitioning] = useState(!story);
@@ -195,48 +280,116 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const lastNavEnd = useRef(0);
   const cancelRef = useRef<(() => void) | null>(null);
 
+  /** katman adı → DOM öğesi */
+  const layerEl = useCallback(
+    (name: Layer): HTMLElement | null =>
+      ({
+        hero: heroRef.current,
+        heroDim: heroDimRef.current,
+        road: roadmapRef.current,
+        roadShadow: roadShadowRef.current,
+        roadDim: roadDimRef.current,
+        proj: projectsRef.current,
+        projShadow: projShadowRef.current,
+        recede: recedeRef.current,
+        foot: footerRef.current,
+      })[name],
+    [],
+  );
+
   /* tüm bölümlerin stilini mevcut ilerlemeye göre yazar */
   const paint = useCallback(() => {
     const { hero: h, projects: p, footer: f } = prog.current;
+    const styles = layerStyles(prog.current);
+    (Object.keys(styles) as Layer[]).forEach((name) => {
+      const el = layerEl(name);
+      if (!el) return;
+      const s = styles[name];
+      if (s.transform !== undefined) el.style.transform = s.transform;
+      if (s.opacity !== undefined) el.style.opacity = String(s.opacity);
+    });
     const hero = heroRef.current;
     const road = roadmapRef.current;
     const proj = projectsRef.current;
     const foot = footerRef.current;
     if (hero) {
-      hero.style.transform = h > 0 ? outTransform(h) : REST;
-      if (heroDimRef.current)
-        heroDimRef.current.style.opacity = String(dimOpacity(h));
       hero.style.pointerEvents = h < 0.5 ? "auto" : "none";
       show(hero, h < 1);
     }
     if (road) {
-      road.style.transform =
-        p > 0 ? outTransform(p) : h < 1 ? inTransform(h) : REST;
-      if (roadShadowRef.current)
-        roadShadowRef.current.style.opacity = String(riseShadowOpacity(h));
-      if (roadDimRef.current)
-        roadDimRef.current.style.opacity = String(dimOpacity(p));
       road.style.pointerEvents = h > 0.5 && p < 0.5 ? "auto" : "none";
       show(road, h > 0 && p < 1);
     }
     if (proj) {
-      proj.style.transform = p < 1 ? inTransform(p) : REST;
-      if (projShadowRef.current)
-        projShadowRef.current.style.opacity = String(riseShadowOpacity(p));
       proj.style.pointerEvents = p > 0.5 && f < 0.5 ? "auto" : "none";
       show(proj, p > 0);
     }
-    /* footer gelirken proje panelinin içi kararır (geri çekilme) */
-    if (recedeRef.current) recedeRef.current.style.opacity = String(f);
     if (foot) {
-      foot.style.transform = `translate3d(0, ${((1 - f) * 105).toFixed(3)}%, 0)`;
       foot.style.pointerEvents = f > 0.5 ? "auto" : "none";
       show(foot, f > 0);
     }
-  }, []);
+  }, [layerEl]);
 
-  /* ilk kare */
-  useEffect(paint, [paint]);
+  /** KOMPOZİTÖR GEÇİŞİ: `key` ilerlemesi from → to giderken değişen
+   *  katmanlar Web Animations API ile oynatılır (ana iş parçacığından
+   *  bağımsız). Desteklenmiyorsa null döner (eski JS yöntemi). */
+  const animateLayers = useCallback(
+    (key: Key, from: number, to: number, dur: number, done: () => void) => {
+      const hero = heroRef.current;
+      if (!hero || typeof hero.animate !== "function") return null;
+      /* ara kareler: ilerleme (eğri uygulanmış) uzayında eşit aralıklı;
+         uçlarda bir tık içeriden örnekle (kararma / gölge uçta sıfırlanır,
+         son değeri paint() yazar) */
+      const frames = new Map<Layer, Keyframe[]>();
+      for (let i = 0; i <= SAMPLES; i++) {
+        const v = from + ((to - from) * i) / SAMPLES;
+        const vv = Math.min(0.9999, Math.max(0.0001, v));
+        const styles = layerStyles({ ...prog.current, [key]: vv });
+        const exact = layerStyles({ ...prog.current, [key]: v });
+        (Object.keys(styles) as Layer[]).forEach((name) => {
+          const s = styles[name];
+          /* transform uçta tam değer (kayma payı kalmasın) */
+          const kf: Keyframe = {};
+          if (s.transform !== undefined) kf.transform = exact[name].transform;
+          if (s.opacity !== undefined) kf.opacity = s.opacity;
+          const list = frames.get(name) ?? [];
+          list.push(kf);
+          frames.set(name, list);
+        });
+      }
+      const anims: Animation[] = [];
+      frames.forEach((list, name) => {
+        const el = layerEl(name);
+        if (!el) return;
+        /* değişmeyen katmana animasyon ekleme */
+        const first = JSON.stringify(list[0]);
+        if (list.every((k) => JSON.stringify(k) === first)) return;
+        anims.push(
+          el.animate(list, { duration: dur, easing: EASE_CSS, fill: "forwards" }),
+        );
+      });
+      if (!anims.length) return null;
+      let over = false;
+      const finish = () => {
+        if (over) return;
+        over = true;
+        done();
+        /* son değerler satır içi stile yazıldı → animasyon kaldırılır */
+        anims.forEach((a) => a.cancel());
+      };
+      anims[0].onfinish = finish;
+      return () => {
+        over = true;
+        anims.forEach((a) => a.cancel());
+      };
+    },
+    [layerEl],
+  );
+
+  /* ilk kare (sahne kurulunca) */
+  useEffect(() => {
+    if (ready) paint();
+  }, [paint, ready]);
   useEffect(() => () => cancelRef.current?.(), []);
 
   /** bir adımlık geçiş: step 0 (hero↔roadmap), 1 (roadmap↔projects),
@@ -282,26 +435,35 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
             ? MOBILE_TRANSITION_MS
             : TRANSITION_MS;
 
+      /* geçiş bitti: son hal yazılır, gelen bölümün animasyonu başlar */
+      const arrive = () => {
+        prog.current[key] = to;
+        paint();
+        if (dir > 0 && key === "hero")
+          window.setTimeout(() => setRoadmapArrived(true), ARRIVE_PAUSE_MS);
+        if (dir > 0 && key === "projects")
+          window.setTimeout(() => setProjectsArrived(true), ARRIVE_PAUSE_MS);
+        busy.current = false;
+        lastNavEnd.current = performance.now();
+        indexRef.current = dir > 0 ? target : step;
+        setIndex(indexRef.current);
+        setChapterKey((k) => k + 1);
+        if (key === "footer" && dir > 0) setFooterArrived(true);
+      };
+
       let r1 = 0;
       let r2 = 0;
       let stop: (() => void) | null = null;
       r1 = requestAnimationFrame(() => {
         r2 = requestAnimationFrame(() => {
-          stop = tweenTo(prog.current[key], to, dur, (v) => {
+          const from = prog.current[key];
+          /* önce kompozitör; desteklenmezse eski kare kare yöntem */
+          stop = animateLayers(key, from, to, dur, arrive);
+          if (stop) return;
+          stop = tweenTo(from, to, dur, (v) => {
             prog.current[key] = v;
             paint();
-            if (v === to) {
-              if (dir > 0 && key === "hero")
-                window.setTimeout(() => setRoadmapArrived(true), ARRIVE_PAUSE_MS);
-              if (dir > 0 && key === "projects")
-                window.setTimeout(() => setProjectsArrived(true), ARRIVE_PAUSE_MS);
-              busy.current = false;
-              lastNavEnd.current = performance.now();
-              indexRef.current = dir > 0 ? target : step;
-              setIndex(indexRef.current);
-              setChapterKey((k) => k + 1);
-              if (key === "footer" && dir > 0) setFooterArrived(true);
-            }
+            if (v === to) arrive();
           });
         });
       });
@@ -312,7 +474,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
       return true;
     },
-    [paint],
+    [paint, animateLayers],
   );
 
   /** menüden bölüme git: komşuysa normal geçiş, değilse anında */
@@ -373,7 +535,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
 
   /* ---------------- SERBEST GEZİNME ----------------
      Menüden gelince hemen; hikâyede projeler bitince açılır. */
-  const navEnabled = !story || projectsComplete;
+  const navEnabled = ready && (!story || projectsComplete);
   useEffect(() => {
     if (!navEnabled) return;
 
@@ -457,6 +619,10 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   /* ---------------- BÖLÜMLER ---------------- */
   const roadmapActive = story && heroTransitioning && roadmapArrived;
   const projectsActive = story && roadmapComplete && projectsArrived;
+  /* GİRİŞTE HAZIR: sayfa yükselmeye başladığı anda avatar o sayfanın
+     girişinde görünür (sayfa boş gelip avatar sonradan belirmez) */
+  const roadmapStaged = story && heroTransitioning;
+  const projectsStaged = story && roadmapComplete;
 
   const hero = useMemo(
     () => (
@@ -471,19 +637,24 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const roadmap = useMemo(
     () =>
       story ? (
-        <RoadmapSection active={roadmapActive} onComplete={onRoadmapDone} />
+        <RoadmapSection
+          active={roadmapActive}
+          staged={roadmapStaged}
+          onComplete={onRoadmapDone}
+        />
       ) : (
         <FinalState>
           <RoadmapSection finished />
         </FinalState>
       ),
-    [story, roadmapActive, onRoadmapDone],
+    [story, roadmapActive, roadmapStaged, onRoadmapDone],
   );
   const projects = useMemo(
     () =>
       story ? (
         <ProjectsSection
           active={projectsActive}
+          staged={projectsStaged}
           onComplete={onProjectsDone}
           /* oturan avatar footer TAMAMEN gelince kaybolur */
           riderHidden={footerArrived}
@@ -493,7 +664,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           <ProjectsSection finished riderHidden={footerArrived} />
         </FinalState>
       ),
-    [story, projectsActive, onProjectsDone, footerArrived],
+    [story, projectsActive, projectsStaged, onProjectsDone, footerArrived],
   );
   const footer = useMemo(
     () => <FooterSection open={footerArrived} reveal={footerOpen} />,
@@ -538,12 +709,32 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           0%, 100% { transform: translateY(0) rotate(45deg); opacity: .5; }
           50% { transform: translateY(5px) rotate(45deg); opacity: 1; }
         }
+        /* sahne hazır olunca bütün halinde yumuşakça belirir */
+        .flow-stage { animation: flowIn .38s ease-out; }
+        @keyframes flowIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes flowWait { 0%,100% { opacity: .3; } 50% { opacity: .9; } }
         @media (prefers-reduced-motion: reduce) {
-          .scroll-hint { animation: none; }
+          .scroll-hint, .flow-stage { animation: none; }
         }
       `}</style>
       <ThemeStyles />
 
+      {!ready ? (
+        /* hazırlanırken: yalnızca zemin (yavaş bağlantıda küçük yazı) */
+        <div
+          aria-hidden
+          className="absolute inset-0 grid place-items-center font-mono text-[11px] tracking-[.4em] text-[#a8eef6]"
+          style={{
+            opacity: slow ? 1 : 0,
+            transition: "opacity .3s ease",
+          }}
+        >
+          <span style={{ animation: "flowWait 1.2s ease-in-out infinite" }}>
+            LOADING
+          </span>
+        </div>
+      ) : (
+      <div className="flow-stage absolute inset-0">
       {/* HERO */}
       <section
         ref={heroRef}
@@ -649,6 +840,8 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           }}
           hidden={heroAvatarGone}
         />
+      )}
+      </div>
       )}
     </main>
   );

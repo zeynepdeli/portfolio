@@ -96,10 +96,10 @@ const CHIP_TURN = 0;
    Sayfa ilk açılıp portreye ilk ışık tutulduğunda video BİR KEZ oynar (el sallar),
    sonra son karede durur. Video oynamazken aynı karelerin PNG'si gösterilir
    (üzerine gelince parçacık etkisi bu PNG ile çalışır).
-   Dosyalar: public/videos/zeynep-wave.mp4, public/images/zeynep-wave-*.png */
+   Dosyalar: public/videos/zeynep-wave.mp4, public/images/zeynep-wave-*.webp */
 const WAVE_VIDEO = "/videos/zeynep-wave.mp4";
-const WAVE_START = "/images/zeynep-wave-start.png"; // videonun ilk karesi
-const WAVE_END = "/images/zeynep-wave-end.png"; // videonun son karesi
+const WAVE_START = "/images/zeynep-wave-start.webp"; // videonun ilk karesi
+const WAVE_END = "/images/zeynep-wave-end.webp"; // videonun son karesi
 /** video karesi portreden geniştir (kol yana açılınca taşmasın diye):
     genişlik / yükseklik. Sol kenarı ve boyu portreyle birebir aynı. */
 const WAVE_ASPECT = 840 / 720;

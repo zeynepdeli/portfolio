@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /* =====================================================
    ÇİP YERLEŞİMİ + DEVRE ÇİZGİSİ GEOMETRİSİ
@@ -98,17 +98,52 @@ export type Trace = {
   pulse: boolean;
 };
 
-export function useViewport() {
-  const [vp, setVp] = useState({ w: 1440, h: 900 });
+/* EKRAN BOYUTU — tüm bileşenler AYNI değeri okur.
+   Eskiden her bileşen önce 1440×900 varsayıp, ilk çizimden SONRA gerçek
+   boyuta geçiyordu: telefonda ilk karede masaüstü yerleşimi görünüp
+   portre / avatar / çip yer değiştiriyordu (açılıştan açılışa farklı).
+   Artık ilk istemci çiziminde gerçek boyut okunur; sunucu çizimi
+   SiteFlow tarafından zaten gösterilmez (bkz. SiteFlow → ready). */
+type Vp = { w: number; h: number };
+const SERVER_VP: Vp = { w: 1440, h: 900 };
+let vpCache: Vp = SERVER_VP;
+const vpListeners = new Set<() => void>();
+let vpRaf = 0;
 
-  useEffect(() => {
-    const update = () => setVp({ w: window.innerWidth, h: window.innerHeight });
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
+function readVp(): Vp {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (vpCache.w !== w || vpCache.h !== h) vpCache = { w, h };
+  return vpCache;
+}
 
-  return vp;
+function onVpResize() {
+  /* telefonda adres çubuğu açılıp kapanırken art arda gelen olaylar
+     tek karede toplanır */
+  cancelAnimationFrame(vpRaf);
+  vpRaf = requestAnimationFrame(() => {
+    const prev = vpCache;
+    if (readVp() !== prev) vpListeners.forEach((fn) => fn());
+  });
+}
+
+function subscribeVp(fn: () => void) {
+  if (!vpListeners.size) {
+    window.addEventListener("resize", onVpResize);
+    window.addEventListener("orientationchange", onVpResize);
+  }
+  vpListeners.add(fn);
+  return () => {
+    vpListeners.delete(fn);
+    if (!vpListeners.size) {
+      window.removeEventListener("resize", onVpResize);
+      window.removeEventListener("orientationchange", onVpResize);
+    }
+  };
+}
+
+export function useViewport(): Vp {
+  return useSyncExternalStore(subscribeVp, readVp, () => SERVER_VP);
 }
 
 /** Plaka yerel koordinatındaki (u, v, z) bir noktayı, CSS'in

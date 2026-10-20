@@ -38,9 +38,14 @@ type Props = {
   onComplete?: () => void;
   /** true: göbekteki avatar gizlenir (footer'a zıplayıp gitti) */
   riderHidden?: boolean;
+  /** true: sayfa ekrana yükselirken nehir ve kişi girişte HAZIR
+   *  görünür; `active` olunca oradan akmaya başlar */
+  staged?: boolean;
 };
 
 type FanProps = {
+  /** oynamadan önce (sayfa yükselirken) giriş karesini göster */
+  staged?: boolean;
   projects: Project[];
   activeIndex: number;
   onSelect: (index: number) => void;
@@ -127,6 +132,8 @@ const PANEL_RADIUS = 14;
 
 // Tüm animasyon hızı: küçüldükçe hızlanır (1 = orijinal)
 const SPEED = 0.65; // nehir + avatar + fan oluşumu (küçük = hızlı; eskiden 0.5)
+/** animasyon saati bir karede en fazla bu kadar ilerler (ms) */
+const MAX_FRAME_MS = 100;
 const ms = (v: number) => v * SPEED;
 
 /* ZAMAN ÇİZELGESİ (ms)
@@ -715,12 +722,12 @@ function buildCard(
 /* AVATAR — önceki sayfadaki nehirle birlikte akıp gelir: suyun üstünde
    çömelmiş (fotoğraftaki poz), akıntıyla sallanarak göbeğe varır ve
    aynı fotoğraf yuvarlak portre olarak fanın ortasına oturur.
-   Görsel: public/images/zeynep-comelme.png */
+   Görsel: public/images/zeynep-comelme.webp */
 
-/* GÖBEKTE OTURAN KİŞİ — public/images/zeynep-oturma.png
+/* GÖBEKTE OTURAN KİŞİ — public/images/zeynep-oturma.webp
    Görselin piksel boyutu ve kişinin görsel içindeki yeri (ölçüldü).
    Görselin boyutu farklıysa SIT_W / SIT_H'yi gerçek boyutla değiştir. */
-const SIT_SRC = "/images/zeynep-oturma.png";
+const SIT_SRC = "/images/zeynep-oturma.webp";
 const SIT_W = 1584;
 const SIT_H = 672;
 /** kişinin görseldeki yatay ortası, tepesi ve boyu (px) */
@@ -730,14 +737,14 @@ const SIT_PERSON_H = 632;
 /* NEHİRDE KAYAN AVATAR — yol haritasındakiyle AYNI: yandan oturup kayan
    kişi (zeynep-kayma.png), nehir aşağı (izleyiciye) akarken ekrana dönük
    poz (zeynep-kayma-on.png). Göbeğe varınca oturan kişiye dönüşür. */
-const RIDE_SRC = "/images/zeynep-kayma.png";
+const RIDE_SRC = "/images/zeynep-kayma.webp";
 const RIDE_LEDGE = 0.95; // zemin çizgisi (kalça / eller = su yüzeyi)
 const RIDE_SEAT_X = 0.4; // kalçanın yatay yeri (genişliğe oran)
 const RIDE_TILT = 22; // kaydırak eğimi (derece) — yol haritasıyla aynı
 /** akıntıdaki kişinin boyu (viewBox birimi) */
 const RIDE_S = 190; // eskiden 150: avatar daha büyük
 const RIDE_W = (RIDE_S * 680) / 364;
-const RIDE_FRONT_SRC = "/images/zeynep-kayma-on.png";
+const RIDE_FRONT_SRC = "/images/zeynep-kayma-on.webp";
 const RIDE_FRONT_LEDGE = 0.91;
 const RIDE_FRONT_S = 228;
 const RIDE_FRONT_W = (RIDE_FRONT_S * 360) / 457;
@@ -761,6 +768,7 @@ export default function ProjectsSection({
   finished = false,
   onComplete,
   riderHidden = false,
+  staged = false,
 }: Props) {
   const active = activeProp || finished;
   const [activeIndex, setActiveIndex] = useState(0);
@@ -870,6 +878,7 @@ export default function ProjectsSection({
             onComplete?.();
           }}
           play={active}
+          staged={staged}
           finished={finished}
           riderHidden={riderHidden}
           upright={portrait}
@@ -891,6 +900,7 @@ function ProjectFan({
   onLand,
   onReady,
   play,
+  staged = false,
   finished = false,
   riderHidden = false,
   upright = false,
@@ -968,18 +978,41 @@ function ProjectFan({
   const spinEnd = spinStart + STEP_DUR;
   const buildEnd = spinEnd + 50;
 
-  const [t, setT] = useState(0);
+  /* GİRİŞ KARESİ: kişinin ekranda (başı dahil) TAMAMEN göründüğü ilk an.
+     Nehir ekranın üstünden geldiği için t=0'da kişi ekran dışındadır;
+     sayfa yükselirken (staged) bu kare gösterilir, oynayınca buradan
+     devam eder → sayfa boş gelip kişi sonradan belirmez. */
+  const stageT = useMemo(() => {
+    const margin = RIDE_S * 1.25;
+    for (let s = 300; s < ARRIVE * 0.7; s += 25) {
+      const p = pointOnLut(streamLut, rideEnd * easeInOutCubic(phase(s, 0, ARRIVE)));
+      const inside = upright
+        ? p.x >= viewLeft - entryExtra + margin
+        : p.y >= viewTop + margin;
+      if (inside) return s;
+    }
+    return 300;
+  }, [streamLut, rideEnd, upright, viewLeft, viewTop, entryExtra]);
+
+  const [tState, setT] = useState(() => (finished ? buildEnd : 0));
   const [fanRot, setFanRot] = useState(FACE_ANGLE - activeIndex * step);
   const [prevPlay, setPrevPlay] = useState(play);
 
-  /* play kapanınca sahneyi başa al (effect yerine render sırasında) */
+  /* play kapanınca sahneyi başa al; açılınca giriş karesinden başla
+     (effect yerine render sırasında: ilk karede boş sahne görünmez) */
   if (prevPlay !== play) {
     setPrevPlay(play);
     if (!play) {
       setT(0);
       setFanRot(FACE_ANGLE - activeIndex * step);
+    } else {
+      setT(finished ? buildEnd : stageT);
     }
   }
+
+  /* oynamıyorken: sayfa yükseliyorsa giriş karesi, değilse başlangıç */
+  const t = play ? tState : staged ? stageT : 0;
+  const visible = play || staged;
 
   const done = t >= spinEnd;
 
@@ -1013,8 +1046,12 @@ function ProjectFan({
   useEffect(() => {
     if (!play) return;
 
-    /* finished: zaman çizelgesinin sonundan başla → ilk karede son hal */
-    const start = performance.now() - (finished ? buildEnd : 0);
+    /* finished: zaman çizelgesinin sonundan başla → ilk karede son hal.
+       Değilse sayfa yükselirken gösterilen giriş karesinden devam et.
+       Kendi saati: bir karede en fazla MAX_FRAME_MS ilerler (telefon bir
+       an takılırsa kişi nehirde ileri ışınlanmaz). */
+    let clock = finished ? buildEnd : stageT;
+    let last = performance.now();
     let raf = 0;
     let spinStarted = false;
     let landed = false;
@@ -1023,7 +1060,9 @@ function ProjectFan({
     let landTarget = 0;
 
     const tick = (now: number) => {
-      const elapsed = now - start;
+      clock += Math.min(MAX_FRAME_MS, Math.max(0, now - last));
+      last = now;
+      const elapsed = clock;
       setT(Math.min(elapsed, buildEnd));
 
       // Proje fotoğrafı, avatar göbeğe oturduktan sonra açılsın
@@ -1055,6 +1094,8 @@ function ProjectFan({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+    // stageT: yalnızca başlangıç anı okunur (oynarken değişirse baştan başlamasın)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [play, finished, buildEnd, spinStart, spinEnd, count, step]);
 
   /* kişi suyun ucunda: su kişinin hemen önünde akar; kişi göbeğe
@@ -1185,7 +1226,7 @@ function ProjectFan({
               width: "100cqh",
               aspectRatio: `${viewW} / ${viewH}`,
               transform: "translate(-50%, -50%) rotate(90deg)",
-              visibility: play ? "visible" : "hidden",
+              visibility: visible ? "visible" : "hidden",
             }
           : {
               top: 0,
@@ -1193,7 +1234,7 @@ function ProjectFan({
               /* kartın sağ kenarı = cam panelin sağ kenarı */
               right: `${PANEL_SIDE * 100}%`,
               width: `calc(100cqh * ${(viewW / viewH).toFixed(4)})`,
-              visibility: play ? "visible" : "hidden",
+              visibility: visible ? "visible" : "hidden",
             }
       }
     >
