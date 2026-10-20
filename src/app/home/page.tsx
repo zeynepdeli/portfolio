@@ -1,13 +1,7 @@
-import HeroSection from "@/components/sections/HeroSection";
+import SiteFlow from "@/components/SiteFlow";
 
-/* /home — Header'daki HOME butonuyla gelinir.
-   Giriş animasyonu oynamaz: konnektörler ve portlar yanık, isim ve
-   unvanlar yazılmış, sosyal ikonlar görünür, fiş sokette takılı.
-   (Site ilk açıldığında "/" giriş animasyonunu oynatmaya devam eder.) */
+/* /home — menüdeki HOME. Giriş animasyonu oynamaz: her şey yerinde,
+   fiş takılı. Aşağı kaydırarak roadmap, projeler ve footer'a gidilir. */
 export default function HomePage() {
-  return (
-    <main className="h-screen w-screen overflow-hidden">
-      <HeroSection finished />
-    </main>
-  );
+  return <SiteFlow start="hero" />;
 }

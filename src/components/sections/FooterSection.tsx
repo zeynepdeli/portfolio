@@ -676,6 +676,7 @@ export default function FooterSection({
           >
             <AlphaVideo
               src={CLIMB_VIDEO}
+              fallbackSrc="/images/zeynep-tirmanma-kare.png"
               playbackRate={CLIMB_RATE}
               onEnded={() => {
                 climbEndRef.current = true;

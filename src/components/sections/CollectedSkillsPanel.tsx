@@ -239,6 +239,9 @@ export default function CollectedSkillsPanel({
   const onWheel = (e: ReactWheelEvent) => {
     const now = Date.now();
     if (now - lock.current < 350 || Math.abs(e.deltaY) < 8) return;
+    /* uçtaki kategoride tekerlek sayfayı kaydırır (başa sarmaz) */
+    if (e.deltaY > 0 && activeIndex >= list.length - 1) return;
+    if (e.deltaY < 0 && activeIndex <= 0) return;
     lock.current = now;
     select(activeIndex + (e.deltaY > 0 ? 1 : -1));
   };
@@ -303,6 +306,11 @@ export default function CollectedSkillsPanel({
         role="tablist"
         aria-orientation="vertical"
         aria-label="Yetenekler"
+        /* tekerlek panelde kategori değiştirir; ilk / son kategoride
+           sayfa geçişine bırakılır (SiteFlow) */
+        data-own-wheel=""
+        data-end-up={activeIndex <= 0 ? "1" : undefined}
+        data-end-down={activeIndex >= list.length - 1 ? "1" : undefined}
         onWheel={onWheel}
         onKeyDown={onKey}
       >

@@ -192,9 +192,19 @@ export default function WaveVideo({
       .play()
       .then(loop)
       .catch(() => finish()); // otomatik oynatma engellenirse fotoğrafa geç
+    /* bazı cihazlar (iPhone düşük güç modu vb.) play()'i ne reddeder ne
+       oynatır: video 2 sn içinde ilerlemezse fotoğrafa geç (portre
+       görünmez kalmasın) */
+    const stall = window.setTimeout(() => {
+      if (video.currentTime === 0) {
+        video.pause();
+        finish();
+      }
+    }, 2000);
 
     return () => {
       stopped = true;
+      window.clearTimeout(stall);
       cancelAnimationFrame(raf);
       failRef.current = null;
       video.removeEventListener("ended", finish);

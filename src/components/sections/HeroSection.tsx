@@ -619,7 +619,7 @@ export default function HeroSection({
       >
         <SciFiBackground
           /* fişi bu sayfada avatar kendisi takar (animasyonlu) */
-          plugged={pluggedProp}
+          plugged={pluggedProp || final}
           panelInset={{
             left: `${panel.left}px`,
             top: `${panel.top}px`,

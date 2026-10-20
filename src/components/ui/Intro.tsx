@@ -20,7 +20,7 @@ import type { CSSProperties } from "react";
 
 /** Tüm sahneyi hızlandırmak/yavaşlatmak için çarpan.
  *  1 = ilk hâl (~2,5 sn), 1.8 = ~1,4 sn. Büyüdükçe hızlanır. */
-export const INTRO_SPEED = 1.35;
+export const INTRO_SPEED = 1.1; // eskiden 1.35
 
 /** T'deki bir zamanı (sn) hıza göre milisaniyeye çevirir
  *  (JS zamanlayıcıları için, örn. daktilo gecikmesi) */
