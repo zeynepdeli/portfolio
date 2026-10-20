@@ -978,22 +978,26 @@ function ProjectFan({
   const spinEnd = spinStart + STEP_DUR;
   const buildEnd = spinEnd + 50;
 
-  /* GİRİŞ KARESİ: kişinin ekranda (başı dahil) TAMAMEN göründüğü ilk an.
-     Nehir ekranın üstünden geldiği için t=0'da kişi ekran dışındadır;
-     sayfa yükselirken (staged) bu kare gösterilir, oynayınca buradan
-     devam eder → sayfa boş gelip kişi sonradan belirmez. */
-  const stageT = useMemo(() => {
-    const margin = RIDE_S * 1.25;
-    for (let s = 300; s < ARRIVE * 0.7; s += 25) {
-      const p = pointOnLut(streamLut, rideEnd * easeInOutCubic(phase(s, 0, ARRIVE)));
+  /* SAYFA YÜKSELİRKEN (staged): fan kartı görünür ama nehir ve kişi
+     henüz gelmemiştir. Oynamaya başlayınca kişi bir önceki sayfadan
+     (ekranın üstünden) suyla birlikte akarak gelir.
+     enterT: nehrin ekran DIŞINDA kalan uzun girişi atlanır — saat,
+     kişinin ekranın üst kenarından girmek üzere olduğu andan başlar
+     (yoksa sayfa boş bekliyor, kişi çok sonra beliriyordu). */
+  const enterT = useMemo(() => {
+    const margin = RIDE_S * 0.15;
+    for (let s = 0; s < ARRIVE * 0.7; s += 20) {
+      const p = pointOnLut(
+        streamLut,
+        rideEnd * easeInOutCubic(phase(s, 0, ARRIVE)),
+      );
       const inside = upright
         ? p.x >= viewLeft - entryExtra + margin
         : p.y >= viewTop + margin;
-      if (inside) return s;
+      if (inside) return Math.max(0, s - 60);
     }
-    return 300;
+    return 0;
   }, [streamLut, rideEnd, upright, viewLeft, viewTop, entryExtra]);
-
   const [tState, setT] = useState(() => (finished ? buildEnd : 0));
   const [fanRot, setFanRot] = useState(FACE_ANGLE - activeIndex * step);
   const [prevPlay, setPrevPlay] = useState(play);
@@ -1006,12 +1010,11 @@ function ProjectFan({
       setT(0);
       setFanRot(FACE_ANGLE - activeIndex * step);
     } else {
-      setT(finished ? buildEnd : stageT);
+      setT(finished ? buildEnd : enterT);
     }
   }
 
-  /* oynamıyorken: sayfa yükseliyorsa giriş karesi, değilse başlangıç */
-  const t = play ? tState : staged ? stageT : 0;
+  const t = play ? tState : 0;
   const visible = play || staged;
 
   const done = t >= spinEnd;
@@ -1047,10 +1050,9 @@ function ProjectFan({
     if (!play) return;
 
     /* finished: zaman çizelgesinin sonundan başla → ilk karede son hal.
-       Değilse sayfa yükselirken gösterilen giriş karesinden devam et.
        Kendi saati: bir karede en fazla MAX_FRAME_MS ilerler (telefon bir
        an takılırsa kişi nehirde ileri ışınlanmaz). */
-    let clock = finished ? buildEnd : stageT;
+    let clock = finished ? buildEnd : enterT;
     let last = performance.now();
     let raf = 0;
     let spinStarted = false;
@@ -1094,7 +1096,7 @@ function ProjectFan({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // stageT: yalnızca başlangıç anı okunur (oynarken değişirse baştan başlamasın)
+    // enterT yalnızca başlangıçta okunur (oynarken değişirse sahne baştan başlamasın)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [play, finished, buildEnd, spinStart, spinEnd, count, step]);
 
@@ -1156,7 +1158,8 @@ function ProjectFan({
     clamp((frontRatio - RIDE_FRONT_FROM) / RIDE_FRONT_RANGE) *
     (1 - Math.min(1, spiralP * 3));
 
-  const personIn = phase(t, 0, 300);
+  /* kişi ekranın üstünden girerken zaten tam görünür (soluklaşma yok) */
+  const personIn = t > 0 ? 1 : 0;
   /* 3) iniş: havadaki kayan avatar, yere değdiği an oturan kişiye döner */
   const settleP = easeInOutCubic(phase(t, ARRIVE + SPIRAL_DUR * 0.82, 220));
   /* sıçramadan önce çökme, inince yaylanma (dikey ölçek) */
@@ -2318,31 +2321,41 @@ function ProjectScreen({
       >
         <div
           key={`t-${project.id}`}
-          className="ps-title shrink-0"
+          className="shrink-0"
           style={{ maxWidth: portrait ? "100%" : "min(46vw, 640px)" }}
         >
-          <div className="font-mono text-xs tracking-[.14em] text-[#a8eef6]">
+          <div
+            className="ps-line font-mono text-xs tracking-[.14em] text-[#a8eef6]"
+            style={{ "--i": 0 } as CSSVars}
+          >
             [ PROJE {pad(index + 1)} / {pad(total)} ]
           </div>
           <h2
-            className={`mt-1 font-semibold text-[#c4f7fb] ${portrait ? "text-xl" : "text-[28px] leading-tight"}`}
-            style={{ fontFamily: "var(--font-display), ui-sans-serif" }}
+            className={`ps-line mt-1 font-semibold text-[#c4f7fb] ${portrait ? "text-xl" : "text-[28px] leading-tight"}`}
+            style={
+              {
+                fontFamily: "var(--font-display), ui-sans-serif",
+                "--i": 1,
+              } as CSSVars
+            }
           >
             {project.title}
           </h2>
           {project.description && (
             <p
-              className={`mt-1 line-clamp-2 text-[#a8eef6]/75 ${portrait ? "text-xs" : "text-sm"}`}
+              className={`ps-line mt-1 line-clamp-2 text-[#a8eef6]/75 ${portrait ? "text-xs" : "text-sm"}`}
+              style={{ "--i": 2 } as CSSVars}
             >
               {project.description}
             </p>
           )}
           {project.tags && project.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {project.tags.map((tag) => (
+              {project.tags.map((tag, ti) => (
                 <span
                   key={tag}
-                  className="rounded-full border border-[#a8eef6]/25 bg-[#a8eef6]/5 px-2.5 py-0.5 font-mono text-[10px] tracking-wider text-[#a8eef6]/85"
+                  style={{ "--i": 3 + ti * 0.5 } as CSSVars}
+                  className="ps-line rounded-full border border-[#a8eef6]/25 bg-[#a8eef6]/5 px-2.5 py-0.5 font-mono text-[10px] tracking-wider text-[#a8eef6]/85"
                 >
                   {tag}
                 </span>
@@ -2427,60 +2440,59 @@ function ProjectScreen({
           to   { transform: translateY(-50%) scaleX(1); opacity: .25; }
         }
 
-        /* Ekran gücü: önce yatay çizgi, sonra dikey açılış */
+        /* Ekran açılışı: yumuşak — ortadan dikeyde açılır, hafif parlar,
+           ani parlama / titreşim yok */
         .ps-screen {
-          animation: ps-on .55s cubic-bezier(.2,.8,.2,1) both;
+          animation: ps-on 1.1s cubic-bezier(.22,1,.36,1) both;
         }
         @keyframes ps-on {
-          0%   { clip-path: inset(49.6% 50% 49.6% 50%); filter: brightness(3); }
-          35%  { clip-path: inset(49.6% 0 49.6% 0);     filter: brightness(2.4); }
-          100% { clip-path: inset(0 0 0 0);             filter: brightness(1); }
+          0%   { clip-path: inset(46% 6% 46% 6% round 18px); opacity: 0; filter: brightness(1.5); }
+          35%  { opacity: 1; }
+          100% { clip-path: inset(0 0 0 0 round 18px); opacity: 1; filter: brightness(1); }
         }
 
-        /* Proje değişimi: kısa glitch + netleşme */
+        /* Proje değişimi: yumuşak belirme + hafif yakınlaşma */
         .ps-img {
-          animation: ps-img .42s cubic-bezier(.2,.8,.2,1) both;
+          animation: ps-img .9s cubic-bezier(.22,1,.36,1) both;
         }
         @keyframes ps-img {
-          0%   { opacity: 0; transform: scale(1.06); filter: blur(8px) saturate(2) hue-rotate(-20deg); }
-          30%  { opacity: 1; transform: scale(1.03) translateX(-6px); filter: blur(2px) saturate(1.6); }
-          45%  { transform: scale(1.02) translateX(5px); }
-          100% { opacity: 1; transform: scale(1); filter: none; }
+          0%   { opacity: 0; transform: scale(1.06); }
+          100% { opacity: 1; transform: scale(1); }
         }
+        /* eski glitch şeritleri yerine tek, yumuşak ışık süzmesi */
         .ps-glitch {
-          background:
-            linear-gradient(transparent 18%, rgba(70,190,255,.35) 18% 21%, transparent 21% 54%,
-              rgba(217,183,119,.3) 54% 56%, transparent 56% 78%, rgba(207,230,255,.3) 78% 80%, transparent 80%);
+          background: linear-gradient(105deg, transparent 30%, rgba(207,230,255,.18) 48%, rgba(70,190,255,.12) 52%, transparent 70%);
           mix-blend-mode: screen;
-          animation: ps-glitch .4s steps(4) both;
+          animation: ps-glitch 1.2s cubic-bezier(.4,0,.2,1) .15s both;
         }
         @keyframes ps-glitch {
-          0%   { opacity: 1; transform: translateX(-12px); }
-          50%  { opacity: .8; transform: translateX(10px); }
-          100% { opacity: 0; transform: translateX(0); }
+          from { opacity: 1; transform: translateX(-60%); }
+          to   { opacity: 0; transform: translateX(60%); }
         }
 
-        /* Tarama ışığı üstten alta bir kez geçer */
+        /* Tarama ışığı üstten alta bir kez, yavaşça geçer */
         .ps-scan {
           top: -20%;
-          background: linear-gradient(to bottom, transparent, rgba(207,230,255,.16) 60%, rgba(207,230,255,.35) 92%, transparent);
-          animation: ps-scan .7s ease-in .15s both;
+          background: linear-gradient(to bottom, transparent, rgba(207,230,255,.1) 60%, rgba(207,230,255,.22) 92%, transparent);
+          animation: ps-scan 1.4s cubic-bezier(.4,0,.2,1) .3s both;
         }
         @keyframes ps-scan {
           from { transform: translateY(0); opacity: 1; }
           to   { transform: translateY(650%); opacity: 0; }
         }
 
-        .ps-title {
-          animation: ps-title .4s cubic-bezier(.2,.8,.2,1) .1s both;
+        /* Başlık, açıklama, etiketler sırayla, yumuşakça yerine oturur */
+        .ps-line {
+          animation: ps-title .7s cubic-bezier(.22,1,.36,1) both;
+          animation-delay: calc(80ms + var(--i, 0) * 110ms);
         }
         @keyframes ps-title {
-          from { opacity: 0; transform: translateY(10px); letter-spacing: .3em; }
+          from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .ps-screen, .ps-img, .ps-glitch, .ps-scan, .ps-title { animation: none; }
+          .ps-screen, .ps-img, .ps-glitch, .ps-scan, .ps-line { animation: none; }
         }
       `}</style>
     </div>

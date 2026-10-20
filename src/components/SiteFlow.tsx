@@ -61,6 +61,12 @@ const FOOTER_MS = 1400;
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
 const ARRIVE_PAUSE_MS = 140;
+/** roadmap avatarının yukarıdan nehre düşüşü (ms) — RoadmapSection ile aynı */
+const ROADMAP_FALL_MS = 800;
+/** hero avatarının ekrandan aşağı dalıp çıkması (ms, SiteAvatar EXIT_MS) */
+const HERO_EXIT_MS = 1050;
+/** projelerde kişi, geçişin bu oranında akmaya başlar */
+const PROJECTS_ENTER_AT = 0.5;
 /** sahne kurulmadan önce yazı tipi / görsel için en fazla bekleme (ms) */
 const READY_MAX_MS = 1500;
 /** her bölümün açılışta HAZIR olması gereken görselleri */
@@ -237,6 +243,8 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const [heroAvatarGone, setHeroAvatarGone] = useState(!story);
   const [roadmapArrived, setRoadmapArrived] = useState(false);
   const [projectsArrived, setProjectsArrived] = useState(false);
+  /** roadmap avatarı yükselen sayfaya düşmeye başladı */
+  const [roadmapEntering, setRoadmapEntering] = useState(false);
   const [roadmapComplete, setRoadmapComplete] = useState(false);
   const [projectsComplete, setProjectsComplete] = useState(false);
 
@@ -441,8 +449,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         paint();
         if (dir > 0 && key === "hero")
           window.setTimeout(() => setRoadmapArrived(true), ARRIVE_PAUSE_MS);
-        if (dir > 0 && key === "projects")
-          window.setTimeout(() => setProjectsArrived(true), ARRIVE_PAUSE_MS);
         busy.current = false;
         lastNavEnd.current = performance.now();
         indexRef.current = dir > 0 ? target : step;
@@ -450,6 +456,18 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         setChapterKey((k) => k + 1);
         if (key === "footer" && dir > 0) setFooterArrived(true);
       };
+
+      /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR: geçiş bitmeden başlar.
+         - roadmap: hero'da aşağı dalan kişi, yükselen sayfanın üstünden
+           nehrin girişine düşer; sayfa otururken suya iner
+         - projects: kişi suyla birlikte ekranın üstünden akarak girer */
+      if (dir > 0 && key === "hero")
+        window.setTimeout(
+          () => setRoadmapEntering(true),
+          Math.max(dur - ROADMAP_FALL_MS, HERO_EXIT_MS),
+        );
+      if (dir > 0 && key === "projects")
+        window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
 
       let r1 = 0;
       let r2 = 0;
@@ -619,8 +637,8 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   /* ---------------- BÖLÜMLER ---------------- */
   const roadmapActive = story && heroTransitioning && roadmapArrived;
   const projectsActive = story && roadmapComplete && projectsArrived;
-  /* GİRİŞTE HAZIR: sayfa yükselmeye başladığı anda avatar o sayfanın
-     girişinde görünür (sayfa boş gelip avatar sonradan belirmez) */
+  /* sayfa yükselirken sahne hazır (fan kartı / nehir görünür); avatar
+     bir önceki sayfadan gelir (yukarıda: roadmapEntering, projectsArrived) */
   const roadmapStaged = story && heroTransitioning;
   const projectsStaged = story && roadmapComplete;
 
@@ -640,6 +658,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         <RoadmapSection
           active={roadmapActive}
           staged={roadmapStaged}
+          entering={roadmapEntering}
           onComplete={onRoadmapDone}
         />
       ) : (
@@ -647,7 +666,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           <RoadmapSection finished />
         </FinalState>
       ),
-    [story, roadmapActive, roadmapStaged, onRoadmapDone],
+    [story, roadmapActive, roadmapStaged, roadmapEntering, onRoadmapDone],
   );
   const projects = useMemo(
     () =>
