@@ -126,7 +126,7 @@ const PANEL_TOPBOT = 0.015; // yüksekliğe oran
 const PANEL_RADIUS = 14;
 
 // Tüm animasyon hızı: küçüldükçe hızlanır (1 = orijinal)
-const SPEED = 0.5; // nehir + avatar + fan oluşumu (küçük = hızlı; eskiden 0.6)
+const SPEED = 0.65; // nehir + avatar + fan oluşumu (küçük = hızlı; eskiden 0.5)
 const ms = (v: number) => v * SPEED;
 
 /* ZAMAN ÇİZELGESİ (ms)

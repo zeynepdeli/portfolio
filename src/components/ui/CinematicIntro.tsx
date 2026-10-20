@@ -26,7 +26,7 @@ import { useEffect, useRef, type RefObject } from "react";
 /** TÜM AÇILIŞIN HIZI: 1 = aşağıdaki süreler aynen, 1.35 = %35 daha hızlı.
  *  Bütün adımlar (çip, yörünge, butonlar, isim) birlikte hızlanır,
  *  geçişlerin birbirine göre zamanlaması bozulmaz. */
-const SPEED = 1.45;
+const SPEED = 1.15; // eskiden 1.45: hikâye daha okunaklı
 
 /* alttaki çember (parçacık halkası → çip) DAHA ERKEN ve HIZLI oluşur */
 const T_CHIP_RING = 0.15; // parçacıklar halka olarak doğar
@@ -790,11 +790,49 @@ export default function CinematicIntro({
       return 1 + c3 * Math.pow(q - 1, 3) + SLAM * Math.pow(q - 1, 2);
     };
 
-    const setVeilMask = (mask: string) => {
-      veil.style.setProperty("mask-image", mask);
-      veil.style.setProperty("-webkit-mask-image", mask);
+    /* KARANLIK PERDE + SPOT: eskiden her karede değişen bir CSS maskesiydi
+       (mask-image). Bazı telefonlarda (özellikle iPhone Safari) bu,
+       sahnenin "fotoğraf çeker gibi" kararıp açılmasına ve spotun hiç
+       görünmemesine yol açıyordu. Artık tuvale çiziliyor: her tarayıcıda
+       aynı ve hafif. */
+    const veilCv = makeCanvas(W, H);
+    const VEIL_FILL = "rgba(3,5,12,.96)";
+    const drawVeil = (
+      sx: number,
+      sy: number,
+      rx: number,
+      ry: number,
+      inner: number, // spotun içinde perdenin silinme oranı (0..1)
+      edge: number, // kenarda silinme oranı
+    ) => {
+      if (!veilCv) return;
+      const c = veilCv.ctx;
+      c.globalCompositeOperation = "source-over";
+      c.clearRect(0, 0, W, H);
+      c.fillStyle = VEIL_FILL;
+      c.fillRect(0, 0, W, H);
+      if (inner <= 0.001 || rx < 1 || ry < 1) return;
+      c.save();
+      c.globalCompositeOperation = "destination-out";
+      c.translate(sx, sy);
+      c.scale(rx, ry);
+      const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, `rgba(0,0,0,${inner})`);
+      g.addColorStop(SPOT_EDGE_IN / 100, `rgba(0,0,0,${inner})`);
+      g.addColorStop(SPOT_EDGE_OUT / 100, `rgba(0,0,0,${edge})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(0, 0, 1, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
     };
-    setVeilMask("linear-gradient(#000, #000)"); // başta zifiri karanlık
+    if (veilCv) {
+      veilCv.el.style.zIndex = "0";
+      layer.insertBefore(veilCv.el, layer.firstChild);
+      veil.style.display = "none";
+      drawVeil(0, 0, 0, 0, 0, 0); // başta zifiri karanlık
+    }
 
     layer.insertBefore(beam.el, spot);
     const mr = rng(2718);
@@ -859,6 +897,8 @@ export default function CinematicIntro({
       chipFx.el.remove();
       fx.el.remove();
       beam.el.remove();
+      veilCv?.el.remove();
+      veil.style.display = "";
       pieces.forEach((p) => p.el.remove());
     };
 
@@ -914,12 +954,10 @@ export default function CinematicIntro({
       rx *= shrink;
       ry *= shrink;
 
-      const hole = (1 - I).toFixed(3);
-      const rim = Math.min(1, 0.6 + 0.4 * (1 - I)).toFixed(3);
-      setVeilMask(
-        `radial-gradient(ellipse ${f1(rx)}px ${f1(ry)}px at ${f1(sx)}px ${f1(sy)}px, rgba(0,0,0,${hole}) 0%, rgba(0,0,0,${hole}) ${SPOT_EDGE_IN}%, rgba(0,0,0,${rim}) ${SPOT_EDGE_OUT}%, #000 100%)`,
-      );
-      veil.style.opacity = String(1 - houseUp);
+      /* spotun içi lambanın gücü kadar aydınlık, kenarı yumuşak */
+      const rim = Math.min(1, 0.6 + 0.4 * (1 - I));
+      drawVeil(sx, sy, rx, ry, I, 1 - rim);
+      if (veilCv) veilCv.el.style.opacity = String(1 - houseUp);
 
       {
         const b = beam.ctx;

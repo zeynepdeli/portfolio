@@ -1,15 +1,7 @@
-import ProjectsSection from "@/components/sections/ProjectsSection";
-import FinalState from "@/components/ui/FinalState"
+import SiteFlow from "@/components/SiteFlow";
 
-/* /projects — Header'daki PROJECTS butonuyla gelinir.
-   Animasyon oynamaz: ekran kartı nehirden oluşmuş, avatar fanın
-   ortasına oturmuş, büyük ekranda proje fotoğrafı görünen son hal. */
+/* /projects — menüdeki PROJECTS. Fan oluşmuş son hali açılır;
+   yukarı kaydırınca roadmap, aşağı kaydırınca footer gelir. */
 export default function ProjectsPage() {
-  return (
-    <main className="h-screen w-screen overflow-hidden">
-      <FinalState>
-        <ProjectsSection finished />
-      </FinalState>
-    </main>
-  );
+  return <SiteFlow start="projects" />;
 }

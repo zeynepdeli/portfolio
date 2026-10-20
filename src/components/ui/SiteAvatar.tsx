@@ -77,7 +77,7 @@ const CLIMB_SHIFT = Math.round(CLIMB_H * (LEDGE - LEDGE_GRIP));
 
 /* AVATAR HIZI — 1 = eski hız; büyüdükçe tüm hareketler YAVAŞLAR
    (videolar, yürüme, fiş takma, zıplamalar aynı oranda) */
-const SLOW = 1.5;
+const SLOW = 1.85; // eskiden 1.5: avatarın yolculuğu daha okunaklı
 const ms = (v: number) => Math.round(v * SLOW);
 
 /* HIZ — kullanıcı beklemesin diye her şey hızlı ama akıcı.
@@ -920,7 +920,12 @@ export default function SiteAvatar({
 
   /* Fiş takılınca üstteki soketin yuvası altın renginde yanar
      (ScifiBackground'daki yuvanın tam üstüne çizilir) */
-  const lit = stage !== "climbing" && stage !== "toPort";
+  /* Soketteki ışık ve fiş SABİT (fixed) çizilir: sayfa yerindeyken.
+     Avatar dalmaya başlayınca (sayfa kayarken) ve bittiğinde fişi
+     sayfanın KENDİSİ çizer (HeroSection → plugged): sabit fiş sayfa
+     kayarken ortada asılı kalmasın */
+  const onPage = stage !== "descending" && stage !== "done";
+  const lit = stage !== "climbing" && stage !== "toPort" && onPage;
   const slotGlow = lit && (
     <div
       className="av-anim pointer-events-none fixed z-9998 rounded-xs"
@@ -976,7 +981,8 @@ export default function SiteAvatar({
      geldiği yöne (sola) uzanır */
   const leftPlug = stage !== "climbing" &&
     stage !== "toPort" &&
-    stage !== "plugged" && (
+    stage !== "plugged" &&
+    onPage && (
       <svg
         className="pointer-events-none fixed z-9999"
         width="1"
@@ -1103,6 +1109,7 @@ export default function SiteAvatar({
               key={`c${run}`}
               onStatus={(st) => setVideoStatus("tırmanma → " + st)}
               src={climbSrc}
+              fallbackSrc="/images/zeynep-tirmanma-kare.png"
               onEnded={handleClimbEnded}
               playbackRate={CLIMB_RATE}
               className="absolute inset-0"
@@ -1233,6 +1240,7 @@ export default function SiteAvatar({
                   }}
                   onStatus={(st) => setVideoStatus("yürüme → " + st)}
                   src={walkSrc}
+                  fallbackSrc="/images/zeynep-kosma-kare.png"
                   loop
                   playing={walking}
                   playbackRate={RUN_RATE}

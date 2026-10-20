@@ -15,17 +15,19 @@ import {
  *   - üst yarı : renkli görüntü
  *   - alt yarı : saydamlık maskesi (beyaz = görünür, siyah = saydam)
  *
- * Her kare canvas'a çizilir, maske saydamlığa çevrilir.
+ * PERFORMANS: kareler WebGL ile (ekran kartında) birleştirilir. Eskiden
+ * her kare işlemcide piksel piksel işleniyordu (getImageData) — telefonda
+ * takılmanın ve kırpışmanın en büyük sebeplerinden biriydi. WebGL yoksa
+ * eski yöntem yedek olarak çalışır.
  *
- * Sağlamlık:
- *  - Aynı adlı .webm varsa önce onu dener, yoksa .mp4 (iki dosya da
- *    public/video içinde dursun).
- *  - Kareler requestAnimationFrame ile çizilir (gizli videoda
- *    requestVideoFrameCallback bazı Chrome sürümlerinde hiç tetiklenmiyor).
- *  - Tarayıcı oynatmayı engellerse tekrar dener.
- *  - Video karesi hiçbir durumda görünmez; sadece kişi görünür.
+ * SAĞLAMLIK: bazı cihazlar videoyu hiç oynatmaz (iPhone düşük güç modu,
+ * otomatik oynatma kapalı tarayıcılar…). O zaman kişi görünmez olmasın
+ * diye `fallbackSrc` görseli gösterilir; tek seferlik videoda (loop yok)
+ * onEnded yine çağrılır ki animasyon akışı takılmasın.
+ *
+ *  - Aynı adlı .webm varsa önce onu dener, yoksa .mp4.
  *  - Geliştirme modunda hata olursa kutunun içinde KIRMIZI yazıyla
- *    nedenini gösterir (dosya bulunamadı, çözülemedi vb.).
+ *    nedenini gösterir.
  */
 type AlphaVideoProps = {
   src: string;
@@ -43,14 +45,19 @@ type AlphaVideoProps = {
   onFrame?: (time: number) => void;
   /** Oynatma hızı (1 = normal) */
   playbackRate?: number;
+  /** Video oynatılamazsa yerine gösterilen saydam görsel (PNG) */
+  fallbackSrc?: string;
 };
 
 const IS_DEV = process.env.NODE_ENV !== "production";
+/** oynatma istendikten sonra bu süre içinde hiç kare gelmezse yedek görsel */
+const NO_FRAME_MS = 1600;
+/** yedek görsele geçilince tek seferlik videonun "bitti" sayılma süresi */
+const FALLBACK_END_MS = 900;
 
 const HIDDEN_VIDEO_STYLE: CSSProperties = {
   /* Gizli ama ekranda: opacity 0 / display:none olursa bazı
-     tarayıcılar videoyu çözmeyi bırakıyor. Video karesi asla
-     görünmez; yalnızca canvas'taki kişi görünür. */
+     tarayıcılar videoyu çözmeyi bırakıyor. */
   position: "absolute",
   left: 0,
   top: 0,
@@ -74,6 +81,117 @@ const ERROR_STYLE: CSSProperties = {
   whiteSpace: "normal",
 };
 
+const VERT = `
+attribute vec2 p;
+varying vec2 uv;
+void main() {
+  uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
+  gl_Position = vec4(p, 0.0, 1.0);
+}`;
+
+/* maske: 40'ın altı tam saydam, 235'in üstü tam görünür (eski CPU
+   yöntemiyle aynı eşikler) */
+const FRAG = `
+precision mediump float;
+uniform sampler2D tex;
+varying vec2 uv;
+void main() {
+  vec3 rgb = texture2D(tex, vec2(uv.x, uv.y * 0.5)).rgb;
+  float m = texture2D(tex, vec2(uv.x, 0.5 + uv.y * 0.5)).r;
+  float a = clamp((m - 0.157) / 0.765, 0.0, 1.0);
+  gl_FragColor = vec4(rgb * a, a);
+}`;
+
+type Renderer = (video: HTMLVideoElement) => boolean;
+
+/** WebGL çizici; kurulamazsa null */
+function makeGL(canvas: HTMLCanvasElement): Renderer | null {
+  const gl = canvas.getContext("webgl", {
+    premultipliedAlpha: true,
+    alpha: true,
+    antialias: false,
+    preserveDrawingBuffer: false,
+  });
+  if (!gl) return null;
+  const sh = (type: number, src: string) => {
+    const s = gl.createShader(type);
+    if (!s) return null;
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null;
+  };
+  const vs = sh(gl.VERTEX_SHADER, VERT);
+  const fs = sh(gl.FRAGMENT_SHADER, FRAG);
+  const prog = vs && fs ? gl.createProgram() : null;
+  if (!vs || !fs || !prog) return null;
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+    gl.STATIC_DRAW,
+  );
+  const loc = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  return (video) => {
+    const w = video.videoWidth;
+    const h = Math.floor(video.videoHeight / 2);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, w, h);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    return true;
+  };
+}
+
+/** WebGL yoksa: eski işlemci yöntemi */
+function make2D(canvas: HTMLCanvasElement): Renderer | null {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const buf = document.createElement("canvas");
+  const bctx = buf.getContext("2d", { willReadFrequently: true });
+  if (!ctx || !bctx) return null;
+  return (video) => {
+    const w = video.videoWidth;
+    const h = Math.floor(video.videoHeight / 2);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      buf.width = w;
+      buf.height = h * 2;
+    }
+    bctx.drawImage(video, 0, 0, w, h * 2);
+    const color = bctx.getImageData(0, 0, w, h);
+    const mask = bctx.getImageData(0, h, w, h).data;
+    const px = color.data;
+    for (let i = 0; i < px.length; i += 4) {
+      const m = mask[i];
+      const a = m < 40 ? 0 : m > 235 ? 255 : ((m - 40) * 255) / 195;
+      px[i + 3] = a;
+      if (a === 0) px[i] = px[i + 1] = px[i + 2] = 0;
+    }
+    ctx.putImageData(color, 0, 0);
+    return true;
+  };
+}
+
 export default function AlphaVideo({
   src,
   loop = false,
@@ -85,6 +203,7 @@ export default function AlphaVideo({
   onStatus,
   onFrame,
   playbackRate = 1,
+  fallbackSrc,
 }: AlphaVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -94,12 +213,14 @@ export default function AlphaVideo({
   const onStatusRef = useRef(onStatus);
   const onEndedRef = useRef(onEnded);
   const playingRef = useRef(playing);
+  const loopRef = useRef(loop);
 
   useEffect(() => {
     onFrameRef.current = onFrame;
     onStatusRef.current = onStatus;
     onEndedRef.current = onEnded;
     playingRef.current = playing;
+    loopRef.current = loop;
   });
 
   const report = useCallback((status: string) => {
@@ -107,15 +228,34 @@ export default function AlphaVideo({
   }, []);
 
   const [error, setError] = useState<string | null>(null);
+  /** video oynatılamıyor → yedek görsel */
+  const [blocked, setBlocked] = useState(false);
+  /** en az bir kare çizildi mi (çizilmeden önce yedek görsel görünür) */
+  const [hasFrame, setHasFrame] = useState(false);
 
-  /* Kaynak değişince eski hata mesajı temizlenir */
+  /* Kaynak değişince eski durum temizlenir */
   const [prevSrc, setPrevSrc] = useState(src);
   if (prevSrc !== src) {
     setPrevSrc(src);
     setError(null);
+    setBlocked(false);
+    setHasFrame(false);
   }
 
   const webm = src.replace(/\.mp4$/i, ".webm");
+
+  /* yedek görsele geçiş: tek seferlik video ise akış "bitti" sayılır */
+  const blockedRef = useRef(false);
+  useEffect(() => {
+    blockedRef.current = false;
+  }, [src]);
+  const goFallback = useCallback(() => {
+    if (blockedRef.current) return;
+    blockedRef.current = true;
+    setBlocked(true);
+    if (!loopRef.current)
+      window.setTimeout(() => onEndedRef.current?.(), FALLBACK_END_MS);
+  }, []);
 
   /* Oynatma hızı */
   useEffect(() => {
@@ -125,17 +265,28 @@ export default function AlphaVideo({
     v.playbackRate = playbackRate;
   }, [playbackRate, src]);
 
-  /* Oynat / durdur */
+  /* Oynat / durdur + oynatılamıyorsa yedek görsel */
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (playing) {
-      v.muted = true;
-      v.play().catch(() => {});
-    } else {
+    if (!playing) {
       v.pause();
+      return;
     }
-  }, [playing, src]);
+    v.muted = true;
+    const p = v.play();
+    if (p && typeof p.catch === "function") {
+      p.catch((e: unknown) => {
+        /* otomatik oynatma engellendi (düşük güç modu vb.) */
+        if ((e as { name?: string })?.name === "NotAllowedError") goFallback();
+      });
+    }
+    /* hiç kare gelmiyorsa (sessizce takılan cihazlar) yedeğe geç */
+    const t = window.setTimeout(() => {
+      if (v.readyState < 2 || v.currentTime === 0) goFallback();
+    }, NO_FRAME_MS);
+    return () => window.clearTimeout(t);
+  }, [playing, src, goFallback]);
 
   /* Kareleri canvas'a işle */
   useEffect(() => {
@@ -143,119 +294,89 @@ export default function AlphaVideo({
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const buf = document.createElement("canvas");
-    const bctx = buf.getContext("2d", { willReadFrequently: true });
-    if (!ctx || !bctx) return;
+    const render = makeGL(canvas) ?? make2D(canvas);
+    if (!render) {
+      goFallback();
+      return;
+    }
 
     let stopped = false;
     let rafId = 0;
     let lastT = -1;
     let failed = false;
+    let drewOnce = false;
 
     const draw = (force = false) => {
       if (failed) return;
-      const w = video.videoWidth;
-      const h = Math.floor(video.videoHeight / 2);
-      if (!w || !h || video.readyState < 2) return;
+      if (!video.videoWidth || video.readyState < 2) return;
 
-      /* Saydam sürüm dikey (üst renk + alt maske). Yatay video gelirse
-         bu senin orijinal videon demektir → çizme, uyar. */
+      /* Saydam sürüm dikey (üst renk + alt maske) */
       if (video.videoHeight < video.videoWidth) {
         failed = true;
-        const msg = `Bu video saydam sürüm değil: ${src} — zeynep-*.mp4 dosyalarını kullan`;
+        const msg = `Bu video saydam sürüm değil: ${src}`;
         setError(msg);
         report("HATA: " + msg);
-        console.error("[AlphaVideo]", msg);
+        goFallback();
         return;
       }
 
       if (!force && video.currentTime === lastT) return;
       lastT = video.currentTime;
 
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-        buf.width = w;
-        buf.height = h * 2;
-      }
-
       try {
-        bctx.drawImage(video, 0, 0, w, h * 2);
-        const color = bctx.getImageData(0, 0, w, h);
-        const mask = bctx.getImageData(0, h, w, h).data;
-        const px = color.data;
-
-        /* Maskedeki sıkıştırma gürültüsü kare gibi görünmesin:
-           koyu değerler tamamen saydam, kenarlar yumuşak kalır */
-        for (let i = 0; i < px.length; i += 4) {
-          const m = mask[i];
-          const a = m < 40 ? 0 : m > 235 ? 255 : ((m - 40) * 255) / 195;
-          px[i + 3] = a;
-          if (a === 0) px[i] = px[i + 1] = px[i + 2] = 0;
+        render(video);
+        if (!drewOnce) {
+          drewOnce = true;
+          setHasFrame(true);
         }
-
-        ctx.putImageData(color, 0, 0);
         onFrameRef.current?.(video.currentTime);
       } catch (e) {
         failed = true;
-        setError(`Canvas işlenemedi: ${String(e)}`);
-        report(`HATA: canvas işlenemedi: ${String(e)}`);
-        console.error("[AlphaVideo] canvas işlenemedi:", e);
+        setError(`Video işlenemedi: ${String(e)}`);
+        report(`HATA: video işlenemedi: ${String(e)}`);
+        goFallback();
       }
     };
 
-    /* İlk kare de bu döngüde çizilir (lastT = -1 olduğundan) */
+    /* yeni kare gelince çiz (destekleyen tarayıcıda yalnızca yeni karede) */
+    type RVFC = (cb: () => void) => number;
+    const rvfc = (
+      video as HTMLVideoElement & { requestVideoFrameCallback?: RVFC }
+    ).requestVideoFrameCallback?.bind(video);
     const tick = () => {
       if (stopped) return;
       draw();
       rafId = requestAnimationFrame(tick);
     };
+    const onVideoFrame = () => {
+      if (stopped) return;
+      draw();
+      rvfc?.(onVideoFrame);
+    };
+    /* rVFC duraklatılmış / gizli videoda bazı tarayıcılarda tetiklenmez:
+       rAF döngüsü her durumda çalışır, rVFC yalnızca ek tetikleyici */
     rafId = requestAnimationFrame(tick);
+    rvfc?.(onVideoFrame);
 
     report("yükleniyor: " + src);
 
-    const fileName = () => video.currentSrc.split("/").pop();
-
-    let reportedPlay = false;
-
-    const onData = () => {
-      draw(true);
-      report(
-        `yüklendi ${video.videoWidth}x${video.videoHeight} (${fileName()})`,
-      );
-    };
-
-    const onPlaying = () => {
-      if (reportedPlay) return;
-      reportedPlay = true;
-      report(
-        `oynuyor ${video.videoWidth}x${video.videoHeight} (${fileName()})`,
-      );
-    };
-
+    const onData = () => draw(true);
+    const onPlaying = () => report(`oynuyor (${video.currentSrc.split("/").pop()})`);
     /* Tarayıcı kendiliğinden durdurursa (güç tasarrufu vb.) yeniden başlat */
     const onPause = () => {
       if (playingRef.current && !video.ended) {
         setTimeout(() => video.play().catch(() => {}), 50);
       }
     };
-
     const onCanPlay = () => {
       if (playingRef.current) video.play().catch(() => {});
     };
-
     const onErr = () => {
       const code = video.error?.code;
-      const msg =
-        code === 4
-          ? `Video açılamadı/bulunamadı: ${src}`
-          : code === 3
-            ? `Video çözülemedi: ${src}`
-            : `Video hatası (${code ?? "?"}): ${src}`;
+      const msg = `Video hatası (${code ?? "?"}): ${src}`;
       setError(msg);
       report("HATA: " + msg);
-      console.error("[AlphaVideo]", msg);
+      goFallback();
     };
 
     video.addEventListener("playing", onPlaying);
@@ -265,8 +386,6 @@ export default function AlphaVideo({
     video.addEventListener("pause", onPause);
     video.addEventListener("error", onErr);
 
-    /* Kaynak zaten yüklendiyse rAF döngüsü ilk karede çizer;
-       değilse yüklemeyi başlat */
     if (video.readyState < 2) video.load();
 
     return () => {
@@ -279,15 +398,17 @@ export default function AlphaVideo({
       video.removeEventListener("pause", onPause);
       video.removeEventListener("error", onErr);
     };
-  }, [src, report]);
+  }, [src, report, goFallback]);
+
+  /* yedek görsel: video oynatılamıyorsa ya da ilk kare henüz gelmediyse
+     (kısa an boyunca kişi kaybolmasın) */
+  const showFallback = !!fallbackSrc && (blocked || !hasFrame);
 
   return (
     <div
       className={className}
       style={{ position: "relative", overflow: "visible", ...style }}
     >
-      {/* Hata <source> etiketlerinde oluşur; sonuncusu da başarısız
-          olursa video "error" vermez, bu yüzden sonuncuyu dinliyoruz */}
       <video
         ref={videoRef}
         muted
@@ -306,7 +427,7 @@ export default function AlphaVideo({
             const msg = `Video bulunamadı: ${src} (public${src} yolunda olmalı)`;
             setError(msg);
             report("HATA: " + msg);
-            console.error("[AlphaVideo]", msg);
+            goFallback();
           }}
         />
       </video>
@@ -318,8 +439,27 @@ export default function AlphaVideo({
           width: "100%",
           height: "100%",
           transform: flip ? "scaleX(-1)" : undefined,
+          visibility: blocked ? "hidden" : "visible",
         }}
       />
+
+      {showFallback && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={fallbackSrc}
+          alt=""
+          aria-hidden
+          draggable={false}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            transform: flip ? "scaleX(-1)" : undefined,
+          }}
+        />
+      )}
 
       {IS_DEV && error && <div style={ERROR_STYLE}>{error}</div>}
     </div>

@@ -1,15 +1,7 @@
-import RoadmapSection from "@/components/sections/RoadmapSection";
-import FinalState from "@/components/ui/FinalState";
+import SiteFlow from "@/components/SiteFlow";
 
-/* /roadmap — Header'daki SKILLS butonuyla gelinir.
-   Animasyon oynamaz: tüm yetenekler toplanmış, yetenekler paneli
-   yanmış son hali sabit olarak görünür. */
+/* /roadmap — menüdeki SKILLS. Yetenekler toplanmış son hali açılır;
+   yukarı kaydırınca hero, aşağı kaydırınca projeler gelir. */
 export default function RoadmapPage() {
-  return (
-    <main className="h-screen w-screen overflow-hidden">
-      <FinalState>
-        <RoadmapSection finished />
-      </FinalState>
-    </main>
-  );
+  return <SiteFlow start="roadmap" />;
 }

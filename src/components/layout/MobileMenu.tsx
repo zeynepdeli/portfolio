@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FaHome,
@@ -20,7 +20,6 @@ import {
   linkProps,
 } from "@/components/ui/SocialLinks";
 import MenuSlot from "@/components/ui/MenuSlot";
-import GlowConnector, { CONNECTOR_HEIGHT } from "@/components/ui/GlowConnector";
 import { intro, T } from "@/components/ui/Intro";
 
 /* =========================================================
@@ -49,21 +48,28 @@ const ITEMS = [
   { key: "projects", label: "PROJECTS", icon: FaFolderOpen, href: "/projects" },
   { key: "documents", label: "DOCUMENTS", icon: FaFileAlt, href: "/documents" },
 ] as const;
-/** GlowConnector'ın ölçeksiz kalınlığı (yatay çevrilince yüksekliği olur) */
-const CONN_T = 42;
 
 const metal = `
   repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px),
   linear-gradient(180deg, rgb(var(--c-154476,21,68,118)) 0%, rgb(var(--c-0b2b55,11,43,85)) 55%, rgb(var(--c-071c3b,7,28,59)) 100%)
 `;
 
+export type MenuKey = "home" | "skills" | "projects" | "documents";
+
 type Props = {
   powered?: boolean;
+  /** sayfa içinde gezinme (site akışı): true dönerse adres değişmez,
+   *  bölüm aynı sayfada açılır */
+  onNavigate?: (key: MenuKey) => boolean;
   /** düğmenin ekrandaki yeri */
   style?: CSSProperties;
 };
 
-export default function MobileMenu({ powered = false, style }: Props) {
+export default function MobileMenu({
+  powered = false,
+  style,
+  onNavigate,
+}: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -76,20 +82,6 @@ export default function MobileMenu({ powered = false, style }: Props) {
   const pathname = usePathname();
   const current =
     ITEMS.find((m) => m.href && pathname?.startsWith(m.href))?.key ?? "home";
-  const drawerRef = useRef<HTMLDivElement>(null);
-  /* yatay konnektörün ölçeği: çekmece genişliğine yayılsın */
-  const [connScale, setConnScale] = useState(1.1);
-  useEffect(() => {
-    const drawer = drawerRef.current;
-    if (!open || !drawer) return;
-    /* ResizeObserver ilk ölçümü de verir; ayrıca resize dinlemek gerekmez */
-    const observer = new ResizeObserver(() => {
-      setConnScale(Math.min(1.6, (drawer.clientWidth - 48) / CONNECTOR_HEIGHT));
-    });
-    observer.observe(drawer);
-    return () => observer.disconnect();
-  }, [open]);
-
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -212,7 +204,6 @@ export default function MobileMenu({ powered = false, style }: Props) {
           />
 
           <div
-            ref={drawerRef}
             /* sayfayı tamamen kapatmaz: soldan, genişliğin ~%72'si kadar */
             className="absolute top-2 left-2 flex max-h-[calc(100%-16px)] w-[min(72vw,340px)] flex-col overflow-hidden rounded-[22px]"
             style={{
@@ -227,16 +218,7 @@ export default function MobileMenu({ powered = false, style }: Props) {
           >
             {/* üst şerit: başlık + kapat */}
             <div className="relative flex h-14.5 shrink-0 items-center justify-between px-5">
-              <span className="flex items-center gap-2 font-mono text-[10px] tracking-[.26em] text-[rgb(var(--c-5fb8d0,95,184,208))]">
-                <span
-                  className="block size-1.5 rounded-full"
-                  style={{
-                    background: "#5df2a6",
-                    boxShadow: "0 0 6px #5df2a6",
-                  }}
-                />
-                [ NAVIGATION ]
-              </span>
+              <span aria-hidden />
               <button
                 type="button"
                 aria-label="Menüyü kapat"
@@ -251,30 +233,8 @@ export default function MobileMenu({ powered = false, style }: Props) {
               </button>
             </div>
 
-            {/* YATAY KONNEKTÖR — masaüstündeki konnektör 90° çevrilmiş;
-                ışık hüzmesi aşağı, butonlara iner */}
-            <div
-              className="relative mx-auto shrink-0"
-              style={{
-                width: CONNECTOR_HEIGHT * connScale,
-                height: CONN_T * connScale,
-              }}
-            >
-              <div
-                className="absolute top-0 left-0"
-                style={{
-                  width: CONN_T,
-                  height: CONNECTOR_HEIGHT,
-                  transformOrigin: "0 0",
-                  transform: `translateX(${CONNECTOR_HEIGHT * connScale}px) scale(${connScale}) rotate(90deg)`,
-                }}
-              >
-                <GlowConnector lit />
-              </div>
-            </div>
-
             {/* MENÜ */}
-            <nav className="relative z-1 mt-14 flex flex-col gap-3 px-4">
+            <nav className="relative z-1 mt-1 flex flex-col gap-3 px-4">
               {ITEMS.map((item, i) => (
                 <div
                   key={item.key}
@@ -292,6 +252,7 @@ export default function MobileMenu({ powered = false, style }: Props) {
                     onClick={() => {
                       if (!item.href) return;
                       setOpen(false);
+                      if (onNavigate?.(item.key)) return;
                       if (item.href !== pathname) router.push(item.href);
                     }}
                   />
