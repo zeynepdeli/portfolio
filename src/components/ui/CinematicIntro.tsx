@@ -166,7 +166,7 @@ function makeCanvas(W: number, H: number, soft = false) {
   /* yumuşak katmanlar (karanlık perde, ışık hüzmesi) düşük çözünürlükte
      de aynı görünür: zayıf cihazda 1x */
   const dpr = Math.min(
-    isLow() ? (soft && isPerfLite() ? 1 : 1.25) : 2,
+    isLow() || soft ? 1 : 1.5,
     window.devicePixelRatio || 1,
   );
   el.width = Math.round(W * dpr);
@@ -706,21 +706,25 @@ export default function CinematicIntro({
       const a = h.closest("a") as HTMLElement | null;
       if (a) picks.push(a);
     });
+    const lowPower = isLow();
     const pieces: Piece[] = [];
+    /* aynı gruptaki parçalar (her karede filtrelenmesin) */
+    const piecesByGroup = new Map<HTMLElement, Piece[]>();
     picks.forEach((real, i) => {
       const r = real.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) return;
       const box = document.createElement("div");
       box.style.cssText = `position:absolute;left:0;top:0;width:${r.width}px;height:${r.height}px;will-change:transform,opacity;opacity:0;`;
       box.appendChild(makeWire(real));
-      const n = isLow()
-        ? Math.round(Math.min(180, Math.max(80, (r.width * r.height) / 70)))
-        : Math.round(Math.min(520, Math.max(170, (r.width * r.height) / 32)));
+      const n = lowPower
+        ? Math.round(Math.min(110, Math.max(45, (r.width * r.height) / 110)))
+        : Math.round(Math.min(300, Math.max(100, (r.width * r.height) / 48)));
       const left = r.left - rr.left;
       const top = r.top - rr.top;
       const rnd = rng(31 + i * 7);
-      pieces.push({
-        group: (real.closest("[data-build]") as HTMLElement) || real,
+      const group = (real.closest("[data-build]") as HTMLElement) || real;
+      const piece: Piece = {
+        group,
         el: box,
         w: r.width,
         h: r.height,
@@ -735,7 +739,11 @@ export default function CinematicIntro({
         ),
         from: null,
         seed: Array.from({ length: 3 }, () => rnd()),
-      });
+      };
+      pieces.push(piece);
+      const siblings = piecesByGroup.get(group) ?? [];
+      siblings.push(piece);
+      piecesByGroup.set(group, siblings);
     });
     const plateR = ring.r * scUp;
     const fitS = (p: Piece) =>
@@ -1196,7 +1204,7 @@ export default function CinematicIntro({
         }
 
         if (b >= 0.85 && !builtGroups.has(p.group)) {
-          const all = pieces.filter((q) => q.group === p.group);
+          const all = piecesByGroup.get(p.group) ?? [];
           if (all.every((q) => t >= q.land + LAND * 0.85)) {
             builtGroups.add(p.group);
             p.group.classList.add("pb-built");
@@ -1227,7 +1235,8 @@ export default function CinematicIntro({
           L.style.opacity = clamp(q * 6).toFixed(3);
           L.style.transform = `translate3d(${(s.dx * far).toFixed(1)}px, ${(s.dy * far).toFixed(1)}px, ${z.toFixed(1)}px) rotateX(${(s.rx * far).toFixed(1)}deg) rotateY(${(s.ry * far).toFixed(1)}deg) rotateZ(${(s.rz * far).toFixed(1)}deg)`;
           const bl = Math.round(far * 6);
-          setStyle(L, "filter", bl > 0 ? `blur(${bl}px)` : "");
+          /* telefonda harf bulanıklığı yok (her harf ayrı filtre) */
+          setStyle(L, "filter", !lowPower && bl > 0 ? `blur(${bl}px)` : "");
         }
 
         const since = t - nameHit;
