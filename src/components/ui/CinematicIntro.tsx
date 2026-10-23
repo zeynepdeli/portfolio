@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { smoothClock } from "./smoothClock";
+import "./canvasPolyfill";
+import { isPerfLite } from "./perfTier";
 
 /* =========================================================
    SİNEMATİK AÇILIŞ — "fotoğraf → çip → menü"
@@ -74,12 +76,13 @@ const RING_OUTER = 2.3;
 
 const RING_OUTER_MAX = 4.2;
 
-const LIGHT_ON = 0.2;
+/* ışık en baştan yanık (karanlıkta bekleme yok) */
+const LIGHT_ON = 0;
 
 /* FENER: yanar yanmaz DOĞRUDAN fotoğrafa tutulur (eskiden önce sola,
    yanlış yere düşüp sonra kişiyi buluyordu). Yalnızca hafifçe daralır. */
-const SWEEP_AT = 0.2;
-const SWEEP = 0.35;
+const SWEEP_AT = 0;
+const SWEEP = 0.3;
 
 const SWEEP_FROM_X = 0;
 const SWEEP_FROM_Y = 0;
@@ -97,11 +100,6 @@ const BEAM_ALPHA = 0.16;
 
 const MOTES = 120;
 
-const FRONT_LIGHT = 0.3;
-
-const SHADOW_DROP = 0.03; // gölgenin aşağı kayması (× portre boyu)
-const SHADOW_BLUR = 0.045; // gölgenin yumuşaklığı (× portre boyu)
-const SHADOW_OP = 0.6; // gölgenin koyuluğu
 
 const GOLD: [number, number, number] = [242, 196, 128];
 const CREAM: [number, number, number] = [255, 244, 225];
@@ -156,11 +154,18 @@ function sampleShape(
  *  (her karede binlerce nokta çizmek telefonu kasıyordu) */
 const isLow = () =>
   typeof window !== "undefined" &&
-  (window.innerWidth < 768 || window.matchMedia?.("(hover: none)").matches);
+  (window.innerWidth < 768 ||
+    window.matchMedia?.("(hover: none)").matches ||
+    isPerfLite());
 
-function makeCanvas(W: number, H: number) {
+function makeCanvas(W: number, H: number, soft = false) {
   const el = document.createElement("canvas");
-  const dpr = Math.min(isLow() ? 1.25 : 2, window.devicePixelRatio || 1);
+  /* yumuşak katmanlar (karanlık perde, ışık hüzmesi) düşük çözünürlükte
+     de aynı görünür: zayıf cihazda 1x */
+  const dpr = Math.min(
+    isLow() || soft ? 1 : 1.5,
+    window.devicePixelRatio || 1,
+  );
   el.width = Math.round(W * dpr);
   el.height = Math.round(H * dpr);
   el.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none;`;
@@ -373,7 +378,7 @@ export default function CinematicIntro({
 
     const chipFx = makeCanvas(W, H);
     const fx = makeCanvas(W, H);
-    const beam = makeCanvas(W, H);
+    const beam = makeCanvas(W, H, true);
     if (!chipFx || !fx || !beam) {
       finish();
       return;
@@ -388,7 +393,7 @@ export default function CinematicIntro({
       el.style.animation = "none";
       const r = el.getBoundingClientRect();
       el.style.transformOrigin = `${focus.x - (r.left - rr.left)}px ${focus.y - (r.top - rr.top)}px`;
-      el.style.willChange = "transform, opacity, filter";
+      el.style.willChange = "transform, opacity";
       el.style.opacity = "0";
       (el.closest("[data-build]") as HTMLElement | null)?.classList.add(
         "pb-built",
@@ -532,7 +537,10 @@ export default function CinematicIntro({
     };
 
     back.appendChild(chipFx.el);
-    const chipParts = (() => {
+    /* AĞIR HAZIRLIK (parçacık şekillerinin örneklenmesi, buton taslakları)
+       ışık ve portre ekrana geldikten SONRA yapılır: eskiden hepsi açılışın
+       ilk karesinden önce yapıldığı için sahne karanlıkta bekliyordu. */
+    const buildChipParts = () => {
       const plate = ring.r / RING_RATIO;
       const lead = plate * 0.075;
       const E = plate * 0.72 + lead; // döndürülmüş kare + pinler
@@ -599,7 +607,8 @@ export default function CinematicIntro({
           size: 1.4 + rnd() * 1.5,
         };
       });
-    })();
+    };
+    let chipParts: ReturnType<typeof buildChipParts> = [];
     let chipFxDone = false;
     const drawChipFx = (t: number) => {
       const ctx = chipFx.ctx;
@@ -698,21 +707,25 @@ export default function CinematicIntro({
       const a = h.closest("a") as HTMLElement | null;
       if (a) picks.push(a);
     });
+    const lowPower = isLow();
     const pieces: Piece[] = [];
-    picks.forEach((real, i) => {
+    /* aynı gruptaki parçalar (her karede filtrelenmesin) */
+    const piecesByGroup = new Map<HTMLElement, Piece[]>();
+    const buildPieces = () => picks.forEach((real, i) => {
       const r = real.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) return;
       const box = document.createElement("div");
       box.style.cssText = `position:absolute;left:0;top:0;width:${r.width}px;height:${r.height}px;will-change:transform,opacity;opacity:0;`;
       box.appendChild(makeWire(real));
-      const n = isLow()
-        ? Math.round(Math.min(180, Math.max(80, (r.width * r.height) / 70)))
-        : Math.round(Math.min(520, Math.max(170, (r.width * r.height) / 32)));
+      const n = lowPower
+        ? Math.round(Math.min(110, Math.max(45, (r.width * r.height) / 110)))
+        : Math.round(Math.min(300, Math.max(100, (r.width * r.height) / 48)));
       const left = r.left - rr.left;
       const top = r.top - rr.top;
       const rnd = rng(31 + i * 7);
-      pieces.push({
-        group: (real.closest("[data-build]") as HTMLElement) || real,
+      const group = (real.closest("[data-build]") as HTMLElement) || real;
+      const piece: Piece = {
+        group,
         el: box,
         w: r.width,
         h: r.height,
@@ -727,7 +740,11 @@ export default function CinematicIntro({
         ),
         from: null,
         seed: Array.from({ length: 3 }, () => rnd()),
-      });
+      };
+      pieces.push(piece);
+      const siblings = piecesByGroup.get(group) ?? [];
+      siblings.push(piece);
+      piecesByGroup.set(group, siblings);
     });
     const plateR = ring.r * scUp;
     const fitS = (p: Piece) =>
@@ -796,7 +813,7 @@ export default function CinematicIntro({
        sahnenin "fotoğraf çeker gibi" kararıp açılmasına ve spotun hiç
        görünmemesine yol açıyordu. Artık tuvale çiziliyor: her tarayıcıda
        aynı ve hafif. */
-    const veilCv = makeCanvas(W, H);
+    const veilCv = makeCanvas(W, H, true);
     const VEIL_FILL = "rgba(3,5,12,.96)";
     /* perde değişmediyse yeniden çizilmez (spot dururken her kare tam
        ekran boyamak telefonu boşuna yoruyordu) */
@@ -843,6 +860,7 @@ export default function CinematicIntro({
 
     layer.insertBefore(beam.el, spot);
     const mr = rng(2718);
+    const liteBeam = isPerfLite();
     const motes = Array.from({ length: isLow() ? 40 : MOTES }, () => ({
       u: 0.12 + mr() * 0.85, // hüzme boyunca
       v: mr() * 2 - 1, // hüzmenin enine
@@ -855,8 +873,8 @@ export default function CinematicIntro({
        yanıyordu: ekran "yanıp sönüyor" gibi görünüyordu) */
     const lampAt = (tr: number) => {
       const u = tr - LIGHT_ON;
-      if (u <= 0) return 0;
-      return ease(clamp(u / 0.55));
+      /* ilk karede de ışık var (yüklenirken görünen ışıkla aynı) */
+      return 0.6 + 0.4 * ease(clamp(u / 0.25));
     };
 
     const aim = (q: number) => {
@@ -869,12 +887,19 @@ export default function CinematicIntro({
     let nameCalled = false;
     let settleCalled = false;
     let avatarCalled = false;
-    const endAt =
+    const endOf = () =>
       Math.max(
         T_SETTLE + SETTLE,
         nameEnd + 0.35,
         ...pieces.map((p) => p.land + LAND * 1.25),
       ) + 0.3;
+    /* parçalar hazırlanana kadar geçici bitiş (hazırlanınca kesinleşir) */
+    let endAt = endOf() + 5;
+    const heavy = window.setTimeout(() => {
+      chipParts = buildChipParts();
+      buildPieces();
+      endAt = endOf();
+    }, 40);
     /* takılmada sahne ileri SIÇRAMAZ (parçalar bir anda yerinde
        belirmesin): ani boşluklar kırpılır */
     const clock = smoothClock();
@@ -926,6 +951,7 @@ export default function CinematicIntro({
      *  karede yeniden hesaplanmasın (telefonda en pahalı iş buydu) */
     const q = (v: number, step: number) => Math.round(v / step) * step;
     let lastSpotBg = "";
+    let lastBeamKey = "-";
 
     const frame = (now: number) => {
       /* tr: gerçek zaman (ışık buna göre); t: geri kalan her şeyin zamanı,
@@ -984,7 +1010,16 @@ export default function CinematicIntro({
       drawVeil(sx, sy, rx, ry, I, 1 - rim);
       if (veilCv) setStyle(veilCv.el, "opacity", String(1 - houseUp));
 
-      {
+      /* hafif modda hüzmede toz zerresi yok → hüzme değişmedikçe
+         yeniden çizilmez */
+      /* açılıştaki karar sabit kalır: oynarken hafif moda geçilse de
+         hüzmenin görünüşü bir anda değişmesin (zerreler pat diye
+         kaybolmasın) */
+      const beamKey = liteBeam
+        ? `${sx.toFixed(1)},${sy.toFixed(1)},${rx.toFixed(1)},${ry.toFixed(1)},${(I * (1 - houseUp)).toFixed(3)}`
+        : "";
+      if (!liteBeam || beamKey !== lastBeamKey) {
+        lastBeamKey = beamKey;
         const b = beam.ctx;
         b.clearRect(0, 0, W, H);
         const bI = I * (1 - houseUp);
@@ -1020,7 +1055,7 @@ export default function CinematicIntro({
             b.fill();
           }
 
-          for (const m of motes) {
+          if (!liteBeam) for (const m of motes) {
             const u = (m.u + tr * 0.012 * m.sp) % 1;
             if (u < 0.1) continue;
             const v = m.v + Math.sin(tr * m.sp + m.ph) * 0.06;
@@ -1041,7 +1076,7 @@ export default function CinematicIntro({
       const onSubject = clamp(found);
       const light = I * onSubject * (1 - ease(clamp((t - T_SETTLE) / SETTLE)));
       const faceY = vy - ph * 0.12 * pScale;
-      const spotBg = `radial-gradient(ellipse ${f1(pw * 0.9 * pScale)}px ${f1(ph * 0.7 * pScale)}px at ${f1(vx)}px ${f1(faceY)}px, rgba(255,236,210,.2) 0%, rgba(255,236,210,.08) 50%, rgba(255,236,210,0) 100%)`;
+      const spotBg = `radial-gradient(ellipse ${f1(pw * 0.9 * pScale)}px ${f1(ph * 0.7 * pScale)}px at ${f1(vx)}px ${f1(faceY)}px, rgba(255,236,210,.26) 0%, rgba(255,236,210,.1) 50%, rgba(255,236,210,0) 100%)`;
       if (spotBg !== lastSpotBg) {
         lastSpotBg = spotBg;
         spot.style.background = spotBg;
@@ -1052,19 +1087,13 @@ export default function CinematicIntro({
          Spot üstüne gelince önden aydınlanır, gölgesi arkasına düşer */
       const photoK = easeOut((tr - LIGHT_ON) / 0.3);
       const photoOp = String(photoK);
-      const lq = q(light, 0.125);
-      const shadow =
-        lq > 0.01
-          ? ` drop-shadow(0 ${f1(ph * SHADOW_DROP * lq)}px ${f1(ph * SHADOW_BLUR)}px rgba(0,0,0,${(SHADOW_OP * lq).toFixed(2)}))`
-          : "";
-      const photoFilter =
-        lq > 0.01
-          ? `brightness(${(1 + FRONT_LIGHT * lq).toFixed(3)}) contrast(${(1 + 0.08 * lq).toFixed(3)}) saturate(${(1 + 0.06 * lq).toFixed(3)})${shadow}`
-          : "";
-      portraits.forEach((el) => {
-        setStyle(el, "opacity", photoOp);
-        setStyle(el, "filter", photoFilter);
-      });
+      /* Portreye FİLTRE YOK (eskiden brightness + contrast + drop-shadow):
+         el sallama videosu portrenin içinde oynadığı için tarayıcı her
+         video karesinde bütün portreyi bulanık gölgesiyle yeniden
+         hesaplıyordu. 2x (retina / 2560px) ekranda piksel sayısı 4 kat →
+         tümleşik ekran kartı yetişemiyor, el sallama başlarken portre
+         titriyordu. Önden ışık = spot katmanı, gölge = PortraitGlow. */
+      portraits.forEach((el) => setStyle(el, "opacity", photoOp));
       placePortrait(st.k, 0.94 + 0.06 * photoK);
 
       if (!chipFxDone) drawChipFx(t);
@@ -1180,7 +1209,7 @@ export default function CinematicIntro({
         }
 
         if (b >= 0.85 && !builtGroups.has(p.group)) {
-          const all = pieces.filter((q) => q.group === p.group);
+          const all = piecesByGroup.get(p.group) ?? [];
           if (all.every((q) => t >= q.land + LAND * 0.85)) {
             builtGroups.add(p.group);
             p.group.classList.add("pb-built");
@@ -1211,7 +1240,8 @@ export default function CinematicIntro({
           L.style.opacity = clamp(q * 6).toFixed(3);
           L.style.transform = `translate3d(${(s.dx * far).toFixed(1)}px, ${(s.dy * far).toFixed(1)}px, ${z.toFixed(1)}px) rotateX(${(s.rx * far).toFixed(1)}deg) rotateY(${(s.ry * far).toFixed(1)}deg) rotateZ(${(s.rz * far).toFixed(1)}deg)`;
           const bl = Math.round(far * 6);
-          setStyle(L, "filter", bl > 0 ? `blur(${bl}px)` : "");
+          /* telefonda harf bulanıklığı yok (her harf ayrı filtre) */
+          setStyle(L, "filter", !lowPower && bl > 0 ? `blur(${bl}px)` : "");
         }
 
         const since = t - nameHit;
@@ -1284,6 +1314,7 @@ export default function CinematicIntro({
     raf = requestAnimationFrame(frame);
 
     return () => {
+      window.clearTimeout(heavy);
       cancelAnimationFrame(raf);
       cleanup();
     };
@@ -1298,7 +1329,11 @@ export default function CinematicIntro({
       <div
         ref={veilRef}
         className="absolute inset-0"
-        style={{ background: "rgba(3,5,12,.96)" }}
+        /* tuval çizilene kadarki ilk kare: ortası aydınlık perde */
+        style={{
+          background:
+            "radial-gradient(ellipse 30% 38% at 50% 50%, rgba(3,5,12,.5), rgba(3,5,12,.96) 75%)",
+        }}
       />
 
       <div

@@ -3,6 +3,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -412,7 +413,22 @@ const FROST_PATH = (() => {
    "kişi nehirde nerede?" hesabı aynı veriden üretilir.
 ========================================================= */
 type Seg = [number, number, number, number, number, number];
-type StreamGeo = { start: [number, number]; curves: Seg[] };
+type StreamGeo = {
+  start: [number, number];
+  curves: Seg[];
+  /** ekran dışındaki giriş payının uzunluğu (fan birimi; köşeden girişte) */
+  lead?: number;
+};
+
+/** ekranın sağ üst köşesi, fan (SVG) koordinatında — ölçülür */
+type Corner = {
+  /** köşe noktası */
+  k: [number, number];
+  /** ekrandan dışarı (sağ-yukarı) birim yön */
+  out: [number, number];
+  /** ekranda aşağı (biraz sola) birim yön */
+  down: [number, number];
+};
 
 /** Masaüstü (fan sağda): ekranın SAĞ ÜST köşesinden (yol haritasındaki
     nehrin bittiği köşe) girer, sola-aşağı iner, kıvrılıp soldan göbeğe akar */
@@ -442,6 +458,7 @@ function buildStreamGeo(
   viewTop: number,
   viewLeft: number,
   extra = 0,
+  corner: Corner | null = null,
 ): StreamGeo {
   const route = upright ? ROUTE_TALL : ROUTE_WIDE;
   /* ekran ofseti (dx, dy) → fan noktası (dikeyde fan 90° dönük) */
@@ -450,6 +467,32 @@ function buildStreamGeo(
   const curves = route.curves.map(
     ([a, b, c, d, e, f]) => [...map(a, b), ...map(c, d), ...map(e, f)] as Seg,
   );
+  /* EKRANIN TAM SAĞ ÜST KÖŞESİNDEN GİRİŞ (yol haritasındaki nehrin
+     bittiği köşe): köşenin biraz dışından başlar, köşeden içeri girip
+     rotanın ilk kıvrımına bağlanır */
+  if (corner) {
+    const [kx, ky] = corner.k;
+    const [, , c2x, c2y, ex, ey] = curves[0];
+    const span = Math.hypot(ex - kx, ey - ky);
+    const lead = 90;
+    const entry: [number, number] = [
+      kx + corner.out[0] * lead,
+      ky + corner.out[1] * lead,
+    ];
+    const c1: [number, number] = [
+      kx + corner.down[0] * span * 0.45,
+      ky + corner.down[1] * span * 0.45,
+    ];
+    return {
+      start: entry,
+      lead,
+      curves: [
+        [...entry, kx, ky, kx, ky] as Seg,
+        [...c1, c2x, c2y, ex, ey] as Seg,
+        ...curves.slice(1),
+      ],
+    };
+  }
   const [sdx, sdy] = route.start;
   const first = map(sdx, sdy);
   const reach =
@@ -628,6 +671,7 @@ function buildCard(
   upright = false,
   entryExtra = 0,
   rightR = CORNER_R_RIGHT,
+  corner: Corner | null = null,
 ) {
   const L = SHROUD_LEFT + cover;
   /* sağ kenar: (küçültülmüş) göbeğin bittiği yer */
@@ -709,7 +753,7 @@ function buildCard(
   const viewTop = top - padY;
   const viewH = bottom - top + padY * 2;
   /* akış her zaman görünür alanın ÜSTÜNDEN başlasın */
-  const stream = buildStreamGeo(upright, viewTop, viewLeft, entryExtra);
+  const stream = buildStreamGeo(upright, viewTop, viewLeft, entryExtra, corner);
 
   return {
     viewTop,
@@ -921,10 +965,49 @@ function ProjectFan({
   entryExtra = 0,
   rightR = CORNER_R_RIGHT,
 }: FanProps) {
+  /* ekranın sağ üst köşesi fan koordinatında: nehir tam oradan girer.
+     Sayfanın geçiş dönüşümü (transform) ölçüm anında kaldırılır —
+     sayfa yerindeyken köşe nerede olacaksa orası. */
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [corner, setCorner] = useState<Corner | null>(null);
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const measure = () => {
+      const sec = svg.closest<HTMLElement>(".flow-sec");
+      const prev = sec?.style.transform ?? "";
+      if (sec) sec.style.transform = "none";
+      const m = svg.getScreenCTM();
+      if (sec) sec.style.transform = prev;
+      if (!m) return;
+      const inv = m.inverse();
+      const pt = (x: number, y: number): [number, number] => [
+        inv.a * x + inv.c * y + inv.e,
+        inv.b * x + inv.d * y + inv.f,
+      ];
+      const dir = (x: number, y: number): [number, number] => {
+        const v = [inv.a * x + inv.c * y, inv.b * x + inv.d * y];
+        const l = Math.hypot(v[0], v[1]) || 1;
+        return [v[0] / l, v[1] / l];
+      };
+      const k = pt(window.innerWidth, 0);
+      const next: Corner = { k, out: dir(1, -1), down: dir(-0.35, 1) };
+      setCorner((c) =>
+        c && Math.abs(c.k[0] - k[0]) < 0.5 && Math.abs(c.k[1] - k[1]) < 0.5
+          ? c
+          : next,
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, []);
+
   /* kart geometrisi; aşağıdaki JSX bu isimleri kullanır */
   const card = useMemo(
-    () => buildCard(cover, hubK, tall, upright, entryExtra, rightR),
-    [cover, hubK, tall, upright, entryExtra, rightR],
+    () => buildCard(cover, hubK, tall, upright, entryExtra, rightR, corner),
+    [cover, hubK, tall, upright, entryExtra, rightR, corner],
   );
   const {
     shroudLeft,
@@ -1002,13 +1085,26 @@ function ProjectFan({
         streamLut,
         rideEnd * easeInOutCubic(phase(s, 0, ARRIVE)),
       );
-      const inside = upright
-        ? p.x >= viewLeft - entryExtra + margin
-        : p.y >= viewTop + margin;
+      const inside =
+        stream.lead !== undefined
+          ? rideEnd * easeInOutCubic(phase(s, 0, ARRIVE)) * streamTotal >=
+            stream.lead
+          : upright
+            ? p.x >= viewLeft - entryExtra + margin
+            : p.y >= viewTop + margin;
       if (inside) return Math.max(0, s - 60);
     }
     return 0;
-  }, [streamLut, rideEnd, upright, viewLeft, viewTop, entryExtra]);
+  }, [
+    streamLut,
+    rideEnd,
+    upright,
+    viewLeft,
+    viewTop,
+    entryExtra,
+    stream.lead,
+    streamTotal,
+  ]);
   const [tState, setT] = useState(() => (finished ? buildEnd : 0));
   const [fanRot, setFanRot] = useState(FACE_ANGLE - activeIndex * step);
   const [prevPlay, setPrevPlay] = useState(play);
@@ -1253,6 +1349,7 @@ function ProjectFan({
       }
     >
       <svg
+        ref={svgRef}
         viewBox={`${viewLeft} ${viewTop} ${viewW} ${viewH}`}
         className="size-full overflow-visible"
       >
@@ -2643,19 +2740,17 @@ function SwingingLegs({
       {/* baldırlar dizden sallanır */}
       {SIT_LEGS.map((l, i) => {
         const [px, py] = P(l.pivot).split(",");
+        /* SVG <animateTransform> yerine CSS animasyonu: gizli bölümde
+           durabilir (SMIL hiç durmuyordu) */
+        const swing = {
+          transformBox: "view-box",
+          transformOrigin: `${px}px ${py}px`,
+          "--a0": `${-l.amp}deg`,
+          "--a1": `${l.amp}deg`,
+          animation: `svgLegSwing ${LEG_SWING_S / 2}s cubic-bezier(.45,0,.55,1) ${l.delay} infinite alternate`,
+        } as CSSProperties;
         return (
-          <g key={i}>
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              values={`${-l.amp} ${px} ${py}; ${l.amp} ${px} ${py}; ${-l.amp} ${px} ${py}`}
-              keyTimes="0; .5; 1"
-              calcMode="spline"
-              keySplines=".45 0 .55 1; .45 0 .55 1"
-              dur={`${LEG_SWING_S}s`}
-              begin={l.delay}
-              repeatCount="indefinite"
-            />
+          <g key={i} style={swing}>
             <g clipPath={`url(#${uid}-leg${i})`}>{img}</g>
           </g>
         );

@@ -7,6 +7,12 @@ body {
   background: rgb(3, 5, 12);
 }
 
+/* tam ekran yüksekliği: eski Safari (iOS < 15.4) dvh bilmez → vh */
+.hero-h {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /*
   ============================================
   DESIGN TOKENS — Tek kaynak, tüm renkler burada
@@ -89,3 +95,17 @@ body {
 }
 
 
+
+/* SVG içi sonsuz animasyonlar (eskiden SMIL <animate> idi: gizli
+   bölümde ya da hafif modda durdurulamıyordu) */
+@keyframes svgLegSwing {
+  from { transform: rotate(var(--a0)); }
+  to { transform: rotate(var(--a1)); }
+}
+.cable-flow { animation: cableFlow 0.7s linear infinite; }
+.cable-flow-rev { animation-name: cableFlowRev; }
+@keyframes cableFlow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 36; } }
+@keyframes cableFlowRev { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -36; } }
+@media (prefers-reduced-motion: reduce) {
+  .cable-flow { animation: none; }
+}

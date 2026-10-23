@@ -425,6 +425,14 @@ export default function HeroSection({
   const [portraitLanded, setPortraitLanded] = useState(false);
   /* el sallama videosu bitti mi (bitince son karenin fotoğrafı kalır) */
   const [waveEnded, setWaveEnded] = useState(false);
+  /* video bitip söndükten sonra tuvali kaldır (görünmez de olsa GPU'da
+     ayrı bir katman olarak yer tutuyordu) */
+  const [waveGone, setWaveGone] = useState(false);
+  useEffect(() => {
+    if (!waveEnded) return;
+    const t = window.setTimeout(() => setWaveGone(true), 900);
+    return () => window.clearTimeout(t);
+  }, [waveEnded]);
   /* video gerçekten oynamaya başladı mı (ilk kare çizildi) */
   const [waveStarted, setWaveStarted] = useState(false);
   const [dim, setDim] = useState(false);
@@ -490,10 +498,11 @@ export default function HeroSection({
         window.clearTimeout(t);
       };
     }
-    const id = window.setTimeout(() => setCineGo(true), 150);
+    /* bekleme yok: sahne kurulur kurulmaz ışık yanık başlar */
+    const id = window.requestAnimationFrame(() => setCineGo(true));
     return () => {
       window.cancelAnimationFrame(raf);
-      window.clearTimeout(id);
+      window.cancelAnimationFrame(id);
     };
   }, [final]);
 
@@ -654,7 +663,7 @@ export default function HeroSection({
   const section = (
     <section
       ref={sectionRef}
-      className={`relative flex h-dvh w-full flex-col overflow-hidden ${waiting ? "pb-wait" : ""}`}
+      className={`hero-h relative flex w-full flex-col overflow-hidden ${waiting ? "pb-wait" : ""}`}
     >
       <IntroStyles />
 
@@ -1126,7 +1135,7 @@ export default function HeroSection({
             )}
 
             {/* EL SALLAMA VİDEOSU — ışık tutulunca bir kez oynar */}
-            {portraitGo && !final && (
+            {portraitGo && !final && !waveGone && (
               <>
                 <WaveVideo
                   src={WAVE_VIDEO}
@@ -1141,11 +1150,7 @@ export default function HeroSection({
                     height: ph,
                     opacity: waveStarted && !waveEnded ? 1 : 0,
                     transition: waveEnded ? "opacity 350ms ease 250ms" : "none",
-                    WebkitMaskImage:
-                      "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
-                    maskImage:
-                      "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
-                    filter: portraitFilter(),
+                    /* süzgeç ve alt sönüş gölgelendiricide (WaveVideo) */
                   }}
                 />
                 {/* son kare önceden yüklensin: video bitince anında görünsün */}

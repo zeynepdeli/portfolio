@@ -218,12 +218,16 @@ type Props = {
   /** içerik açılış animasyonu (sayfa geçişi BAŞLARKEN true): yazı,
    *  kutular ve nehir sırayla yerine oturur. Verilmezse open ile aynı. */
   reveal?: boolean;
+  /** tırmanma videosu önceden hazırlansın mı (sıra footer'a yaklaşınca).
+   *  Verilmezse hep hazır. Açılışta indirilip kritik dosyalarla yarışmasın */
+  prepare?: boolean;
 };
 
 export default function FooterSection({
   open,
   topFade = TOP_FADE,
   reveal,
+  prepare = true,
 }: Props) {
   const rootRef = useRef<HTMLElement>(null);
   const riverRef = useRef<HTMLDivElement>(null);
@@ -670,7 +674,7 @@ export default function FooterSection({
       {/* video baştan (gizli, duraklatılmış) hazır bekler: footer
           yükselmeye başlar başlamaz tırmanış ANINDA başlar (eskiden video
           o an yüklenmeye başlıyor, avatar geç geliyordu) */}
-      {(phase === "idle" || phase === "climb") && (
+      {(phase === "climb" || (phase === "idle" && prepare)) && (
         <div
           className="pointer-events-none absolute z-40 overflow-hidden"
           style={{
@@ -959,110 +963,170 @@ function BinaryRiver({
       className="ft-river absolute inset-0 overflow-hidden"
       aria-hidden
     >
+      {/* PERFORMANS: eskiden tek bir SVG'nin İÇİNDEKİ grupları ve 12
+          rakamı canlandırıyordu — SVG içi hareket ekran kartına
+          devredilemez, nehir sayfa dururken bile her kare yeniden
+          boyanıyordu. Artık her hareketli parça kendi HTML katmanında ve
+          yalnızca transform / opacity ile kayar (yeniden boyama yok). */}
       {w > 0 && (
-        <svg width={w} height={H} className="absolute inset-0">
-          <defs>
-            <linearGradient id="ftRiverWater" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#0e3b6b" />
-              <stop offset=".45" stopColor="#0a2c52" />
-              <stop offset="1" stopColor="#04142a" />
-            </linearGradient>
-            <clipPath id="ftRiverClip">
-              <rect x="0" y={SURF - 10} width={w} height={H} />
-            </clipPath>
-          </defs>
+        <>
+          <svg width={0} height={0} className="absolute" aria-hidden>
+            <defs>
+              <linearGradient id="ftRiverWater" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#0e3b6b" />
+                <stop offset=".45" stopColor="#0a2c52" />
+                <stop offset="1" stopColor="#04142a" />
+              </linearGradient>
+            </defs>
+          </svg>
 
-          <g style={{ animation: "ftWaveX 9s linear infinite" }}>
-            <path d={body(SURF - 6, 5)} fill={`rgba(${EDGE},.10)`} />
-          </g>
-          <g style={{ animation: "ftWaveX 6s linear infinite" }}>
-            <path d={body(SURF, 6)} fill="url(#ftRiverWater)" />
-            <path
-              d={surface(SURF, 6)}
-              fill="none"
-              stroke={`rgba(${ICE},${powered ? 0.8 : 0.45})`}
-              strokeWidth="1.4"
-              style={{ transition: "stroke 700ms" }}
-            />
-            <path
-              d={surface(SURF, 6)}
-              fill="none"
-              stroke={`rgba(${EDGE},${powered ? 0.35 : 0.18})`}
-              strokeWidth="6"
-            />
-          </g>
+          {/* dalgalar: bir dalga boyu kadar sola kayıp başa döner */}
+          <div
+            className="absolute top-0"
+            style={{
+              left: -L,
+              width: w + 2 * L,
+              height: H,
+              animation: "ftWaveX 9s linear infinite",
+            }}
+          >
+            <svg
+              width={w + 2 * L}
+              height={H}
+              viewBox={`${-L} 0 ${w + 2 * L} ${H}`}
+              className="absolute inset-0"
+            >
+              <path d={body(SURF - 6, 5)} fill={`rgba(${EDGE},.10)`} />
+            </svg>
+          </div>
+          <div
+            className="absolute top-0"
+            style={{
+              left: -L,
+              width: w + 2 * L,
+              height: H,
+              animation: "ftWaveX 6s linear infinite",
+            }}
+          >
+            <svg
+              width={w + 2 * L}
+              height={H}
+              viewBox={`${-L} 0 ${w + 2 * L} ${H}`}
+              className="absolute inset-0"
+            >
+              <path d={body(SURF, 6)} fill="url(#ftRiverWater)" />
+              <path
+                d={surface(SURF, 6)}
+                fill="none"
+                stroke={`rgba(${ICE},${powered ? 0.8 : 0.45})`}
+                strokeWidth="1.4"
+                style={{ transition: "stroke 700ms" }}
+              />
+              <path
+                d={surface(SURF, 6)}
+                fill="none"
+                stroke={`rgba(${EDGE},${powered ? 0.35 : 0.18})`}
+                strokeWidth="6"
+              />
+            </svg>
+          </div>
 
-          <g clipPath="url(#ftRiverClip)">
-            {lanes.map((l, i) => {
-              const style: CSSVars = {
-                "--len": "-600px",
-                animation: `ftLaneFlow ${l.dur}s linear infinite`,
-                transition: "stroke-opacity 700ms",
-              };
-              return (
-                <line
-                  key={i}
-                  x1={-20}
-                  x2={w + 20}
-                  y1={l.y}
-                  y2={l.y}
-                  stroke={l.c}
-                  strokeWidth={l.wdt}
-                  strokeOpacity={powered ? l.o * 1.6 : l.o}
-                  strokeDasharray={l.dash}
-                  strokeLinecap="round"
-                  style={style}
-                />
-              );
-            })}
+          {/* suyun içi (yüzeyin altı kırpılır) */}
+          <div
+            className="absolute inset-x-0 overflow-hidden"
+            style={{ top: SURF - 10, height: Math.max(0, H - SURF + 10) }}
+          >
+            {/* akan çizgiler (hafif modda durur) */}
+            <svg
+              width={w}
+              height={H}
+              className="absolute left-0"
+              style={{ top: -(SURF - 10) }}
+            >
+              {lanes.map((l, i) => {
+                const style: CSSVars = {
+                  "--len": "-600px",
+                  animation: `ftLaneFlow ${l.dur}s linear infinite`,
+                  transition: "stroke-opacity 700ms",
+                };
+                return (
+                  <line
+                    key={i}
+                    className="ft-lane"
+                    x1={-20}
+                    x2={w + 20}
+                    y1={l.y}
+                    y2={l.y}
+                    stroke={l.c}
+                    strokeWidth={l.wdt}
+                    strokeOpacity={powered ? l.o * 1.6 : l.o}
+                    strokeDasharray={l.dash}
+                    strokeLinecap="round"
+                    style={style}
+                  />
+                );
+              })}
+            </svg>
 
+            {/* akan 0-1 satırları */}
             {bitLines.map(({ k, y, txt }) => {
               const style: CSSVars = {
                 "--w": `${w}px`,
+                left: -w,
+                top: -(SURF - 10),
+                width: 2 * w,
+                height: H,
                 animation: `ftBitsFlow ${38 + k * 12}s linear infinite`,
               };
               return (
-                <g key={k} style={style}>
-                  {[-w, 0].map((x) => (
-                    <text
-                      key={x}
-                      x={x}
-                      y={y}
-                      fontFamily={MONO}
-                      fontSize={10 + k}
-                      letterSpacing="2"
-                      fill={`rgba(${ICE},${0.13 + k * 0.04})`}
-                    >
-                      {txt}
-                    </text>
-                  ))}
-                </g>
+                <div key={k} className="ft-bits absolute" style={style}>
+                  <svg
+                    width={2 * w}
+                    height={H}
+                    viewBox={`${-w} 0 ${2 * w} ${H}`}
+                    className="absolute inset-0"
+                  >
+                    {[-w, 0].map((x) => (
+                      <text
+                        key={x}
+                        x={x}
+                        y={y}
+                        fontFamily={MONO}
+                        fontSize={10 + k}
+                        letterSpacing="2"
+                        fill={`rgba(${ICE},${0.13 + k * 0.04})`}
+                      >
+                        {txt}
+                      </text>
+                    ))}
+                  </svg>
+                </div>
               );
             })}
 
+            {/* süzülen büyük rakamlar */}
             {digits.map((d, i) => {
               const style: CSSVars = {
                 "--w": `${w + 60}px`,
                 "--o": d.o,
+                left: -30,
+                top: d.y - (SURF - 10) - d.size * 0.8,
+                fontFamily: MONO,
+                fontSize: d.size,
+                lineHeight: 1,
+                fontWeight: 600,
+                color: "#cfe6ff",
+                opacity: 0,
                 animation: `ftDigit ${d.dur}s linear ${d.delay}s infinite`,
               };
               return (
-                <text
-                  key={i}
-                  x={-30}
-                  y={d.y}
-                  fontFamily={MONO}
-                  fontSize={d.size}
-                  fontWeight="600"
-                  fill="#cfe6ff"
-                  style={style}
-                >
+                <span key={i} className="ft-digit absolute" style={style}>
                   {d.ch}
-                </text>
+                </span>
               );
             })}
-          </g>
-        </svg>
+          </div>
+        </>
       )}
     </div>
   );

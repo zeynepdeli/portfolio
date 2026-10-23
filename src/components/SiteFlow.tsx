@@ -13,11 +13,12 @@ import HeroSection from "@/components/sections/HeroSection";
 import RoadmapSection from "@/components/sections/RoadmapSection";
 import ProjectsSection from "@/components/sections/ProjectsSection";
 import FooterSection from "@/components/sections/FooterSection";
-import SiteAvatar from "@/components/ui/SiteAvatar";
+import SiteAvatar, { type ExitPlan } from "@/components/ui/SiteAvatar";
 import { type MenuKey } from "@/components/layout/MobileMenu";
 import SiteMenu from "@/components/layout/SiteMenu";
 import FinalState from "@/components/ui/FinalState";
 import { ThemeStyles } from "@/components/ui/Theme";
+import { PERF_LITE_CSS, startPerfTier } from "@/components/ui/perfTier";
 import {
   ALL_AVATAR_IMAGES,
   IMG,
@@ -49,8 +50,23 @@ import {
    sonra kaymaz.
 ========================================================= */
 
-/** açılış sahnesinin karanlığı (CinematicIntro perdesiyle aynı) */
-const STAGE_DARK = "rgb(3,5,12)";
+/** açılış sahnesi ışık yanık hali (site yüklenirken görünür):
+ *  karanlık zemin + yukarıdan inen hüzme + ortada portre ışığı */
+const STAGE_LIT = {
+  background: [
+    /* portrenin duracağı yerde sıcak ışık havuzu */
+    "radial-gradient(ellipse min(46vw, 36vh) min(40vw, 34vh) at 50% 50%, rgba(255,236,210,.16), rgba(255,236,210,.06) 55%, transparent 78%)",
+    "rgb(3,5,12)",
+  ].join(", "),
+} as const;
+/* yukarıdan inen fener hüzmesi (sahnedeki hüzmeyle aynı biçim; kenarları
+   yumuşak: bulanıklık dıştaki kutuda, kesim içtekinde) */
+const STAGE_BEAM_SOFT = { filter: "blur(14px)" } as const;
+const STAGE_BEAM = {
+  clipPath: "polygon(46% 0, 54% 0, 80% 100%, 20% 100%)",
+  background:
+    "linear-gradient(to bottom, rgba(255,238,212,.2), rgba(255,238,212,.08) 45%, transparent 75%)",
+} as const;
 
 export type FlowStart = "story" | "hero" | "roadmap" | "projects" | "footer";
 
@@ -64,15 +80,12 @@ const FOOTER_MS = 1400;
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
 const ARRIVE_PAUSE_MS = 140;
-/** roadmap avatarının düşmeye başladığı an (geçişin oranı): sayfa
- *  yavaşlarken üstten girer, sayfa oturduktan hemen sonra suya iner */
-const ROADMAP_FALL_AT = 0.7;
-/** hero avatarının ekrandan aşağı dalıp çıkması (ms, SiteAvatar EXIT_MS) */
-const HERO_EXIT_MS = 1050;
 /** projelerde kişi, geçişin bu oranında akmaya başlar */
 const PROJECTS_ENTER_AT = 0.5;
 /** sahne kurulmadan önce yazı tipi / görsel için en fazla bekleme (ms) */
-const READY_MAX_MS = 1500;
+const READY_MAX_MS = 700;
+/** yazı tipi için en fazla bekleme (ms) */
+const FONT_WAIT_MS = 300;
 /** her bölümün açılışta HAZIR olması gereken görselleri */
 const CRITICAL_IMAGES: Record<FlowStart, string[]> = {
   story: [IMG.waveStart, IMG.climbStill],
@@ -141,6 +154,9 @@ const show = (el: HTMLElement | null, on: boolean) => {
   if (!el) return;
   const v = on ? "visible" : "hidden";
   if (el.style.visibility !== v) el.style.visibility = v;
+  /* görünmeyen bölümün sonsuz döngülü süs animasyonları (akan çizgiler,
+     yanıp sönen ışıklar) durur: gizliyken de her kare hesaplanıyordu */
+  el.classList.toggle("flow-off", !on);
 };
 
 type Prog = { hero: number; projects: number; footer: number };
@@ -225,24 +241,21 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   /* HAZIRLIK: yazı tipleri + bu bölümün avatar görselleri (en fazla
      READY_MAX_MS). Sonra sahne kurulur; kalan görseller arkadan iner. */
   const [ready, setReady] = useState(false);
-  /* bekleme uzarsa (yavaş bağlantı) küçük bir yükleniyor yazısı */
-  const [slow, setSlow] = useState(false);
   useEffect(() => {
     let alive = true;
-    const slowT = window.setTimeout(() => setSlow(true), 1200);
+    /* yazı tipini kısa bekle (isim sonra ölçülüyor), portre görselini biraz
+       daha: ışık yandığında fotoğraf orada olsun. Yükleniyor yazısı yok. */
     Promise.all([
-      fontsReady(READY_MAX_MS),
+      fontsReady(FONT_WAIT_MS),
       preloadImages(CRITICAL_IMAGES[start], READY_MAX_MS),
     ]).then(() => {
       if (!alive) return;
-      window.clearTimeout(slowT);
       setReady(true);
       /* diğer bölümlerin avatar görselleri: sahne kurulduktan sonra */
       void preloadImages(ALL_AVATAR_IMAGES, 20000);
     });
     return () => {
       alive = false;
-      window.clearTimeout(slowT);
     };
   }, [start]);
 
@@ -402,6 +415,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     [layerEl],
   );
 
+  /* cihaz gücü: zayıf cihazda ağır süs animasyonları durur */
+  useEffect(() => startPerfTier(), []);
+
   /* ilk kare (sahne kurulunca) */
   useEffect(() => {
     if (ready) paint();
@@ -465,15 +481,12 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         if (key === "footer" && dir > 0) setFooterArrived(true);
       };
 
-      /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR: geçiş bitmeden başlar.
-         - roadmap: hero'da aşağı dalan kişi, yükselen sayfanın üstünden
-           nehrin girişine düşer; sayfa otururken suya iner
+      /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
+         - roadmap: hero'daki kişi geçişle AYNI SÜREDE nehrin girişine
+           atlar (SiteAvatar exitPlan); sayfa oturduğu an suya iner
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
-        window.setTimeout(
-          () => setRoadmapEntering(true),
-          Math.max(dur * ROADMAP_FALL_AT, HERO_EXIT_MS),
-        );
+        window.setTimeout(() => setRoadmapEntering(true), dur);
       if (dir > 0 && key === "projects")
         window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
 
@@ -540,6 +553,23 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
 
   /* ---------------- HİKÂYE (yalnızca "/") ---------------- */
   /* avatar dalmaya başlayınca → roadmap */
+  /* hero'daki kişinin atlayacağı yer: roadmap'teki nehrin giriş noktası,
+     sayfa YERİNDEYKEN nerede olacaksa orası (geçiş başlamadan ölçülür) */
+  const heroExitPlan = useCallback((): ExitPlan | null => {
+    const sec = roadmapRef.current;
+    const mark = sec?.querySelector<HTMLElement>("[data-rm-entry]");
+    if (!sec || !mark) return null;
+    const prev = sec.style.transform;
+    sec.style.transform = "none";
+    const r = mark.getBoundingClientRect();
+    sec.style.transform = prev;
+    if (!r.width && !r.left && !r.top) return null;
+    return {
+      x: r.left,
+      y: r.top,
+      ms: isNarrow() ? MOBILE_TRANSITION_MS : TRANSITION_MS,
+    };
+  }, []);
   const onHeroExit = useCallback(() => {
     setHeroTransitioning(true);
     runStep(0, 1);
@@ -696,8 +726,15 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const footer = useMemo(
     /* avatar footer'la BİRLİKTE tırmanır: sayfa yükselmeye başlar
        başlamaz (eskiden sayfa tamamen oturduktan sonra başlıyordu) */
-    () => <FooterSection open={footerOpen} reveal={footerOpen} />,
-    [footerOpen],
+    () => (
+      <FooterSection
+        open={footerOpen}
+        reveal={footerOpen}
+        /* tırmanma videosu projelere gelince hazırlanır (açılışta değil) */
+        prepare={index >= 2}
+      />
+    ),
+    [footerOpen, index],
   );
 
   /* aşağı kaydır ipucu: bölüme gelince birkaç saniye görünür, sonra
@@ -716,6 +753,8 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     >
       <style>{`
         .flow-sec { will-change: transform; transform-origin: 50% 30%; backface-visibility: hidden; }
+        .flow-off, .flow-off * { animation-play-state: paused !important; }
+        ${PERF_LITE_CSS}
         .pf-recede { background: linear-gradient(180deg, rgba(2,6,20,.55), rgba(2,6,20,.75)); }
         @media (min-width: 1024px) and (hover: hover) {
           .pf-recede {
@@ -734,6 +773,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           }
         }
         .scroll-hint { animation: scrollHint 1.6s ease-in-out infinite; }
+        /* kısa ekranda (yatay telefon, küçük telefon) ipucu içeriğin
+           üstüne biniyordu: gösterilmez */
+        @media (max-height: 600px) { .flow-hint { display: none; } }
         @keyframes scrollHint {
           0%, 100% { transform: translateY(0) rotate(45deg); opacity: .5; }
           50% { transform: translateY(5px) rotate(45deg); opacity: 1; }
@@ -741,7 +783,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         /* sahne hazır olunca bütün halinde yumuşakça belirir */
         .flow-stage { animation: flowIn .38s ease-out; }
         @keyframes flowIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes flowWait { 0%,100% { opacity: .3; } 50% { opacity: .9; } }
         @media (prefers-reduced-motion: reduce) {
           .scroll-hint, .flow-stage { animation: none; }
         }
@@ -749,23 +790,21 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       <ThemeStyles />
 
       {!ready ? (
-        /* hazırlanırken: hikâyede açılışın KARANLIK sahnesiyle aynı renk
-           (eskiden mavi zemin görünüp sonra kararıyordu: ekran yanıp
-           sönüyor gibiydi). Yavaş bağlantıda küçük yükleniyor yazısı. */
+        /* hazırlanırken (site daha yükleniyorken, sunucudan gelen ilk
+           görüntü): karanlık + "yükleniyor" yazısı YOK. Sahnenin ışığı
+           zaten yanık: yukarıdan inen fener hüzmesi ve portrenin duracağı
+           yerde sıcak bir ışık. Sahne kurulunca aynı yerde, aynı ışıkla
+           devam eder. */
         <div
           aria-hidden
-          className="absolute inset-0 grid place-items-center font-mono text-[11px] tracking-[.4em] text-[#a8eef6]"
-          style={{ background: story ? STAGE_DARK : undefined }}
+          className="absolute inset-0"
+          style={story ? STAGE_LIT : undefined}
         >
-          <span
-            style={{
-              opacity: slow ? 1 : 0,
-              transition: "opacity .3s ease",
-              animation: "flowWait 1.2s ease-in-out infinite",
-            }}
-          >
-            LOADING
-          </span>
+          {story && (
+            <div className="absolute inset-0" style={STAGE_BEAM_SOFT}>
+              <div className="absolute inset-0" style={STAGE_BEAM} />
+            </div>
+          )}
         </div>
       ) : (
       /* hikâyede sahne zaten karanlıktan açılır: ayrıca solarak gelmez */
@@ -851,7 +890,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         type="button"
         onClick={() => runStep(indexRef.current, 1)}
         aria-label="Sonraki bölüm"
-        className="absolute left-1/2 z-40 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
+        className="flow-hint absolute left-1/2 z-40 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
         style={{
           bottom: 22,
           opacity: hintOn ? 0.85 : 0,
@@ -869,6 +908,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         <SiteAvatar
           onPlugged={() => setPowered(true)}
           onExitStart={onHeroExit}
+          exitPlan={heroExitPlan}
           onSequenceComplete={() => {
             onHeroExit();
             setHeroAvatarGone(true);

@@ -1007,17 +1007,12 @@ function PluggedJack() {
             stroke={`rgb(${JACK_CYAN})`}
             strokeWidth={1.4}
             strokeDasharray="6 12"
+            /* SVG <animate> yerine CSS: gizli bölümde / hafif modda durur
+               (SMIL hiçbir zaman durmuyordu) */
+            className="cable-flow"
             style={{ filter: `drop-shadow(0 0 3px rgba(${JACK_CYAN},1))` }}
             opacity={0.95}
-          >
-            <animate
-              attributeName="stroke-dashoffset"
-              from="0"
-              to="36"
-              dur="0.7s"
-              repeatCount="indefinite"
-            />
-          </path>
+          />
         </g>
 
         {/* FİŞ */}

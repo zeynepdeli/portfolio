@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 
 /* ================================================================
    ROADMAP — NEHRİN SAĞINDA OTURAN KİŞİ
@@ -587,19 +587,17 @@ function SwingingLegs({
 
       {SIT_LEGS.map((l, i) => {
         const [px, py] = P(l.pivot).split(",");
+        /* SVG <animateTransform> yerine CSS animasyonu: gizli bölümde
+           durabilir (SMIL hiç durmuyordu) */
+        const swing = {
+          transformBox: "view-box",
+          transformOrigin: `${px}px ${py}px`,
+          "--a0": `${-l.amp}deg`,
+          "--a1": `${l.amp}deg`,
+          animation: `svgLegSwing ${LEG_SWING_S / 2}s cubic-bezier(.45,0,.55,1) ${l.delay} infinite alternate`,
+        } as CSSProperties;
         return (
-          <g key={i}>
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              values={`${-l.amp} ${px} ${py}; ${l.amp} ${px} ${py}; ${-l.amp} ${px} ${py}`}
-              keyTimes="0; .5; 1"
-              calcMode="spline"
-              keySplines=".45 0 .55 1; .45 0 .55 1"
-              dur={`${LEG_SWING_S}s`}
-              begin={l.delay}
-              repeatCount="indefinite"
-            />
+          <g key={i} style={swing}>
             <g clipPath={`url(#${uid}-leg${i})`}>{img}</g>
           </g>
         );
