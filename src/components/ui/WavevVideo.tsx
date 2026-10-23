@@ -33,6 +33,12 @@ void main() {
   gl_Position = vec4(p, 0.0, 1.0);
 }`;
 
+/* Portrenin CSS süzgeci (contrast 1.05 → brightness 1.06) ve alt
+   kenardaki yumuşak sönüş (son %8) burada, gölgelendiricide yapılır.
+   Eskiden tuvale CSS filter + mask-image uygulanıyordu: tarayıcı her
+   video karesinde tuvali iki ek geçişle yeniden boyuyordu. Yüksek
+   çözünürlüklü (2x) dizüstü ekranında tümleşik ekran kartı buna
+   yetişemiyor, el sallama başlarken görüntü titriyordu. */
 const FRAG = `
 precision mediump float;
 uniform sampler2D tex;
@@ -41,6 +47,8 @@ void main() {
   vec3 rgb = texture2D(tex, vec2(uv.x, uv.y * 0.5)).rgb;
   float a = texture2D(tex, vec2(uv.x, 0.5 + uv.y * 0.5)).r;
   a = smoothstep(0.04, 0.96, a);
+  a *= clamp((1.0 - uv.y) / 0.08, 0.0, 1.0);
+  rgb = clamp(((rgb - 0.5) * 1.05 + 0.5) * 1.06, 0.0, 1.0);
   gl_FragColor = vec4(rgb * a, a);
 }`;
 

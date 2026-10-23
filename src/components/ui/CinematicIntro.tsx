@@ -76,12 +76,13 @@ const RING_OUTER = 2.3;
 
 const RING_OUTER_MAX = 4.2;
 
-const LIGHT_ON = 0.2;
+/* ışık en baştan yanık (karanlıkta bekleme yok) */
+const LIGHT_ON = 0;
 
 /* FENER: yanar yanmaz DOĞRUDAN fotoğrafa tutulur (eskiden önce sola,
    yanlış yere düşüp sonra kişiyi buluyordu). Yalnızca hafifçe daralır. */
-const SWEEP_AT = 0.2;
-const SWEEP = 0.35;
+const SWEEP_AT = 0;
+const SWEEP = 0.3;
 
 const SWEEP_FROM_X = 0;
 const SWEEP_FROM_Y = 0;
@@ -99,11 +100,6 @@ const BEAM_ALPHA = 0.16;
 
 const MOTES = 120;
 
-const FRONT_LIGHT = 0.3;
-
-const SHADOW_DROP = 0.03; // gölgenin aşağı kayması (× portre boyu)
-const SHADOW_BLUR = 0.045; // gölgenin yumuşaklığı (× portre boyu)
-const SHADOW_OP = 0.6; // gölgenin koyuluğu
 
 const GOLD: [number, number, number] = [242, 196, 128];
 const CREAM: [number, number, number] = [255, 244, 225];
@@ -397,7 +393,7 @@ export default function CinematicIntro({
       el.style.animation = "none";
       const r = el.getBoundingClientRect();
       el.style.transformOrigin = `${focus.x - (r.left - rr.left)}px ${focus.y - (r.top - rr.top)}px`;
-      el.style.willChange = "transform, opacity, filter";
+      el.style.willChange = "transform, opacity";
       el.style.opacity = "0";
       (el.closest("[data-build]") as HTMLElement | null)?.classList.add(
         "pb-built",
@@ -541,7 +537,10 @@ export default function CinematicIntro({
     };
 
     back.appendChild(chipFx.el);
-    const chipParts = (() => {
+    /* AĞIR HAZIRLIK (parçacık şekillerinin örneklenmesi, buton taslakları)
+       ışık ve portre ekrana geldikten SONRA yapılır: eskiden hepsi açılışın
+       ilk karesinden önce yapıldığı için sahne karanlıkta bekliyordu. */
+    const buildChipParts = () => {
       const plate = ring.r / RING_RATIO;
       const lead = plate * 0.075;
       const E = plate * 0.72 + lead; // döndürülmüş kare + pinler
@@ -608,7 +607,8 @@ export default function CinematicIntro({
           size: 1.4 + rnd() * 1.5,
         };
       });
-    })();
+    };
+    let chipParts: ReturnType<typeof buildChipParts> = [];
     let chipFxDone = false;
     const drawChipFx = (t: number) => {
       const ctx = chipFx.ctx;
@@ -711,7 +711,7 @@ export default function CinematicIntro({
     const pieces: Piece[] = [];
     /* aynı gruptaki parçalar (her karede filtrelenmesin) */
     const piecesByGroup = new Map<HTMLElement, Piece[]>();
-    picks.forEach((real, i) => {
+    const buildPieces = () => picks.forEach((real, i) => {
       const r = real.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) return;
       const box = document.createElement("div");
@@ -860,6 +860,7 @@ export default function CinematicIntro({
 
     layer.insertBefore(beam.el, spot);
     const mr = rng(2718);
+    const liteBeam = isPerfLite();
     const motes = Array.from({ length: isLow() ? 40 : MOTES }, () => ({
       u: 0.12 + mr() * 0.85, // hüzme boyunca
       v: mr() * 2 - 1, // hüzmenin enine
@@ -872,8 +873,8 @@ export default function CinematicIntro({
        yanıyordu: ekran "yanıp sönüyor" gibi görünüyordu) */
     const lampAt = (tr: number) => {
       const u = tr - LIGHT_ON;
-      if (u <= 0) return 0;
-      return ease(clamp(u / 0.55));
+      /* ilk karede de ışık var (yüklenirken görünen ışıkla aynı) */
+      return 0.6 + 0.4 * ease(clamp(u / 0.25));
     };
 
     const aim = (q: number) => {
@@ -886,12 +887,19 @@ export default function CinematicIntro({
     let nameCalled = false;
     let settleCalled = false;
     let avatarCalled = false;
-    const endAt =
+    const endOf = () =>
       Math.max(
         T_SETTLE + SETTLE,
         nameEnd + 0.35,
         ...pieces.map((p) => p.land + LAND * 1.25),
       ) + 0.3;
+    /* parçalar hazırlanana kadar geçici bitiş (hazırlanınca kesinleşir) */
+    let endAt = endOf() + 5;
+    const heavy = window.setTimeout(() => {
+      chipParts = buildChipParts();
+      buildPieces();
+      endAt = endOf();
+    }, 40);
     /* takılmada sahne ileri SIÇRAMAZ (parçalar bir anda yerinde
        belirmesin): ani boşluklar kırpılır */
     const clock = smoothClock();
@@ -1004,7 +1012,9 @@ export default function CinematicIntro({
 
       /* hafif modda hüzmede toz zerresi yok → hüzme değişmedikçe
          yeniden çizilmez */
-      const liteBeam = isPerfLite();
+      /* açılıştaki karar sabit kalır: oynarken hafif moda geçilse de
+         hüzmenin görünüşü bir anda değişmesin (zerreler pat diye
+         kaybolmasın) */
       const beamKey = liteBeam
         ? `${sx.toFixed(1)},${sy.toFixed(1)},${rx.toFixed(1)},${ry.toFixed(1)},${(I * (1 - houseUp)).toFixed(3)}`
         : "";
@@ -1066,7 +1076,7 @@ export default function CinematicIntro({
       const onSubject = clamp(found);
       const light = I * onSubject * (1 - ease(clamp((t - T_SETTLE) / SETTLE)));
       const faceY = vy - ph * 0.12 * pScale;
-      const spotBg = `radial-gradient(ellipse ${f1(pw * 0.9 * pScale)}px ${f1(ph * 0.7 * pScale)}px at ${f1(vx)}px ${f1(faceY)}px, rgba(255,236,210,.2) 0%, rgba(255,236,210,.08) 50%, rgba(255,236,210,0) 100%)`;
+      const spotBg = `radial-gradient(ellipse ${f1(pw * 0.9 * pScale)}px ${f1(ph * 0.7 * pScale)}px at ${f1(vx)}px ${f1(faceY)}px, rgba(255,236,210,.26) 0%, rgba(255,236,210,.1) 50%, rgba(255,236,210,0) 100%)`;
       if (spotBg !== lastSpotBg) {
         lastSpotBg = spotBg;
         spot.style.background = spotBg;
@@ -1077,19 +1087,13 @@ export default function CinematicIntro({
          Spot üstüne gelince önden aydınlanır, gölgesi arkasına düşer */
       const photoK = easeOut((tr - LIGHT_ON) / 0.3);
       const photoOp = String(photoK);
-      const lq = q(light, 0.125);
-      const shadow =
-        lq > 0.01
-          ? ` drop-shadow(0 ${f1(ph * SHADOW_DROP * lq)}px ${f1(ph * SHADOW_BLUR)}px rgba(0,0,0,${(SHADOW_OP * lq).toFixed(2)}))`
-          : "";
-      const photoFilter =
-        lq > 0.01
-          ? `brightness(${(1 + FRONT_LIGHT * lq).toFixed(3)}) contrast(${(1 + 0.08 * lq).toFixed(3)}) saturate(${(1 + 0.06 * lq).toFixed(3)})${shadow}`
-          : "";
-      portraits.forEach((el) => {
-        setStyle(el, "opacity", photoOp);
-        setStyle(el, "filter", photoFilter);
-      });
+      /* Portreye FİLTRE YOK (eskiden brightness + contrast + drop-shadow):
+         el sallama videosu portrenin içinde oynadığı için tarayıcı her
+         video karesinde bütün portreyi bulanık gölgesiyle yeniden
+         hesaplıyordu. 2x (retina / 2560px) ekranda piksel sayısı 4 kat →
+         tümleşik ekran kartı yetişemiyor, el sallama başlarken portre
+         titriyordu. Önden ışık = spot katmanı, gölge = PortraitGlow. */
+      portraits.forEach((el) => setStyle(el, "opacity", photoOp));
       placePortrait(st.k, 0.94 + 0.06 * photoK);
 
       if (!chipFxDone) drawChipFx(t);
@@ -1310,6 +1314,7 @@ export default function CinematicIntro({
     raf = requestAnimationFrame(frame);
 
     return () => {
+      window.clearTimeout(heavy);
       cancelAnimationFrame(raf);
       cleanup();
     };
@@ -1324,7 +1329,11 @@ export default function CinematicIntro({
       <div
         ref={veilRef}
         className="absolute inset-0"
-        style={{ background: "rgba(3,5,12,.96)" }}
+        /* tuval çizilene kadarki ilk kare: ortası aydınlık perde */
+        style={{
+          background:
+            "radial-gradient(ellipse 30% 38% at 50% 50%, rgba(3,5,12,.5), rgba(3,5,12,.96) 75%)",
+        }}
       />
 
       <div

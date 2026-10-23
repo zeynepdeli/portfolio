@@ -498,10 +498,11 @@ export default function HeroSection({
         window.clearTimeout(t);
       };
     }
-    const id = window.setTimeout(() => setCineGo(true), 150);
+    /* bekleme yok: sahne kurulur kurulmaz ışık yanık başlar */
+    const id = window.requestAnimationFrame(() => setCineGo(true));
     return () => {
       window.cancelAnimationFrame(raf);
-      window.clearTimeout(id);
+      window.cancelAnimationFrame(id);
     };
   }, [final]);
 
@@ -1149,11 +1150,7 @@ export default function HeroSection({
                     height: ph,
                     opacity: waveStarted && !waveEnded ? 1 : 0,
                     transition: waveEnded ? "opacity 350ms ease 250ms" : "none",
-                    WebkitMaskImage:
-                      "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
-                    maskImage:
-                      "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
-                    filter: portraitFilter(),
+                    /* süzgeç ve alt sönüş gölgelendiricide (WaveVideo) */
                   }}
                 />
                 {/* son kare önceden yüklensin: video bitince anında görünsün */}

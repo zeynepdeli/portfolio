@@ -180,12 +180,6 @@ type RoadmapSectionProps = {
   entering?: boolean;
 };
 
-/** yukarıdan nehre düşüş süresi (ms) — SiteFlow ROADMAP_FALL_MS ile aynı */
-const FALL_MS = 900;
-/** düşerken burnunu tutmuş poz (hero'da atladığı pozun aynısı) */
-const FALL_SRC = "/images/zeynep-burun.webp";
-const FALL_H = 66;
-const FALL_W = Math.round((FALL_H * 223) / 720);
 
 /** Avatar ana saatinde bir karede en fazla bu kadar ilerler (ms):
  *  telefon bir an takılırsa kişi nehirde ileri ışınlanmaz */
@@ -1004,21 +998,6 @@ const AVATAR_CSS = `
     15%  { opacity: 1; }
     100% { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
   }
-  /* yukarıdan suya düşüş (yerçekimi: yavaş başlar, hızlanır) */
-  /* üstteki sayfadan (hero) burnunu tutarak düşer, suya girer */
-  @keyframes rmAvFall {
-    0%   { transform: translateY(var(--fall)) rotate(-8deg); opacity: 1; }
-    80%  { transform: translateY(0) rotate(3deg) scale(1, 1); opacity: 1; }
-    92%  { transform: translateY(10px) scale(1.08, .86); opacity: 1; }
-    100% { transform: translateY(16px) scale(1.1, .8); opacity: 0; }
-  }
-  /* düşüş izi: arkasında dikey ışık çizgileri */
-  @keyframes rmAvFallTrail {
-    0%   { opacity: 0; }
-    20%  { opacity: .9; }
-    80%  { opacity: .7; }
-    100% { opacity: 0; }
-  }
   /* suya inince oturur: çömelip yaylanarak oturma pozuna geçer */
   @keyframes rmAvSit {
     0%   { transform: translateY(8px) scale(.9, .72); opacity: 0; }
@@ -1065,21 +1044,12 @@ export default function RoadmapSection({
 
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  /* DÜŞÜŞ: "falling" → suya iniş → "landed" (kayma bundan sonra başlar).
-     Hikâye dışında (staged hiç olmadıysa) düşüş yok. */
-  const [fall, setFall] = useState<"none" | "falling" | "landed">("none");
-  const [prevEntering, setPrevEntering] = useState(entering);
-  if (prevEntering !== entering) {
-    setPrevEntering(entering);
-    setFall(entering ? "falling" : "none");
-  }
-  useEffect(() => {
-    if (fall !== "falling") return;
-    const t = window.setTimeout(() => setFall("landed"), FALL_MS);
-    return () => window.clearTimeout(t);
-  }, [fall]);
+  /* SUYA İNİŞ: hero'daki kişi atlayıp tam nehrin giriş noktasına
+     (aşağıda data-rm-entry) düşer; düştüğü an burada sıçrayan suyla
+     oturur. Kayma bundan sonra başlar. Hikâye dışında iniş yok. */
+  const landed = entering;
   /* kayma: hikâyede kişi suya indikten sonra */
-  const rideGo = active && (!staged || fall === "landed");
+  const rideGo = active && (!staged || landed);
 
   /* PERFORMANS: kişinin nehirdeki yeri ve dikey ekrandaki kamera kayması
      React state ile DEĞİL, doğrudan stil yazılarak güncellenir — her
@@ -1960,9 +1930,27 @@ export default function RoadmapSection({
                 );
               })}
 
+            {/* GİRİŞ NOKTASI İŞARETİ: hero'daki kişi atlarken buraya
+                düşer (SiteFlow ölçer). Kişinin oturduğu nokta. */}
+            {size.w > 0 && (
+              <div
+                data-rm-entry
+                aria-hidden
+                className="pointer-events-none absolute top-0 left-0 size-0"
+                style={{
+                  transform: `translate3d(${
+                    frame.px +
+                    pointAt(G.middle, entryK).x * frame.sc +
+                    (SEAT_X - 0.5) * AV_W
+                  }px, ${
+                    frame.py + pointAt(G.middle, entryK).y * frame.sc + AV_H * 0.04
+                  }px, 0)`,
+                }}
+              />
+            )}
             {size.w > 0 &&
               /* sayfa yükselirken de girişte görünür (staged) */
-              (arrived >= 0 || (staged && fall !== "none")) &&
+              (arrived >= 0 || (staged && landed)) &&
               !finished &&
               /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
               !panelOn &&
@@ -1974,18 +1962,7 @@ export default function RoadmapSection({
                   facingScreen={facingScreen}
                   collecting={moving && arrived >= 1 && arrived <= NODES.length}
                   pickKey={arrived}
-                  falling={fall === "falling"}
-                  splash={fall === "landed" && arrived < 0}
-                  /* panelin üst kenarının hemen üstünden düşer: cam panel
-                     taşanı kestiği için ekranın en üstünden düşerse
-                     yolun neredeyse tamamı görünmüyordu */
-                  fallFrom={
-                    frameOf(size.w, size.h, portrait).py +
-                    pointAt(G.middle, entryK).y *
-                      frameOf(size.w, size.h, portrait).sc -
-                    size.h * PANEL_T +
-                    FALL_H * 0.9
-                  }
+                  splash={landed && arrived < 0}
                 />
               )}
           </div>
@@ -2078,16 +2055,10 @@ function WalkingAvatar({
   facingScreen,
   collecting,
   pickKey,
-  falling = false,
   splash = false,
-  fallFrom = 0,
 }: {
-  /** yukarıdan nehre düşüyor (burnunu tutmuş) */
-  falling?: boolean;
   /** suya yeni indi: sıçrayan su */
   splash?: boolean;
-  /** düşüşün başladığı yükseklik (px, ayak noktasının üstünde) */
-  fallFrom?: number;
   /** konumu üst bileşen doğrudan yazar (transform) */
   elRef: Ref<HTMLDivElement>;
   moving: boolean;
@@ -2136,56 +2107,6 @@ function WalkingAvatar({
         />
       ))}
 
-      {/* DÜŞÜŞ: bir önceki sayfadan burnunu tutarak suya atlar */}
-      {falling && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={FALL_SRC}
-          alt=""
-          draggable={false}
-          className="absolute max-w-none"
-          style={
-            {
-              width: FALL_W,
-              height: FALL_H,
-              left: AV_W * SEAT_X - FALL_W / 2,
-              top: AV_H - FALL_H,
-              "--fall": `${-fallFrom}px`,
-              animation: `rmAvFall ${FALL_MS}ms cubic-bezier(.5,0,.85,.6) both`,
-            } as CSSVars
-          }
-        />
-      )}
-      {falling && (
-        <div
-          className="absolute"
-          style={
-            {
-              left: AV_W * SEAT_X - 10,
-              top: AV_H - FALL_H,
-              width: 20,
-              height: FALL_H,
-              "--fall": `${-fallFrom}px`,
-              animation: `rmAvFall ${FALL_MS}ms cubic-bezier(.5,0,.85,.6) both`,
-            } as CSSVars
-          }
-        >
-          {[0.15, 0.5, 0.85].map((x, i) => (
-            <span
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                left: `${x * 100}%`,
-                bottom: "100%",
-                width: 2,
-                height: 34 + i * 10,
-                background: `linear-gradient(0deg, rgba(${C.edgeRGB},.9), transparent)`,
-                animation: `rmAvFallTrail ${FALL_MS}ms linear both`,
-              }}
-            />
-          ))}
-        </div>
-      )}
       {/* suya iniş: sıçrayan su halkası + damlalar */}
       {splash && (
         <div className="absolute" style={{ left: AV_W * SEAT_X, top: AV_H - 4 }}>
@@ -2220,8 +2141,7 @@ function WalkingAvatar({
       <div
         className="absolute inset-0"
         style={{
-          /* düşerken oturma pozları gizli; suya inince yaylanarak oturur */
-          opacity: falling ? 0 : 1,
+          /* suya inince yaylanarak oturur */
           animation: splash ? "rmAvSit 650ms cubic-bezier(.3,.8,.4,1) both" : undefined,
           transformOrigin: `${SEAT_X * 100}% 100%`,
           /* hep ileriye (sağa) bakar; nehir sola kıvrılsa da geri dönmez */
