@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
+import "./canvasPolyfill";
 
 /* =========================================================
    SAHNE AÇILIŞI — TEK BİR IŞIK SÜRÜSÜ (bağlantılı morph)

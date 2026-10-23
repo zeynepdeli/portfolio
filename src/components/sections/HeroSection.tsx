@@ -662,7 +662,7 @@ export default function HeroSection({
   const section = (
     <section
       ref={sectionRef}
-      className={`relative flex h-dvh w-full flex-col overflow-hidden ${waiting ? "pb-wait" : ""}`}
+      className={`hero-h relative flex w-full flex-col overflow-hidden ${waiting ? "pb-wait" : ""}`}
     >
       <IntroStyles />
 

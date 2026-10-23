@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { smoothClock } from "./smoothClock";
+import "./canvasPolyfill";
 import { isPerfLite } from "./perfTier";
 
 /* =========================================================

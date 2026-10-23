@@ -190,6 +190,11 @@ export default function WaveVideo({
       video.removeEventListener("loadeddata", draw);
       video.removeEventListener("seeked", draw);
       drawRef.current = null;
+      /* WebGL bağlamını bırak (gerçek söküşte; StrictMode'da tuval kalır) */
+      window.setTimeout(() => {
+        if (!canvas.isConnected)
+          gl.getExtension("WEBGL_lose_context")?.loseContext();
+      }, 0);
     };
   }, [src]);
 

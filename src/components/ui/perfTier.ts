@@ -57,6 +57,10 @@ function goLite() {
 export function startPerfTier() {
   if (started || typeof window === "undefined") return;
   started = true;
+  /* elle seçim (deneme için): ?perf=full ya da ?perf=lite */
+  const force = new URLSearchParams(window.location.search).get("perf");
+  if (force === "lite") return goLite();
+  if (force === "full") return;
   if (guessLite()) {
     goLite();
     return;
@@ -99,7 +103,13 @@ export const PERF_LITE_CSS = `
   html.perf-lite .trace-pulse,
   html.perf-lite .pf-flow,
   html.perf-lite .rm-flow,
-  html.perf-lite .ft-lane {
+  html.perf-lite .ft-lane,
+  html.perf-lite .cable-flow,
+  html.perf-lite .ft-bits {
     animation: none !important;
+  }
+  /* footer nehrindeki süzülen rakamlar hafif modda hiç görünmez */
+  html.perf-lite .ft-digit {
+    display: none;
   }
 `;

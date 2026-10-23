@@ -1729,15 +1729,8 @@ function CableStroke({
           filter: `drop-shadow(0 0 3px rgba(${PLUG_CYAN},1))`,
           transition: "opacity 400ms",
         }}
-      >
-        <animate
-          attributeName="stroke-dashoffset"
-          from="0"
-          to="-36"
-          dur="0.7s"
-          repeatCount="indefinite"
-        />
-      </path>
+        className="cable-flow cable-flow-rev"
+      />
     </g>
   );
 }

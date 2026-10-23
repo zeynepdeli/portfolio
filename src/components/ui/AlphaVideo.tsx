@@ -399,9 +399,20 @@ export default function AlphaVideo({
     const rvfc = (
       video as HTMLVideoElement & { requestVideoFrameCallback?: RVFC }
     ).requestVideoFrameCallback?.bind(video);
+    /* rAF döngüsü YALNIZCA video oynarken döner (eskiden duran /
+       gizli videolarda da sonsuza dek her kare çalışıyordu) */
+    let looping = false;
     const tick = () => {
-      if (stopped) return;
+      if (stopped || video.paused || video.ended) {
+        looping = false;
+        return;
+      }
       draw();
+      rafId = requestAnimationFrame(tick);
+    };
+    const startLoop = () => {
+      if (looping || stopped) return;
+      looping = true;
       rafId = requestAnimationFrame(tick);
     };
     const onVideoFrame = () => {
@@ -411,13 +422,16 @@ export default function AlphaVideo({
     };
     /* rVFC duraklatılmış / gizli videoda bazı tarayıcılarda tetiklenmez:
        rAF döngüsü her durumda çalışır, rVFC yalnızca ek tetikleyici */
-    rafId = requestAnimationFrame(tick);
+    if (!video.paused) startLoop();
     rvfc?.(onVideoFrame);
 
     report("yükleniyor: " + src);
 
     const onData = () => draw(true);
-    const onPlaying = () => report(`oynuyor (${video.currentSrc.split("/").pop()})`);
+    const onPlaying = () => {
+      startLoop();
+      report(`oynuyor (${video.currentSrc.split("/").pop()})`);
+    };
     /* Tarayıcı kendiliğinden durdurursa (güç tasarrufu vb.) yeniden başlat */
     const onPause = () => {
       if (playingRef.current && !video.ended) {
@@ -436,6 +450,7 @@ export default function AlphaVideo({
     };
 
     video.addEventListener("playing", onPlaying);
+    video.addEventListener("play", startLoop);
     video.addEventListener("loadeddata", onData);
     video.addEventListener("seeked", onData);
     video.addEventListener("canplay", onCanPlay);
@@ -448,6 +463,16 @@ export default function AlphaVideo({
       stopped = true;
       cancelAnimationFrame(rafId);
       video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("play", startLoop);
+      /* WebGL bağlamını bırak: tarayıcı aynı anda ~16 bağlama izin verir,
+         sayfalar arası gidip gelince birikip eski videoları
+         karartabiliyordu. (StrictMode'daki sahte söküşte tuval yerinde
+         kalır → bırakılmaz.) */
+      window.setTimeout(() => {
+        if (canvas.isConnected) return;
+        const gl = canvas.getContext("webgl");
+        gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      }, 0);
       video.removeEventListener("loadeddata", onData);
       video.removeEventListener("seeked", onData);
       video.removeEventListener("canplay", onCanPlay);

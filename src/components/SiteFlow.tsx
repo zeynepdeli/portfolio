@@ -703,8 +703,15 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const footer = useMemo(
     /* avatar footer'la BİRLİKTE tırmanır: sayfa yükselmeye başlar
        başlamaz (eskiden sayfa tamamen oturduktan sonra başlıyordu) */
-    () => <FooterSection open={footerOpen} reveal={footerOpen} />,
-    [footerOpen],
+    () => (
+      <FooterSection
+        open={footerOpen}
+        reveal={footerOpen}
+        /* tırmanma videosu projelere gelince hazırlanır (açılışta değil) */
+        prepare={index >= 2}
+      />
+    ),
+    [footerOpen, index],
   );
 
   /* aşağı kaydır ipucu: bölüme gelince birkaç saniye görünür, sonra
@@ -743,6 +750,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           }
         }
         .scroll-hint { animation: scrollHint 1.6s ease-in-out infinite; }
+        /* kısa ekranda (yatay telefon, küçük telefon) ipucu içeriğin
+           üstüne biniyordu: gösterilmez */
+        @media (max-height: 600px) { .flow-hint { display: none; } }
         @keyframes scrollHint {
           0%, 100% { transform: translateY(0) rotate(45deg); opacity: .5; }
           50% { transform: translateY(5px) rotate(45deg); opacity: 1; }
@@ -860,7 +870,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         type="button"
         onClick={() => runStep(indexRef.current, 1)}
         aria-label="Sonraki bölüm"
-        className="absolute left-1/2 z-40 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
+        className="flow-hint absolute left-1/2 z-40 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
         style={{
           bottom: 22,
           opacity: hintOn ? 0.85 : 0,
