@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
+import { smoothClock } from "./smoothClock";
 
 /* =========================================================
    SİNEMATİK AÇILIŞ — "fotoğraf → çip → menü"
@@ -797,6 +798,9 @@ export default function CinematicIntro({
        aynı ve hafif. */
     const veilCv = makeCanvas(W, H);
     const VEIL_FILL = "rgba(3,5,12,.96)";
+    /* perde değişmediyse yeniden çizilmez (spot dururken her kare tam
+       ekran boyamak telefonu boşuna yoruyordu) */
+    let veilKey = "";
     const drawVeil = (
       sx: number,
       sy: number,
@@ -806,6 +810,9 @@ export default function CinematicIntro({
       edge: number, // kenarda silinme oranı
     ) => {
       if (!veilCv) return;
+      const key = `${sx.toFixed(1)},${sy.toFixed(1)},${rx.toFixed(1)},${ry.toFixed(1)},${inner.toFixed(3)},${edge.toFixed(3)}`;
+      if (key === veilKey) return;
+      veilKey = key;
       const c = veilCv.ctx;
       c.globalCompositeOperation = "source-over";
       c.clearRect(0, 0, W, H);
@@ -844,14 +851,12 @@ export default function CinematicIntro({
       size: 0.8 + mr() * 1.6,
     }));
 
+    /* lamba TİTREMEDEN, yumuşakça yanar (eskiden açılıp kapanarak
+       yanıyordu: ekran "yanıp sönüyor" gibi görünüyordu) */
     const lampAt = (tr: number) => {
       const u = tr - LIGHT_ON;
-      if (u < 0) return 0;
-      if (u < 0.05) return 1;
-      if (u < 0.11) return 0.12;
-      if (u < 0.15) return 0.85;
-      if (u < 0.22) return 0.2;
-      return 0.6 + 0.4 * easeOut((u - 0.22) / 0.25);
+      if (u <= 0) return 0;
+      return ease(clamp(u / 0.55));
     };
 
     const aim = (q: number) => {
@@ -870,7 +875,9 @@ export default function CinematicIntro({
         nameEnd + 0.35,
         ...pieces.map((p) => p.land + LAND * 1.25),
       ) + 0.3;
-    const t0 = performance.now();
+    /* takılmada sahne ileri SIÇRAMAZ (parçalar bir anda yerinde
+       belirmesin): ani boşluklar kırpılır */
+    const clock = smoothClock();
     let raf = 0;
 
     const cleanup = () => {
@@ -902,10 +909,28 @@ export default function CinematicIntro({
       pieces.forEach((p) => p.el.remove());
     };
 
-    const frame = () => {
+    /* aynı değeri tekrar yazmamak için (stil yazımı = yeniden çizim) */
+    const written = new WeakMap<HTMLElement, Record<string, string>>();
+    const setStyle = (
+      el: HTMLElement,
+      key: "filter" | "opacity" | "textShadow",
+      v: string,
+    ) => {
+      let w = written.get(el);
+      if (!w) written.set(el, (w = {}));
+      if (w[key] === v) return;
+      w[key] = v;
+      el.style[key] = v;
+    };
+    /** filtre değerlerini kaba adımlara yuvarla: filtreli bir öğe her
+     *  karede yeniden hesaplanmasın (telefonda en pahalı iş buydu) */
+    const q = (v: number, step: number) => Math.round(v / step) * step;
+    let lastSpotBg = "";
+
+    const frame = (now: number) => {
       /* tr: gerçek zaman (ışık buna göre); t: geri kalan her şeyin zamanı,
          spot kişiyi bulduktan sonra başlar */
-      const tr = ((performance.now() - t0) / 1000) * SPEED;
+      const tr = (clock(now) / 1000) * SPEED;
       const t = tr - LIGHT_LEAD;
       if (!avatarCalled && t >= T_PIECES) {
         avatarCalled = true;
@@ -957,7 +982,7 @@ export default function CinematicIntro({
       /* spotun içi lambanın gücü kadar aydınlık, kenarı yumuşak */
       const rim = Math.min(1, 0.6 + 0.4 * (1 - I));
       drawVeil(sx, sy, rx, ry, I, 1 - rim);
-      if (veilCv) veilCv.el.style.opacity = String(1 - houseUp);
+      if (veilCv) setStyle(veilCv.el, "opacity", String(1 - houseUp));
 
       {
         const b = beam.ctx;
@@ -1016,24 +1041,29 @@ export default function CinematicIntro({
       const onSubject = clamp(found);
       const light = I * onSubject * (1 - ease(clamp((t - T_SETTLE) / SETTLE)));
       const faceY = vy - ph * 0.12 * pScale;
-      spot.style.background = `radial-gradient(ellipse ${f1(pw * 0.9 * pScale)}px ${f1(ph * 0.7 * pScale)}px at ${f1(vx)}px ${f1(faceY)}px, rgba(255,236,210,.7) 0%, rgba(255,236,210,.3) 50%, rgba(255,236,210,0) 100%)`;
-      spot.style.opacity = light.toFixed(3);
+      const spotBg = `radial-gradient(ellipse ${f1(pw * 0.9 * pScale)}px ${f1(ph * 0.7 * pScale)}px at ${f1(vx)}px ${f1(faceY)}px, rgba(255,236,210,.2) 0%, rgba(255,236,210,.08) 50%, rgba(255,236,210,0) 100%)`;
+      if (spotBg !== lastSpotBg) {
+        lastSpotBg = spotBg;
+        spot.style.background = spotBg;
+      }
+      setStyle(spot, "opacity", light.toFixed(3));
 
       /* FOTOĞRAF: karanlıkta zaten orada — onu ortaya çıkaran ışık.
          Spot üstüne gelince önden aydınlanır, gölgesi arkasına düşer */
       const photoK = easeOut((tr - LIGHT_ON) / 0.3);
       const photoOp = String(photoK);
+      const lq = q(light, 0.125);
       const shadow =
-        light > 0.01
-          ? ` drop-shadow(0 ${f1(ph * SHADOW_DROP * pScale * light)}px ${f1(ph * SHADOW_BLUR * pScale)}px rgba(0,0,0,${(SHADOW_OP * light).toFixed(2)}))`
+        lq > 0.01
+          ? ` drop-shadow(0 ${f1(ph * SHADOW_DROP * lq)}px ${f1(ph * SHADOW_BLUR)}px rgba(0,0,0,${(SHADOW_OP * lq).toFixed(2)}))`
           : "";
       const photoFilter =
-        light > 0.01
-          ? `brightness(${(1 + FRONT_LIGHT * light).toFixed(3)}) contrast(${(1 + 0.08 * light).toFixed(3)}) saturate(${(1 + 0.06 * light).toFixed(3)})${shadow}`
+        lq > 0.01
+          ? `brightness(${(1 + FRONT_LIGHT * lq).toFixed(3)}) contrast(${(1 + 0.08 * lq).toFixed(3)}) saturate(${(1 + 0.06 * lq).toFixed(3)})${shadow}`
           : "";
       portraits.forEach((el) => {
-        el.style.opacity = photoOp;
-        el.style.filter = photoFilter;
+        setStyle(el, "opacity", photoOp);
+        setStyle(el, "filter", photoFilter);
       });
       placePortrait(st.k, 0.94 + 0.06 * photoK);
 
@@ -1042,7 +1072,7 @@ export default function CinematicIntro({
       const revealRaw = clamp((t - T_CHIP_REVEAL + 0.3) / REVEAL);
       const reveal = ease(revealRaw);
 
-      const glow = 1 + 1.1 * (1 - easeOut(revealRaw));
+      const glow = 1 + q(1.1 * (1 - easeOut(revealRaw)), 0.1);
       const pop = 0.92 + 0.08 * easeOut(revealRaw);
       const chipFilter =
         glow > 1.005
@@ -1065,14 +1095,14 @@ export default function CinematicIntro({
           (chipBaseOp + (CHIP_ORBIT_OP - chipBaseOp) * st.a) * reveal,
         );
         if (chipIn) {
-          chipIn.style.opacity = op;
-          chipIn.style.filter = chipFilter;
+          setStyle(chipIn, "opacity", op);
+          setStyle(chipIn, "filter", chipFilter);
         }
         if (chipFront) {
           chipFront.style.transform = tf;
           if (chipFrontIn) {
-            chipFrontIn.style.opacity = op;
-            chipFrontIn.style.filter = chipFilter;
+            setStyle(chipFrontIn, "opacity", op);
+            setStyle(chipFrontIn, "filter", chipFilter);
           }
           const f = clamp(st.a / 0.2);
           chipFront.style.clipPath = clipFor(st.spin, true, holeR, outerR);
@@ -1101,11 +1131,11 @@ export default function CinematicIntro({
         if (b < 0.2) {
           const s = fitS(p);
           p.el.style.transform = `translate(${st.cx - p.w / 2}px, ${st.cy - p.h / 2}px) perspective(${PERSP}px) rotateX(${st.tilt.toFixed(2)}deg) rotateZ(${ang.toFixed(2)}deg) translateY(${pr.toFixed(1)}px) scale(${s.toFixed(4)})`;
-          const vis = easeOut((t - p.show) / 0.6) * (1 - clamp(b / 0.2));
-          p.el.style.opacity = String(vis);
+          /* arkadaki parça biraz söner (filtre yerine opaklık: ucuz) */
           const shade = 0.7 + 0.3 * ((c + 1) / 2);
-          p.el.style.filter =
-            shade < 0.99 ? `brightness(${shade.toFixed(2)})` : "none";
+          const vis =
+            easeOut((t - p.show) / 0.6) * (1 - clamp(b / 0.2)) * shade;
+          p.el.style.opacity = vis.toFixed(3);
           const isFront = c > 0;
           if (p.front !== isFront) {
             p.front = isFront;
@@ -1180,11 +1210,12 @@ export default function CinematicIntro({
           const s = lSeed[i];
           L.style.opacity = clamp(q * 6).toFixed(3);
           L.style.transform = `translate3d(${(s.dx * far).toFixed(1)}px, ${(s.dy * far).toFixed(1)}px, ${z.toFixed(1)}px) rotateX(${(s.rx * far).toFixed(1)}deg) rotateY(${(s.ry * far).toFixed(1)}deg) rotateZ(${(s.rz * far).toFixed(1)}deg)`;
-          L.style.filter = far > 0.02 ? `blur(${(far * 6).toFixed(1)}px)` : "";
+          const bl = Math.round(far * 6);
+          setStyle(L, "filter", bl > 0 ? `blur(${bl}px)` : "");
         }
 
         const since = t - nameHit;
-        const flash = since > 0 ? Math.exp(-since * 6) : 0;
+        const flash = since > 0 ? q(Math.exp(-since * 6), 0.1) : 0;
         titleEl.style.textShadow = `0 0 ${(22 + 60 * flash).toFixed(0)}px rgba(255,214,160,${(0.5 + 0.5 * flash).toFixed(2)}), 0 0 ${(3 + 12 * flash).toFixed(0)}px rgba(255,255,255,${(0.7 * flash).toFixed(2)})`;
 
         if (since > 0 && flash > 0.02) {
@@ -1273,7 +1304,9 @@ export default function CinematicIntro({
       <div
         ref={spotRef}
         className="absolute inset-0"
-        style={{ opacity: 0, mixBlendMode: "soft-light" }}
+        /* tam ekran "soft-light" karıştırma telefonda her kare pahalıydı:
+           normal karışımla hafif sıcak ışık */
+        style={{ opacity: 0 }}
       />
 
       <div ref={frontRef} className="absolute inset-0" />

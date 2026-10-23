@@ -142,9 +142,9 @@ const ms = (v: number) => v * SPEED;
    2) göbeğin kenarından yumuşak bir yayla ortasına süzülüp oturur
    3) kişi oturduktan SONRA fan yaprakları, ardından kart gövdesi oluşur */
 const ARRIVE = 3300; // kişinin göbeğin kenarına vardığı an (eskiden 2600: avatar daha yavaş kayar)
-const SPIRAL_DUR = 1050; // kenardan göbeğin ortasına ZIPLAMA süresi
+const SPIRAL_DUR = 560; // kenardan göbeğin ortasına ZIPLAMA süresi (eskiden 1050: ağır kalıyordu)
 /** zıplamanın yüksekliği (fan birimi, ekranda yukarı doğru) */
-const JUMP_H = 300;
+const JUMP_H = 230;
 const SEATED = ARRIVE + SPIRAL_DUR + 120; // yere inip oturma anı
 const STREAM_TAIL_DUR = 500; // kişi varınca suyun göbeğe dolması
 const HUB_START = ARRIVE - 500;
@@ -183,6 +183,17 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const bump = (t: number) => Math.sin(Math.PI * clamp(t));
+/** hafifçe ileri taşıp yerine oturan yumuşak bitiş */
+const easeOutBack = (t: number, s = 1.25) => {
+  const v = clamp(t) - 1;
+  return 1 + (s + 1) * v * v * v + s * v * v;
+};
+
+/* YELPAZE AÇILIŞI: yapraklar önce üst üste katlı durur, su yuvaya
+   yayılırken bir el yelpazesi gibi sırayla açılıp yerlerine oturur */
+const UNFOLD_START = 450; // FILL_START'a göre (ms): buz yayılırken açılır
+const UNFOLD_STAGGER = 70; // yapraklar arası gecikme
+const UNFOLD_DUR = 900;
 
 /** İki açı arasındaki en kısa fark (-180…180) */
 const shortestDelta = (from: number, to: number) =>
@@ -1706,7 +1717,18 @@ function ProjectFan({
               <g clipPath={url("freeze")}>
                 <g style={fanStyle}>
                   {projects.map((project, i) => {
-                    const angle = i * step;
+                    /* yelpaze gibi açılır: katlı halden kendi açısına */
+                    const unfold =
+                      i === 0
+                        ? 1
+                        : easeOutBack(
+                            phase(
+                              t,
+                              FILL_START + UNFOLD_START + i * UNFOLD_STAGGER,
+                              UNFOLD_DUR,
+                            ),
+                          );
+                    const angle = i * step * unfold;
                     const photoP = easeInOutCubic(
                       phase(t, THAW_START + i * PHOTO_STAGGER, PHOTO_DUR),
                     );

@@ -154,7 +154,8 @@ export default function WaveVideo({
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       /* ilk karelerde çizimi doğrula: ortadaki birkaç noktada görünür
          piksel var mı? (yalnızca doğrulanana kadar; sonra okunmaz) */
-      if (!visibleRef.current && video.currentTime > 0) {
+      /* readPixels ekran kartını bekletir: 3 karede bir bakılır */
+      if (!visibleRef.current && video.currentTime > 0 && checks++ % 3 === 0) {
         const px = new Uint8Array(4);
         for (const [fx, fy] of SAMPLE_POINTS) {
           gl.readPixels(
@@ -173,10 +174,11 @@ export default function WaveVideo({
         }
         blankFrames += visibleRef.current ? 0 : 1;
         /* uzun süre boş kare geliyorsa: video bu cihazda çizilemiyor */
-        if (!visibleRef.current && blankFrames > 24) failRef.current?.();
+        if (!visibleRef.current && blankFrames > 8) failRef.current?.();
       }
     };
     let blankFrames = 0;
+    let checks = 0;
     drawRef.current = draw;
 
     /* ilk kare: oynamadan önce de çizilsin (fotoğrafla aynı kare) */

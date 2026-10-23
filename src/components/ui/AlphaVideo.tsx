@@ -157,6 +157,7 @@ function makeGL(canvas: HTMLCanvasElement): Renderer | null {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
   let seen = false;
+  let checks = 0;
   const px = new Uint8Array(4);
   return (video) => {
     const w = video.videoWidth;
@@ -170,8 +171,10 @@ function makeGL(canvas: HTMLCanvasElement): Renderer | null {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    /* görüntü doğrulanana kadar birkaç pikseli oku (sonra okunmaz) */
-    if (!seen) {
+    /* görüntü doğrulanana kadar birkaç pikseli oku (sonra okunmaz).
+       readPixels ekran kartını bekletir (her karede yapılırsa telefonda
+       takılma): yalnızca 6 karede bir bakılır */
+    if (!seen && checks++ % 6 === 0) {
       for (const [fx, fy] of GRID) {
         gl.readPixels(
           Math.floor(w * fx),
