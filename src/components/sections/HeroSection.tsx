@@ -425,6 +425,14 @@ export default function HeroSection({
   const [portraitLanded, setPortraitLanded] = useState(false);
   /* el sallama videosu bitti mi (bitince son karenin fotoğrafı kalır) */
   const [waveEnded, setWaveEnded] = useState(false);
+  /* video bitip söndükten sonra tuvali kaldır (görünmez de olsa GPU'da
+     ayrı bir katman olarak yer tutuyordu) */
+  const [waveGone, setWaveGone] = useState(false);
+  useEffect(() => {
+    if (!waveEnded) return;
+    const t = window.setTimeout(() => setWaveGone(true), 900);
+    return () => window.clearTimeout(t);
+  }, [waveEnded]);
   /* video gerçekten oynamaya başladı mı (ilk kare çizildi) */
   const [waveStarted, setWaveStarted] = useState(false);
   const [dim, setDim] = useState(false);
@@ -1126,7 +1134,7 @@ export default function HeroSection({
             )}
 
             {/* EL SALLAMA VİDEOSU — ışık tutulunca bir kez oynar */}
-            {portraitGo && !final && (
+            {portraitGo && !final && !waveGone && (
               <>
                 <WaveVideo
                   src={WAVE_VIDEO}

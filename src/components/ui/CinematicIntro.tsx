@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { smoothClock } from "./smoothClock";
+import { isPerfLite } from "./perfTier";
 
 /* =========================================================
    SİNEMATİK AÇILIŞ — "fotoğraf → çip → menü"
@@ -156,11 +157,18 @@ function sampleShape(
  *  (her karede binlerce nokta çizmek telefonu kasıyordu) */
 const isLow = () =>
   typeof window !== "undefined" &&
-  (window.innerWidth < 768 || window.matchMedia?.("(hover: none)").matches);
+  (window.innerWidth < 768 ||
+    window.matchMedia?.("(hover: none)").matches ||
+    isPerfLite());
 
-function makeCanvas(W: number, H: number) {
+function makeCanvas(W: number, H: number, soft = false) {
   const el = document.createElement("canvas");
-  const dpr = Math.min(isLow() ? 1.25 : 2, window.devicePixelRatio || 1);
+  /* yumuşak katmanlar (karanlık perde, ışık hüzmesi) düşük çözünürlükte
+     de aynı görünür: zayıf cihazda 1x */
+  const dpr = Math.min(
+    isLow() ? (soft && isPerfLite() ? 1 : 1.25) : 2,
+    window.devicePixelRatio || 1,
+  );
   el.width = Math.round(W * dpr);
   el.height = Math.round(H * dpr);
   el.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none;`;
@@ -373,7 +381,7 @@ export default function CinematicIntro({
 
     const chipFx = makeCanvas(W, H);
     const fx = makeCanvas(W, H);
-    const beam = makeCanvas(W, H);
+    const beam = makeCanvas(W, H, true);
     if (!chipFx || !fx || !beam) {
       finish();
       return;
@@ -796,7 +804,7 @@ export default function CinematicIntro({
        sahnenin "fotoğraf çeker gibi" kararıp açılmasına ve spotun hiç
        görünmemesine yol açıyordu. Artık tuvale çiziliyor: her tarayıcıda
        aynı ve hafif. */
-    const veilCv = makeCanvas(W, H);
+    const veilCv = makeCanvas(W, H, true);
     const VEIL_FILL = "rgba(3,5,12,.96)";
     /* perde değişmediyse yeniden çizilmez (spot dururken her kare tam
        ekran boyamak telefonu boşuna yoruyordu) */
@@ -926,6 +934,7 @@ export default function CinematicIntro({
      *  karede yeniden hesaplanmasın (telefonda en pahalı iş buydu) */
     const q = (v: number, step: number) => Math.round(v / step) * step;
     let lastSpotBg = "";
+    let lastBeamKey = "-";
 
     const frame = (now: number) => {
       /* tr: gerçek zaman (ışık buna göre); t: geri kalan her şeyin zamanı,
@@ -984,7 +993,14 @@ export default function CinematicIntro({
       drawVeil(sx, sy, rx, ry, I, 1 - rim);
       if (veilCv) setStyle(veilCv.el, "opacity", String(1 - houseUp));
 
-      {
+      /* hafif modda hüzmede toz zerresi yok → hüzme değişmedikçe
+         yeniden çizilmez */
+      const liteBeam = isPerfLite();
+      const beamKey = liteBeam
+        ? `${sx.toFixed(1)},${sy.toFixed(1)},${rx.toFixed(1)},${ry.toFixed(1)},${(I * (1 - houseUp)).toFixed(3)}`
+        : "";
+      if (!liteBeam || beamKey !== lastBeamKey) {
+        lastBeamKey = beamKey;
         const b = beam.ctx;
         b.clearRect(0, 0, W, H);
         const bI = I * (1 - houseUp);
@@ -1020,7 +1036,7 @@ export default function CinematicIntro({
             b.fill();
           }
 
-          for (const m of motes) {
+          if (!liteBeam) for (const m of motes) {
             const u = (m.u + tr * 0.012 * m.sp) % 1;
             if (u < 0.1) continue;
             const v = m.v + Math.sin(tr * m.sp + m.ph) * 0.06;

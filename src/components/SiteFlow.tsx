@@ -18,6 +18,7 @@ import { type MenuKey } from "@/components/layout/MobileMenu";
 import SiteMenu from "@/components/layout/SiteMenu";
 import FinalState from "@/components/ui/FinalState";
 import { ThemeStyles } from "@/components/ui/Theme";
+import { PERF_LITE_CSS, startPerfTier } from "@/components/ui/perfTier";
 import {
   ALL_AVATAR_IMAGES,
   IMG,
@@ -141,6 +142,9 @@ const show = (el: HTMLElement | null, on: boolean) => {
   if (!el) return;
   const v = on ? "visible" : "hidden";
   if (el.style.visibility !== v) el.style.visibility = v;
+  /* görünmeyen bölümün sonsuz döngülü süs animasyonları (akan çizgiler,
+     yanıp sönen ışıklar) durur: gizliyken de her kare hesaplanıyordu */
+  el.classList.toggle("flow-off", !on);
 };
 
 type Prog = { hero: number; projects: number; footer: number };
@@ -401,6 +405,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     },
     [layerEl],
   );
+
+  /* cihaz gücü: zayıf cihazda ağır süs animasyonları durur */
+  useEffect(() => startPerfTier(), []);
 
   /* ilk kare (sahne kurulunca) */
   useEffect(() => {
@@ -716,6 +723,8 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     >
       <style>{`
         .flow-sec { will-change: transform; transform-origin: 50% 30%; backface-visibility: hidden; }
+        .flow-off, .flow-off * { animation-play-state: paused !important; }
+        ${PERF_LITE_CSS}
         .pf-recede { background: linear-gradient(180deg, rgba(2,6,20,.55), rgba(2,6,20,.75)); }
         @media (min-width: 1024px) and (hover: hover) {
           .pf-recede {

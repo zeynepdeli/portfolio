@@ -89,11 +89,14 @@ function PinRow({
   plate,
   thick,
   powered,
+  flat = false,
 }: {
   side: Side;
   plate: number;
   thick: number;
   powered: boolean;
+  /** düz çizim: derinlik ebeveyndeki ölçekle verilir */
+  flat?: boolean;
 }) {
   const { from, to } = pinSpan();
   const len = plate * (to - from);
@@ -116,7 +119,7 @@ function PinRow({
         ...box,
         flexDirection: h ? "row" : "column",
         gap: PIN_GAP,
-        transform: `translateZ(${-thick}px)`,
+        transform: flat ? undefined : `translateZ(${-thick}px)`,
         filter: powered
           ? "brightness(1.08) saturate(1.05)"
           : "brightness(.82) saturate(.85)",
@@ -245,6 +248,21 @@ export default function ChipPlatform({
     ? `radial-gradient(circle at center, transparent ${ringR}px, #000 ${ringR + 1}px)`
     : undefined;
 
+  /* DÜZ ÇİZİM (çip tam karşıdan bakıyorsa: eğim ve yana dönüş yok).
+     Gerçek 3B yığın (10 taban katmanı, etekler, derinlikteki pinler)
+     her biri ayrı bir GPU katmanı oluyordu: telefonda ~25 büyük katman
+     → bellek taşıyor, ekran takılıp yanıp sönüyordu. Karşıdan bakınca
+     tabanlar ve etekler zaten üst yüzün arkasında kalır; derinlik yalnızca
+     perspektif ölçeğiyle (aynı görüntü) verilir → tek düz katman. */
+  const flat = tilt === 0 && turn === 0 && !photo;
+  const P = CHIP.perspective;
+  /** z derinliğindeki bir öğenin karşıdan görünen ölçeği */
+  const zScale = (z: number) => P / (P - z);
+  const zT = (z: number, extra = "") =>
+    flat
+      ? `${extra} scale(${zScale(z).toFixed(5)})`.trim()
+      : `${extra} translateZ(${z}px)`.trim();
+
   return (
     <div
       className="pointer-events-none"
@@ -260,16 +278,37 @@ export default function ChipPlatform({
         style={{
           width: plate,
           height: plate,
-          transform: `translate(-50%, -50%) rotateY(${turn}deg) rotateZ(${spin}deg) rotateX(${tilt}deg) rotateZ(45deg)`,
-          transformStyle: "preserve-3d",
+          transform: flat
+            ? `translate(-50%, -50%) rotate(${spin + 45}deg)`
+            : `translate(-50%, -50%) rotateY(${turn}deg) rotateZ(${spin}deg) rotateX(${tilt}deg) rotateZ(45deg)`,
+          transformStyle: flat ? undefined : "preserve-3d",
         }}
       >
-        {SIDES.map((s) => (
-          <Fragment key={`lead-${s}`}>
-            <PinRow side={s} plate={plate} thick={thick} powered={powered} />
-            <div className="absolute" style={skirtStyle(s, thick)} />
-          </Fragment>
-        ))}
+        {flat ? (
+          /* pinler gövdenin arka yüzünde: derinlik ölçeğiyle */
+          <div
+            className="absolute inset-0"
+            style={{ transform: `scale(${zScale(-thick).toFixed(5)})` }}
+          >
+            {SIDES.map((s) => (
+              <PinRow
+                key={`lead-${s}`}
+                side={s}
+                plate={plate}
+                thick={thick}
+                powered={powered}
+                flat
+              />
+            ))}
+          </div>
+        ) : (
+          SIDES.map((s) => (
+            <Fragment key={`lead-${s}`}>
+              <PinRow side={s} plate={plate} thick={thick} powered={powered} />
+              <div className="absolute" style={skirtStyle(s, thick)} />
+            </Fragment>
+          ))
+        )}
 
         {/* GÖVDE — ortadaki delik maskesi YALNIZCA burada. Pinler bu
             kutunun dışına taştığı için maskenin dışında kalmalı; maske
@@ -277,7 +316,7 @@ export default function ChipPlatform({
         <div
           className="absolute inset-0"
           style={{
-            transformStyle: "preserve-3d",
+            transformStyle: flat ? undefined : "preserve-3d",
             WebkitMaskImage: holeMask,
             maskImage: holeMask,
           }}
@@ -287,13 +326,17 @@ export default function ChipPlatform({
             className="absolute rounded-[26px]"
             style={{
               inset: -lead * 0.4,
-              transform: `translateZ(${-thick - 6}px) translate(${shadowDx.toFixed(1)}px, ${shadowDy.toFixed(1)}px)`,
+              transform: zT(
+                -thick - 6,
+                `translate(${shadowDx.toFixed(1)}px, ${shadowDy.toFixed(1)}px)`,
+              ),
               background: "rgba(var(--c-060c18,6,12,24),0.6)",
               filter: "blur(24px)",
             }}
           />
 
-          {Array.from({ length: SLAB_COUNT }, (_, i) => {
+          {/* taban katmanları: karşıdan bakınca üst yüzün arkasında kalır */}
+          {!flat && Array.from({ length: SLAB_COUNT }, (_, i) => {
             const last = i === SLAB_COUNT - 1;
 
             return (
@@ -370,7 +413,7 @@ export default function ChipPlatform({
                   className="absolute rounded-[14px]"
                   style={{
                     inset: "12%",
-                    transform: `translateZ(${z}px)`,
+                    transform: zT(z),
                     background: "rgba(var(--c-0a0c10,10,12,16),0.9)",
                     border: `1px solid rgba(${FRAME},0.6)`,
                   }}
@@ -381,7 +424,7 @@ export default function ChipPlatform({
                 className="absolute overflow-hidden rounded-[14px]"
                 style={{
                   inset: "12%",
-                  transform: `translateZ(${innerZ}px)`,
+                  transform: zT(innerZ),
                   background: `radial-gradient(ellipse at 50% 30%, rgba(var(--c-0e1016,14,16,22),0.95), rgba(var(--c-040508,4,5,8),0.97))`,
                   border: `2px solid rgba(${RIVER_EDGE},0.55)`,
                   boxShadow: `0 0 12px rgba(${RIVER_EDGE},0.35), inset 0 0 10px rgba(${RIVER_EDGE},0.2), inset 0 1px 0 rgba(var(--c-ffffff,255,255,255),0.4)`,
@@ -409,7 +452,7 @@ export default function ChipPlatform({
                 style={{
                   width: (ringR + 16) * 2,
                   height: (ringR + 16) * 2,
-                  transform: `translate(-50%,-50%) translateZ(${innerZ + 0.5}px)`,
+                  transform: zT(innerZ + 0.5, "translate(-50%,-50%)"),
                   border: `1px solid rgba(${ICE},0.45)`,
                 }}
               />
@@ -419,7 +462,7 @@ export default function ChipPlatform({
                 style={{
                   width: (ringR + 7) * 2,
                   height: (ringR + 7) * 2,
-                  transform: `translate(-50%,-50%) translateZ(${innerZ + 1}px)`,
+                  transform: zT(innerZ + 1, "translate(-50%,-50%)"),
                   border: `7px solid rgba(${RIVER_EDGE},${powered ? 0.75 : 0.5})`,
                   boxShadow: powered
                     ? `0 0 26px rgba(${ICE},0.9), inset 0 0 14px rgba(${ICE_LIGHT},0.7)`
@@ -433,7 +476,7 @@ export default function ChipPlatform({
                 style={{
                   width: ringR * 2,
                   height: ringR * 2,
-                  transform: `translate(-50%,-50%) translateZ(${innerZ + 0.5}px)`,
+                  transform: zT(innerZ + 0.5, "translate(-50%,-50%)"),
                   background: `
                   radial-gradient(circle at 50% 50%,
                     rgba(${ICE},${powered ? 0.35 : 0.18}) 0%,

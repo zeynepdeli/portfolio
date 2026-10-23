@@ -241,19 +241,49 @@ export default function PortraitMorph({
     if (!cv || width < 10 || height < 10) return;
     if (skipAnimation) return;
     let cancelled = false;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = Math.round(cw * dpr);
-    cv.height = Math.round(chh * dpr);
+    /* GİRİŞSİZ (introless) kullanımda tuval yalnızca fareyle üstüne
+       gelinince parçacıklara ayrılma için gerekir:
+       - dokunmatik cihazda hiç kurulmaz (boş tam boy tuval GPU'da yer
+         tutuyor, fotoğraf değişince yüzlerce ms'lik piksel okuma yapıyordu)
+       - masaüstünde sayfa boştayken (animasyon araya girmeden) kurulur */
+    const hoverable = window.matchMedia?.("(hover: hover)").matches ?? true;
+    /* (girişsizde fotoğraf zaten görünür: imageReady) */
+    if (introless && !hoverable) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sizeCanvas = () => {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(cw * dpr);
+      cv.height = Math.round(chh * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
 
     const img = new Image();
     img.decoding = "async";
     img.src = src;
 
+    let idle = 0;
+    const whenIdle = (fn: () => void) => {
+      const w = window as Window & {
+        requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      };
+      if (w.requestIdleCallback)
+        idle = w.requestIdleCallback(fn, { timeout: 4000 });
+      else idle = window.setTimeout(fn, 1500);
+    };
+
     img.onload = () => {
       if (cancelled) return;
+      if (introless) {
+        setRevealed(true);
+        whenIdle(build);
+        return;
+      }
+      build();
+    };
+    const build = () => {
+      if (cancelled) return;
+      sizeCanvas();
       const N = Math.round(
         Math.min(4200, Math.max(1200, (width * height) / 55)),
       );
@@ -424,6 +454,9 @@ export default function PortraitMorph({
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafRef.current);
+      const w = window as Window & { cancelIdleCallback?: (id: number) => void };
+      if (w.cancelIdleCallback) w.cancelIdleCallback(idle);
+      window.clearTimeout(idle);
     };
   }, [
     src,

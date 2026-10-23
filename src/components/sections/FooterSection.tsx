@@ -997,11 +997,13 @@ function BinaryRiver({
               const style: CSSVars = {
                 "--len": "-600px",
                 animation: `ftLaneFlow ${l.dur}s linear infinite`,
+                /* hafif modda durur (perfTier: .ft-lane) */
                 transition: "stroke-opacity 700ms",
               };
               return (
                 <line
                   key={i}
+                  className="ft-lane"
                   x1={-20}
                   x2={w + 20}
                   y1={l.y}
