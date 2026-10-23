@@ -49,6 +49,9 @@ import {
    sonra kaymaz.
 ========================================================= */
 
+/** açılış sahnesinin karanlığı (CinematicIntro perdesiyle aynı) */
+const STAGE_DARK = "rgb(3,5,12)";
+
 export type FlowStart = "story" | "hero" | "roadmap" | "projects" | "footer";
 
 /* ---------------- TEMPO (yavaş = hikâye daha belirgin) ---------------- */
@@ -61,8 +64,9 @@ const FOOTER_MS = 1400;
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
 const ARRIVE_PAUSE_MS = 140;
-/** roadmap avatarının yukarıdan nehre düşüşü (ms) — RoadmapSection ile aynı */
-const ROADMAP_FALL_MS = 800;
+/** roadmap avatarının düşmeye başladığı an (geçişin oranı): sayfa
+ *  yavaşlarken üstten girer, sayfa oturduktan hemen sonra suya iner */
+const ROADMAP_FALL_AT = 0.7;
 /** hero avatarının ekrandan aşağı dalıp çıkması (ms, SiteAvatar EXIT_MS) */
 const HERO_EXIT_MS = 1050;
 /** projelerde kişi, geçişin bu oranında akmaya başlar */
@@ -77,8 +81,10 @@ const CRITICAL_IMAGES: Record<FlowStart, string[]> = {
   projects: [IMG.sit, IMG.ride],
   footer: [IMG.sit, IMG.pinch],
 };
-/** geçiş eğrisi: easeInOutQuart (eskiden JS'teki eğrinin aynısı) */
-const EASE_CSS = "cubic-bezier(.76,0,.24,1)";
+/** geçiş eğrisi: hemen kımıldar, yumuşakça oturur. (Eskiden
+ *  easeInOutQuart'tı: ilk üçte birde neredeyse hiç kıpırdamıyor, sayfa
+ *  "takıldı mı?" dedirtiyordu.) */
+const EASE_CSS = "cubic-bezier(.45,.05,.15,1)";
 /** kompozitör animasyonu için ara kare sayısı (gölge yayı için) */
 const SAMPLES = 8;
 /** hikâyede projeler bitince footer bu kadar sonra kendiliğinden açılır */
@@ -100,15 +106,17 @@ const OUT_DIM = 0.55;
 const REST = "translate3d(0, 0, 0)";
 const outTransform = (t: number) =>
   `translate3d(0, ${(-5 * t).toFixed(3)}%, 0) scale(${(1 - (1 - OUT_SCALE) * t).toFixed(4)})`;
+/** gelen kart hafif arkaya yatık yükselir, otururken düzleşir (derinlik) */
+const IN_TILT = 9;
 const inTransform = (t: number) =>
-  `translate3d(0, ${((1 - t) * 100).toFixed(3)}%, 0) scale(${(IN_SCALE + (1 - IN_SCALE) * t).toFixed(4)})`;
+  `perspective(1600px) translate3d(0, ${((1 - t) * 100).toFixed(3)}%, 0) rotateX(${(IN_TILT * (1 - t)).toFixed(3)}deg) scale(${(IN_SCALE + (1 - IN_SCALE) * t).toFixed(4)})`;
 const riseShadowOpacity = (t: number) =>
   t > 0 && t < 1 ? Math.sin(Math.PI * t) : 0;
 const dimOpacity = (t: number) => (t > 0 && t < 1 ? OUT_DIM * t : 0);
 
-/* yumuşak başlayıp yumuşak biten geçiş (easeInOutQuart) */
+/* yedek (kare kare) geçişin eğrisi: EASE_CSS'e yakın */
 const easeInOut = (v: number) =>
-  v < 0.5 ? 8 * v * v * v * v : 1 - Math.pow(-2 * v + 2, 4) / 2;
+  v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
 
 /** from → to arası yumuşak geçiş; her karede apply */
 function tweenTo(
@@ -221,7 +229,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     let alive = true;
-    const slowT = window.setTimeout(() => setSlow(true), 350);
+    const slowT = window.setTimeout(() => setSlow(true), 1200);
     Promise.all([
       fontsReady(READY_MAX_MS),
       preloadImages(CRITICAL_IMAGES[start], READY_MAX_MS),
@@ -464,7 +472,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       if (dir > 0 && key === "hero")
         window.setTimeout(
           () => setRoadmapEntering(true),
-          Math.max(dur - ROADMAP_FALL_MS, HERO_EXIT_MS),
+          Math.max(dur * ROADMAP_FALL_AT, HERO_EXIT_MS),
         );
       if (dir > 0 && key === "projects")
         window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
@@ -686,8 +694,10 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     [story, projectsActive, projectsStaged, onProjectsDone, footerArrived],
   );
   const footer = useMemo(
-    () => <FooterSection open={footerArrived} reveal={footerOpen} />,
-    [footerArrived, footerOpen],
+    /* avatar footer'la BİRLİKTE tırmanır: sayfa yükselmeye başlar
+       başlamaz (eskiden sayfa tamamen oturduktan sonra başlıyordu) */
+    () => <FooterSection open={footerOpen} reveal={footerOpen} />,
+    [footerOpen],
   );
 
   /* aşağı kaydır ipucu: bölüme gelince birkaç saniye görünür, sonra
@@ -739,21 +749,27 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       <ThemeStyles />
 
       {!ready ? (
-        /* hazırlanırken: yalnızca zemin (yavaş bağlantıda küçük yazı) */
+        /* hazırlanırken: hikâyede açılışın KARANLIK sahnesiyle aynı renk
+           (eskiden mavi zemin görünüp sonra kararıyordu: ekran yanıp
+           sönüyor gibiydi). Yavaş bağlantıda küçük yükleniyor yazısı. */
         <div
           aria-hidden
           className="absolute inset-0 grid place-items-center font-mono text-[11px] tracking-[.4em] text-[#a8eef6]"
-          style={{
-            opacity: slow ? 1 : 0,
-            transition: "opacity .3s ease",
-          }}
+          style={{ background: story ? STAGE_DARK : undefined }}
         >
-          <span style={{ animation: "flowWait 1.2s ease-in-out infinite" }}>
+          <span
+            style={{
+              opacity: slow ? 1 : 0,
+              transition: "opacity .3s ease",
+              animation: "flowWait 1.2s ease-in-out infinite",
+            }}
+          >
             LOADING
           </span>
         </div>
       ) : (
-      <div className="flow-stage absolute inset-0">
+      /* hikâyede sahne zaten karanlıktan açılır: ayrıca solarak gelmez */
+      <div className={`${story ? "" : "flow-stage "}absolute inset-0`}>
       {/* HERO */}
       <section
         ref={heroRef}

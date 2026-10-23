@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* ilk boyamadan önce de koyu: tarayıcının beyaz zemini bir an
+   görünüp (beyaz → mavi → siyah) yanıp sönme gibi algılanmasın */
+html,
+body {
+  background: rgb(3, 5, 12);
+}
+
 /*
   ============================================
   DESIGN TOKENS — Tek kaynak, tüm renkler burada

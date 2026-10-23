@@ -248,7 +248,10 @@ export default function FooterSection({
   const revealOn = reveal ?? isOpen;
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [motion, setMotion] = useState<Motion | null>(null);
+  /* DÜŞÜŞ: her karede React yeniden çizmesin diye konum doğrudan
+     stile yazılır (eskiden her kare bütün footer yeniden çiziliyordu) */
+  const fallRef = useRef<HTMLDivElement>(null);
+  const fallImgRef = useRef<HTMLImageElement>(null);
   const [splash, setSplash] = useState<Pt | null>(null);
   /** tırmandığı kenar: güç kaynağı kutusunun üst kenarı */
   const [ledge, setLedge] = useState<Pt | null>(null);
@@ -262,7 +265,6 @@ export default function FooterSection({
     setPrevOpen(isOpen);
     if (!isOpen) {
       setPhase("idle");
-      setMotion(null);
       setSplash(null);
     }
   }
@@ -333,6 +335,19 @@ export default function FooterSection({
     let stage: Phase = "idle";
     let stageAt = 0;
     let splashed = false;
+    const setMotion = (m: Motion) => {
+      const box = fallRef.current;
+      const img = fallImgRef.current;
+      if (!box || !img) return;
+      box.style.transform = `translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0)`;
+      img.style.transform = `rotate(${m.rot.toFixed(2)}deg) scale(${(2 - m.sq).toFixed(3)}, ${m.sq.toFixed(3)})`;
+      const mask =
+        m.sink > 0
+          ? `linear-gradient(180deg, #000 ${((JUMP_FEET - m.sink) * 100 - 1).toFixed(1)}%, transparent ${((JUMP_FEET - m.sink) * 100 + 1).toFixed(1)}%)`
+          : "";
+      img.style.webkitMaskImage = mask;
+      img.style.maskImage = mask;
+    };
     const go = (p: Phase, now: number) => {
       if (stage !== p) {
         stage = p;
@@ -394,7 +409,6 @@ export default function FooterSection({
         });
         if (t >= 1) {
           setSeat(s);
-          setMotion(null);
           setPhase("landed");
           setLandKey((k) => k + 1);
           return;
@@ -653,14 +667,18 @@ export default function FooterSection({
 
       {/* ================= TIRMANMA: kutunun arkasından üst kenarına =================
           video kenar çizgisinde kesilir: alt kısmı kutunun ARKASINDA kalır */}
-      {phase === "climb" && ledge && (
+      {/* video baştan (gizli, duraklatılmış) hazır bekler: footer
+          yükselmeye başlar başlamaz tırmanış ANINDA başlar (eskiden video
+          o an yüklenmeye başlıyor, avatar geç geliyordu) */}
+      {(phase === "idle" || phase === "climb") && (
         <div
           className="pointer-events-none absolute z-40 overflow-hidden"
           style={{
-            left: ledge.x - climbW / 2,
-            top: ledge.y - climbH,
+            left: (ledge?.x ?? 0) - climbW / 2,
+            top: (ledge?.y ?? 0) - climbH,
             width: climbW,
             height: climbH,
+            visibility: phase === "climb" && ledge ? "visible" : "hidden",
           }}
           aria-hidden
         >
@@ -670,7 +688,10 @@ export default function FooterSection({
               width: climbW,
               height: climbH,
               top: climbH * (1 - CLIMB_LEDGE),
-              animation: `ftClimbLedge ${CLIMB_MS}ms linear both`,
+              animation:
+                phase === "climb"
+                  ? `ftClimbLedge ${CLIMB_MS}ms linear both`
+                  : "none",
               filter: `drop-shadow(0 0 10px rgba(${EDGE},.35))`,
             }}
           >
@@ -678,6 +699,7 @@ export default function FooterSection({
               src={CLIMB_VIDEO}
               fallbackSrc="/images/zeynep-tirmanma-kare.webp"
               playbackRate={CLIMB_RATE}
+              playing={phase === "climb"}
               onEnded={() => {
                 climbEndRef.current = true;
               }}
@@ -688,16 +710,25 @@ export default function FooterSection({
       )}
 
       {/* ================= ZIPLAYIP SUYA İNEN AVATAR ================= */}
-      {motion && (phase === "fall" || phase === "splash") && (
+      {(phase === "fall" || phase === "splash") && (
         <div
-          className="pointer-events-none absolute z-40"
-          style={{ left: motion.x, top: motion.y, width: 0, height: 0 }}
+          ref={fallRef}
+          className="pointer-events-none absolute top-0 left-0 z-40 will-change-transform"
+          /* ilk konum ilk karede yazılır; o ana dek kenarda (görünmez) */
+          style={{
+            width: 0,
+            height: 0,
+            transform: ledge
+              ? `translate3d(${ledge.x}px, ${ledge.y}px, 0)`
+              : undefined,
+          }}
           aria-hidden
         >
           {/* burnunu kapatmış, ayakta suya atlar; suya girerken bacakları
               su çizgisinin altında kalır (maske) */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            ref={fallImgRef}
             src={JUMP_SRC}
             alt=""
             draggable={false}
@@ -708,12 +739,7 @@ export default function FooterSection({
               left: -jumpW / 2,
               top: -jumpH * JUMP_FEET,
               transformOrigin: `50% ${JUMP_FEET * 100}%`,
-              transform: `rotate(${motion.rot}deg) scale(${2 - motion.sq}, ${motion.sq})`,
               filter: `drop-shadow(0 0 12px rgba(${EDGE},.45))`,
-              ...(motion.sink > 0 && {
-                WebkitMaskImage: `linear-gradient(180deg, #000 ${(JUMP_FEET - motion.sink) * 100 - 1}%, transparent ${(JUMP_FEET - motion.sink) * 100 + 1}%)`,
-                maskImage: `linear-gradient(180deg, #000 ${(JUMP_FEET - motion.sink) * 100 - 1}%, transparent ${(JUMP_FEET - motion.sink) * 100 + 1}%)`,
-              }),
             }}
           />
         </div>

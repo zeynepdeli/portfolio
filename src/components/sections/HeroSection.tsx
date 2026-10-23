@@ -329,8 +329,66 @@ const PORTRAIT_MASK = {
 
 /* net ve parlak: hafif kontrast + ince ışık kenarı + hale; kenarlardan
    vuran ışık şeffaf görselde silüeti izler (fotoğraf ve video aynı) */
-const portraitFilter = (powered: boolean) =>
-  `contrast(1.05) brightness(1.06) drop-shadow(0 0 1.5px rgba(var(--photo-seam,207,230,255),.85)) drop-shadow(0 0 18px rgba(var(--photo-edge,70,190,255),${powered ? 0.55 : 0.35})) drop-shadow(0 18px 24px rgba(0,0,0,.45))`;
+/* Portrenin rengi. Işıltı ve gölge ARTIK FİLTRE DEĞİL (aşağıdaki
+   PortraitGlow): üç katlı drop-shadow, el sallama videosunun her
+   karesinde yeniden hesaplanıyordu — iPhone Safari drop-shadow'u
+   hızlandıramadığı için portre takılıyor, kare kare kırpışıyordu. */
+const portraitFilter = () => "contrast(1.05) brightness(1.06)";
+
+/** Portrenin ışıltısı ve yere düşen gölgesi: fotoğrafın siluetinden
+ *  (maske) bir kez bulanıklaştırılmış SABİT katmanlar. Video oynarken
+ *  yeniden çizilmez; açık / kapalı ışık yalnızca opaklıkla değişir. */
+function PortraitGlow({ powered }: { powered: boolean }) {
+  /* siluet × alttan solma (fotoğrafın alt kenarı gibi erir) */
+  const fade = "linear-gradient(to bottom, #000 0%, #000 80%, transparent 97%)";
+  const sil = {
+    WebkitMaskImage: `url(${WAVE_START}), ${fade}`,
+    maskImage: `url(${WAVE_START}), ${fade}`,
+    WebkitMaskComposite: "source-in",
+    maskComposite: "intersect",
+    WebkitMaskSize: "cover, 100% 100%",
+    maskSize: "cover, 100% 100%",
+    WebkitMaskPosition: `${PHOTO_POSITION}, 0 0`,
+    maskPosition: `${PHOTO_POSITION}, 0 0`,
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+  } as const;
+  return (
+    <>
+      {/* yere düşen gölge */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          transform: "translateY(18px)",
+          filter: "blur(12px)",
+          opacity: 0.45,
+        }}
+      >
+        <div className="absolute inset-0 bg-black" style={sil} />
+      </div>
+      {/* çevresindeki mavi ışıltı */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          filter: "blur(9px)",
+          opacity: powered ? 0.75 : 0.5,
+          transition: "opacity 700ms",
+        }}
+      >
+        <div
+          className="absolute"
+          style={{
+            ...sil,
+            inset: "-2%",
+            background: "rgb(var(--photo-edge,70,190,255))",
+          }}
+        />
+      </div>
+    </>
+  );
+}
 
 /** "?final=1" okuması: sunucuda false, tarayıcıda gerçek değer (hydration güvenli) */
 const subscribeNoop = () => () => {};
@@ -1026,6 +1084,9 @@ export default function HeroSection({
               }}
             />
 
+            {/* portrenin ışıltısı + gölgesi (sabit katman) */}
+            {portraitGo && <PortraitGlow powered={powered} />}
+
             {/* FOTOĞRAF: açılışta parçacıksız, doğrudan görünür; üzerine
                 gelince parçacıklara ayrılma etkileşimi sürer */}
             {portraitGo && (
@@ -1058,8 +1119,7 @@ export default function HeroSection({
                   objectPosition={PHOTO_POSITION}
                   imgStyle={{
                     ...PORTRAIT_MASK,
-                    filter: portraitFilter(powered),
-                    transition: "filter 700ms",
+                    filter: portraitFilter(),
                   }}
                 />
               </div>
@@ -1085,7 +1145,7 @@ export default function HeroSection({
                       "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
                     maskImage:
                       "linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%)",
-                    filter: portraitFilter(powered),
+                    filter: portraitFilter(),
                   }}
                 />
                 {/* son kare önceden yüklensin: video bitince anında görünsün */}

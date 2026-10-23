@@ -425,7 +425,9 @@ const AVATAR_CSS = `
         }
       `;
 
-/** Yetenek satırının BAŞI (avatarın tek eliyle tutunacağı nokta).
+/** Yetenek satırının SONU (avatarın tek eliyle tutunacağı nokta):
+ *  isimden sağ uçtan aşağı düşer, satırın sağ ucunu yakalar, gövdesi
+ *  yazının sağından sarkar; oradan sosyal ikonlara (sağdan sola) iner.
  *  Yazının gerçek harflerine bakılır (kutular tüm genişliği kaplar);
  *  ">>> unvan" satırı değil, altındaki teknolojiler satırı seçilir. */
 function measureHang(belowY: number): Pt | null {
@@ -433,7 +435,13 @@ function measureHang(belowY: number): Pt | null {
   if (!sk) return null;
   const walker = document.createTreeWalker(sk, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
-  type Line = { top: number; left: number; bottom: number; text: string };
+  type Line = {
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+    text: string;
+  };
   const lines: Line[] = [];
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const t = n.textContent ?? "";
@@ -447,16 +455,24 @@ function measureHang(belowY: number): Pt | null {
       const line = lines.find((l) => Math.abs(l.top - q.top) < q.height * 0.5);
       if (line) {
         if (q.left < line.left) line.left = q.left;
+        if (q.right > line.right) line.right = q.right;
         line.text += t;
-      } else lines.push({ top: q.top, left: q.left, bottom: q.bottom, text: t });
+      } else
+        lines.push({
+          top: q.top,
+          left: q.left,
+          right: q.right,
+          bottom: q.bottom,
+          text: t,
+        });
     }
   }
   lines.sort((a, b) => a.top - b.top);
   const line =
     lines.find((l) => !l.text.trimStart().startsWith(">")) ?? lines[0];
   if (!line || line.top <= belowY + 8) return null;
-  /* el ilk harfin üstünü kavrar, gövde satırın başından sarkar */
-  return { x: line.left + 3, y: line.top + 1 };
+  /* el son harfin üstünü kavrar, gövde satırın sağından sarkar */
+  return { x: line.right - 3, y: line.top + 1 };
 }
 
 type Stage =
@@ -578,11 +594,12 @@ export default function SiteAvatar({
       const r = el.getBoundingClientRect();
       /* harflerin üst hizası (satır boşluğunun altı) */
       const top = r.top + r.height * 0.2;
-      land = { x: r.left + r.width * 0.72, y: top };
-      end = { x: r.left + r.width * 0.14, y: top };
+      /* ismin soluna konar, SAĞA koşar; sağ uçtan aşağı düşer */
+      land = { x: r.left + r.width * 0.3, y: top };
+      end = { x: r.left + r.width * 0.9, y: top };
     } else {
-      land = { x: vw * 0.45, y: vh * 0.45 };
-      end = { x: vw * 0.32, y: vh * 0.45 };
+      land = { x: vw * 0.35, y: vh * 0.45 };
+      end = { x: vw * 0.6, y: vh * 0.45 };
     }
     const nowX = vw / 2 - CONN_X + W / 2;
     /* asılacağı yetenek satırı (HeroSection: data-avatar-skills) */
@@ -697,14 +714,15 @@ export default function SiteAvatar({
     if (stage !== "hang") return;
     const sk = document.querySelector<HTMLElement>("[data-avatar-skills]");
     /* tutunulan baş ucu ağırlıkla aşağı eğilir, sonra yaylanır */
-    if (sk) sk.style.transformOrigin = "100% 50%";
+    /* tutulan SAĞ uç ağırlıkla aşağı eğilir (dönme noktası sol uç) */
+    if (sk) sk.style.transformOrigin = "0% 50%";
     sk?.animate(
       [
         { transform: "none" },
-        { transform: "translateY(3px) rotate(-2.2deg)", offset: 0.14 },
-        { transform: "translateY(-1px) rotate(1deg)", offset: 0.34 },
-        { transform: "translateY(1px) rotate(-0.6deg)", offset: 0.55 },
-        { transform: "rotate(0.3deg)", offset: 0.75 },
+        { transform: "translateY(3px) rotate(2.2deg)", offset: 0.14 },
+        { transform: "translateY(-1px) rotate(-1deg)", offset: 0.34 },
+        { transform: "translateY(1px) rotate(0.6deg)", offset: 0.55 },
+        { transform: "rotate(-0.3deg)", offset: 0.75 },
         { transform: "none" },
       ],
       { duration: Math.round(HANG_MS * 0.8), easing: "ease-out" },
@@ -993,7 +1011,7 @@ export default function SiteAvatar({
               ? "none"
           : stage === "social"
             ? hopIdx === 0
-              ? `left ${TO_SOCIAL_MS}ms linear, top ${TO_SOCIAL_MS}ms cubic-bezier(.3,-0.7,.7,1)`
+              ? `left ${TO_SOCIAL_MS}ms linear, top ${TO_SOCIAL_MS}ms ${spots?.hang ? "cubic-bezier(.35,-0.25,.75,.95)" : "cubic-bezier(.3,-0.7,.7,1)"}`
               : `left ${HOP_AIR_MS}ms linear, top ${HOP_AIR_MS}ms linear`
             : stage === "toFloor"
               ? `left ${TO_FLOOR_MS}ms linear, top ${TO_FLOOR_MS}ms cubic-bezier(.3,-0.6,.7,1)`
@@ -1024,8 +1042,10 @@ export default function SiteAvatar({
   const hopLeft =
     stage === "social" && !!hops[hopIdx] && hops[hopIdx].x < hopPrevX - 4;
   /* Sola giderken görsel aynalanır */
+  /* asılırken görsel aynalanır: el satırın sağ ucunda, gövde sağda */
   const facingLeft =
-    stage === "onName" ||
+    (stage === "onName" && !!spots && spots.end.x < spots.land.x) ||
+    ((stage === "toHang" || stage === "hang") && !!spots?.hang) ||
     hopLeft ||
     stage === "toFloor" ||
     stage === "toLeft" ||
@@ -1303,7 +1323,9 @@ export default function SiteAvatar({
             >
               <AlphaVideo
                 key={`c${run}`}
-                onStatus={(st) => setVideoStatus("tırmanma → " + st)}
+                onStatus={
+                  IS_DEV ? (st) => setVideoStatus("tırmanma → " + st) : undefined
+                }
                 src={climbSrc}
                 fallbackSrc="/images/zeynep-tirmanma-kare.webp"
                 onEnded={handleClimbEnded}
@@ -1333,7 +1355,11 @@ export default function SiteAvatar({
               className="absolute inset-0"
               style={{
                 transform: facingLeft ? "scaleX(-1)" : "none",
-                transition: "transform 250ms",
+                /* asılma pozuna geçerken anında (yoksa düşerken ezilir) */
+                transition:
+                  stage === "toHang" || stage === "hang"
+                    ? "none"
+                    : "transform 250ms",
               }}
             >
               {/* Hız izi: koşarken / zıplarken arkasında buz mavisi ışık çizgileri */}
@@ -1460,11 +1486,21 @@ export default function SiteAvatar({
                 {/* Fiş takarken yürüme durur (adım ortasında bekler) */}
                 <AlphaVideo
                   key={`w${run}`}
-                  onFrame={(t) => {
-                    const h = handAt(t);
-                    setHand((p) => (p.x === h.x && p.y === h.y ? p : h));
-                  }}
-                  onStatus={(st) => setVideoStatus("yürüme → " + st)}
+                  /* el konumu yalnızca kablo taşınırken gerekir: koşu
+                     boyunca her video karesinde avatar yeniden çizilmesin */
+                  onFrame={
+                    stage === "toPort" || stage === "plugged"
+                      ? (t) => {
+                          const h = handAt(t);
+                          setHand((p) =>
+                            p.x === h.x && p.y === h.y ? p : h,
+                          );
+                        }
+                      : undefined
+                  }
+                  onStatus={
+                    IS_DEV ? (st) => setVideoStatus("yürüme → " + st) : undefined
+                  }
                   src={walkSrc}
                   fallbackSrc="/images/zeynep-kosma-kare.webp"
                   loop

@@ -181,7 +181,7 @@ type RoadmapSectionProps = {
 };
 
 /** yukarıdan nehre düşüş süresi (ms) — SiteFlow ROADMAP_FALL_MS ile aynı */
-const FALL_MS = 800;
+const FALL_MS = 900;
 /** düşerken burnunu tutmuş poz (hero'da atladığı pozun aynısı) */
 const FALL_SRC = "/images/zeynep-burun.webp";
 const FALL_H = 66;
@@ -1005,10 +1005,26 @@ const AVATAR_CSS = `
     100% { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
   }
   /* yukarıdan suya düşüş (yerçekimi: yavaş başlar, hızlanır) */
+  /* üstteki sayfadan (hero) burnunu tutarak düşer, suya girer */
   @keyframes rmAvFall {
-    0%   { transform: translateY(var(--fall)) rotate(-6deg); }
-    85%  { transform: translateY(0) rotate(2deg) scale(1, 1); }
-    100% { transform: translateY(6px) scale(1.06, .9); }
+    0%   { transform: translateY(var(--fall)) rotate(-8deg); opacity: 1; }
+    80%  { transform: translateY(0) rotate(3deg) scale(1, 1); opacity: 1; }
+    92%  { transform: translateY(10px) scale(1.08, .86); opacity: 1; }
+    100% { transform: translateY(16px) scale(1.1, .8); opacity: 0; }
+  }
+  /* düşüş izi: arkasında dikey ışık çizgileri */
+  @keyframes rmAvFallTrail {
+    0%   { opacity: 0; }
+    20%  { opacity: .9; }
+    80%  { opacity: .7; }
+    100% { opacity: 0; }
+  }
+  /* suya inince oturur: çömelip yaylanarak oturma pozuna geçer */
+  @keyframes rmAvSit {
+    0%   { transform: translateY(8px) scale(.9, .72); opacity: 0; }
+    35%  { transform: translateY(-3px) scale(1.04, 1.06); opacity: 1; }
+    65%  { transform: translateY(1px) scale(.99, .97); }
+    100% { transform: none; opacity: 1; }
   }
   @keyframes rmAvSplashRing {
     0%   { transform: translate(-50%, -50%) scale(.2); opacity: 1; }
@@ -1960,11 +1976,15 @@ export default function RoadmapSection({
                   pickKey={arrived}
                   falling={fall === "falling"}
                   splash={fall === "landed" && arrived < 0}
+                  /* panelin üst kenarının hemen üstünden düşer: cam panel
+                     taşanı kestiği için ekranın en üstünden düşerse
+                     yolun neredeyse tamamı görünmüyordu */
                   fallFrom={
                     frameOf(size.w, size.h, portrait).py +
                     pointAt(G.middle, entryK).y *
-                      frameOf(size.w, size.h, portrait).sc +
-                    AV_H * 1.6
+                      frameOf(size.w, size.h, portrait).sc -
+                    size.h * PANEL_T +
+                    FALL_H * 0.9
                   }
                 />
               )}
@@ -2131,10 +2151,40 @@ function WalkingAvatar({
               left: AV_W * SEAT_X - FALL_W / 2,
               top: AV_H - FALL_H,
               "--fall": `${-fallFrom}px`,
-              animation: `rmAvFall ${FALL_MS}ms cubic-bezier(.45,0,.9,.55) both`,
+              animation: `rmAvFall ${FALL_MS}ms cubic-bezier(.5,0,.85,.6) both`,
             } as CSSVars
           }
         />
+      )}
+      {falling && (
+        <div
+          className="absolute"
+          style={
+            {
+              left: AV_W * SEAT_X - 10,
+              top: AV_H - FALL_H,
+              width: 20,
+              height: FALL_H,
+              "--fall": `${-fallFrom}px`,
+              animation: `rmAvFall ${FALL_MS}ms cubic-bezier(.5,0,.85,.6) both`,
+            } as CSSVars
+          }
+        >
+          {[0.15, 0.5, 0.85].map((x, i) => (
+            <span
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                left: `${x * 100}%`,
+                bottom: "100%",
+                width: 2,
+                height: 34 + i * 10,
+                background: `linear-gradient(0deg, rgba(${C.edgeRGB},.9), transparent)`,
+                animation: `rmAvFallTrail ${FALL_MS}ms linear both`,
+              }}
+            />
+          ))}
+        </div>
       )}
       {/* suya iniş: sıçrayan su halkası + damlalar */}
       {splash && (
@@ -2170,8 +2220,10 @@ function WalkingAvatar({
       <div
         className="absolute inset-0"
         style={{
-          /* düşerken oturma pozları gizli; suya inince belirir */
+          /* düşerken oturma pozları gizli; suya inince yaylanarak oturur */
           opacity: falling ? 0 : 1,
+          animation: splash ? "rmAvSit 650ms cubic-bezier(.3,.8,.4,1) both" : undefined,
+          transformOrigin: `${SEAT_X * 100}% 100%`,
           /* hep ileriye (sağa) bakar; nehir sola kıvrılsa da geri dönmez */
           transform: facingLeft && FLIP_ON_LEFT ? "scaleX(-1)" : "none",
           transition: "transform 220ms, opacity 160ms ease",
