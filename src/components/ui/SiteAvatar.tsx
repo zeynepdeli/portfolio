@@ -172,9 +172,15 @@ const CROUCH_LEDGE = 0.954;
 const CROUCH_ABOVE = 34; // yüzeyin üstünde kalan boy (px)
 const CROUCH_H = Math.round(CROUCH_ABOVE / CROUCH_LEDGE);
 const CROUCH_W = Math.round((CROUCH_H * 242) / 240);
-/** satıra düşerken çömelme pozunun üst kenarı (asılma kutusunda): başı,
+/* AYAKTA POZ — aşağı inişlerde (isimden satıra, satırdan ilk ikona,
+   son ikondan yere): havada koşuyor ya da çömelmiş görünmesin.
+   zeynep3.png'den (arka planı silindi). Ayaklar görselin altında. */
+const STAND_IMG = "/images/zeynep-ayakta.webp";
+const STAND_H = 60; // boy (px, AV_SCALE'den önce)
+const STAND_W = Math.round((STAND_H * 287) / 720);
+/** satıra düşerken ayakta pozun üst kenarı (asılma kutusunda): başı,
  *  yakalayınca asılan pozun başıyla aynı yerde → poz değişimi sıçramaz */
-const HANG_CROUCH_TOP = Math.round(
+const HANG_DROP_TOP = Math.round(
   HANG_BOX - HANG_H * HANG_GRIP_Y + HANG_H * 0.12,
 );
 
@@ -1183,7 +1189,7 @@ export default function SiteAvatar({
     (stage === "social" && !squat);
   /* Kenarda zıplamaya hazırlanırken ve isme konunca fotoğraf pozu
      (ikonlarda eğilmez, koşar adım basıp geçer) */
-  const crouching = stage === "prejump" || stage === "land" || dropping;
+  const crouching = stage === "prejump" || stage === "land";
   /* Hızlı hareket anları: hız izi görünür */
   const fast =
     (stage === "toPort" && !atPort) ||
@@ -1390,6 +1396,8 @@ export default function SiteAvatar({
         <img src={PINCH_IMG} alt="" aria-hidden style={{ display: "none" }} />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={HANG_IMG} alt="" aria-hidden style={{ display: "none" }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={STAND_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
@@ -1542,6 +1550,23 @@ export default function SiteAvatar({
                       : "none",
                 }}
               >
+                {/* Aşağı inerken ayakta poz: ayakları kutunun altında */}
+                {dropping && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={STAND_IMG}
+                    alt=""
+                    draggable={false}
+                    className="absolute max-w-none"
+                    style={{
+                      width: STAND_W,
+                      height: STAND_H,
+                      left: (W - STAND_W) / 2,
+                      top: H - STAND_H,
+                      filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
+                    }}
+                  />
+                )}
                 {/* Çömelme pozu (fotoğraf): eller yüzeyde, yüzey = kutunun altı */}
                 {crouching && (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -1556,9 +1581,8 @@ export default function SiteAvatar({
                       left: (W - CROUCH_W) / 2,
                       top: H - CROUCH_ABOVE,
                       transformOrigin: `50% ${CROUCH_LEDGE * 100}%`,
-                      animation: dropping
-                        ? "none"
-                        : stage === "land"
+                      animation:
+                        stage === "land"
                           ? `avLand ${LAND_MS}ms cubic-bezier(.3,1.4,.5,1) both`
                           : `avCrouch ${PREJUMP_MS}ms ease-out both`,
                     }}
@@ -1580,23 +1604,23 @@ export default function SiteAvatar({
                     }}
                   >
                     {stage === "toHang" ? (
-                      /* DÜŞÜŞ: normal (toplu) pozla isimden aşağı iner,
-                         satırın arkasından geçer; yakalayınca asılır */
+                      /* DÜŞÜŞ: ayakta pozla isimden aşağı iner, satırın
+                         arkasından geçer; yakalayınca asılır */
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={CROUCH_IMG}
+                        src={STAND_IMG}
                         alt=""
                         draggable={false}
                         className="av-anim absolute max-w-none"
                         style={{
-                          width: CROUCH_W,
-                          height: CROUCH_H,
-                          left: HANG_BOX / 2 - CROUCH_W / 2,
-                          top: HANG_CROUCH_TOP,
+                          width: STAND_W,
+                          height: STAND_H,
+                          left: HANG_BOX / 2 - STAND_W / 2,
+                          top: HANG_DROP_TOP,
                           animation: `avFall ${TO_HANG_MS}ms cubic-bezier(.55,0,.9,.6) both`,
                           /* başlangıç: ayakları isimde, düştüğü yerin üstünde */
                           ["--fx" as string]: `${((spots.end.x - spots.hang.x) / AV_SCALE).toFixed(1)}px`,
-                          ["--fy" as string]: `${((spots.end.y - spots.hang.y) / AV_SCALE + HANG_BOX - HANG_CROUCH_TOP - CROUCH_H).toFixed(1)}px`,
+                          ["--fy" as string]: `${((spots.end.y - spots.hang.y) / AV_SCALE + HANG_BOX - HANG_DROP_TOP - STAND_H).toFixed(1)}px`,
                           filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
                         }}
                       />
@@ -1665,7 +1689,9 @@ export default function SiteAvatar({
                   playing={walking}
                   playbackRate={RUN_RATE}
                   className="absolute inset-0"
-                  style={{ opacity: crouching || pinching || hanging ? 0 : 1 }}
+                  style={{
+                    opacity: crouching || dropping || pinching || hanging ? 0 : 1,
+                  }}
                 />
 
                 {/* Elindeki kablo + fiş */}
