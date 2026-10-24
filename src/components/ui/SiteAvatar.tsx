@@ -172,12 +172,18 @@ const CROUCH_LEDGE = 0.954;
 const CROUCH_ABOVE = 34; // yüzeyin üstünde kalan boy (px)
 const CROUCH_H = Math.round(CROUCH_ABOVE / CROUCH_LEDGE);
 const CROUCH_W = Math.round((CROUCH_H * 242) / 240);
-/* AYAKTA POZ — aşağı inişlerde (isimden satıra, satırdan ilk ikona,
-   son ikondan yere): havada koşuyor ya da çömelmiş görünmesin.
-   zeynep3.png'den (arka planı silindi). Ayaklar görselin altında. */
-const STAND_IMG = "/images/zeynep-ayakta.webp";
+/* DURMA POZU (ayakta, dik) — aşağı inişlerde (isimden satıra, satırdan
+   ilk ikona, son ikondan yere): havada koşuyor ya da çömelmiş
+   görünmesin. Ayaklar görselin altında. */
+const STAND_IMG = "/images/zeynep-durma.webp";
 const STAND_H = 60; // boy (px, AV_SCALE'den önce)
-const STAND_W = Math.round((STAND_H * 287) / 720);
+const STAND_W = Math.round((STAND_H * 234) / 720);
+/* ZIPLAMA POZU — ileri / yukarı sıçrayışlarda (porttan isme, ikondan
+   ikona). Görselin altı = en alttaki ayak; gövde x'in %40.5'inde. */
+const JUMP_IMG = "/images/zeynep-ziplama.webp";
+const JUMP_H = 62;
+const JUMP_W = Math.round((JUMP_H * 582) / 720);
+const JUMP_BODY_X = 0.405;
 /** satıra düşerken ayakta pozun üst kenarı (asılma kutusunda): başı,
  *  yakalayınca asılan pozun başıyla aynı yerde → poz değişimi sıçramaz */
 const HANG_DROP_TOP = Math.round(
@@ -452,7 +458,7 @@ const AVATAR_CSS = `
 /** Yetenek satırı (avatarın iki eliyle arkasından tutunacağı yer):
  *  isimden düşerken satırın arkasından geçer, iki eliyle satırı yakalar,
  *  gövdesi yazının altından sarkar. Yazının gerçek harflerine bakılır
- *  (kutular tüm genişliği kaplar); ">>> unvan" satırı değil, altındaki
+ *  (kutular tüm genişliği kaplar); "~/zeynep $ unvan" satırı değil, altındaki
  *  teknolojiler satırı seçilir. Dönen nokta: harflerin üst kenarı, h:
  *  satırın yüksekliği (yazının arkasında kalan bant). */
 function measureHang(belowY: number, nearX: number): HangPt | null {
@@ -494,7 +500,9 @@ function measureHang(belowY: number, nearX: number): HangPt | null {
   }
   lines.sort((a, b) => a.top - b.top);
   const line =
-    lines.find((l) => !l.text.trimStart().startsWith(">")) ?? lines[0];
+    lines.find(
+      (l) => !l.text.trimStart().startsWith(">") && !l.text.includes("$"),
+    ) ?? lines[0];
   if (!line || line.top <= belowY + 8) return null;
   /* isimden düştüğü yerin altında; iki el de satırın üstünde kalsın */
   const half = (HANG_W * HANG_HANDS * AV_SCALE) / 2 + 2;
@@ -981,22 +989,31 @@ export default function SiteAvatar({
     const el = rootRef.current;
     if (!el) return;
     const start = performance.now();
-    /* sıçrayış: 0.26 sn'de 40 px tepe, sonra yerçekimiyle düşüş */
-    const PEAK_T = 0.26;
-    const v0 = (2 * 40) / PEAK_T;
+    /* sıçrayış: 0.34 sn'de 70 px tepe, sonra yerçekimiyle düşüş. Kişi
+       en az MIN_AIR havada kalır (telefonda sayfa çok hızlı yükseldiği
+       için atlayış görünmüyordu) */
+    const PEAK_T = 0.34;
+    const MIN_AIR = 0.5;
+    const v0 = (2 * 70) / PEAK_T;
     const g = v0 / PEAK_T;
     let raf = 0;
+    let crossAt = -1;
     const tick = (now: number) => {
       const e = (now - start) / 1000;
       const t = cbs.current.exitTarget?.();
-      const y = chaseFrom.y - v0 * e + 0.5 * g * e * e;
+      const fallY = chaseFrom.y - v0 * e + 0.5 * g * e * e;
+      /* nokta kişinin ayak hizasını geçti: kişi ona oturur (kısa geçişle) */
+      if (t && crossAt < 0 && t.y <= fallY && t.y < window.innerHeight)
+        crossAt = e;
+      const j = crossAt < 0 ? 0 : Math.min(1, (e - crossAt) / 0.18);
+      const y = t ? fallY + (t.y - fallY) * j * j * (3 - 2 * j) : fallY;
       const k = Math.min(1, e / 0.45);
       const ease = k * k * (3 - 2 * k);
       const x = t ? chaseFrom.x + (t.x - chaseFrom.x) * ease : chaseFrom.x;
       el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
       /* indiği yerdeki oturan kişiyle aynı boya küçülür */
       el.style.scale = String(1 - 0.12 * Math.min(1, e / 0.5));
-      const met = !!t && e > PEAK_T * 0.6 && t.y <= y + 2 && t.y < window.innerHeight;
+      const met = e >= MIN_AIR && j >= 1;
       if (!met && e * 1000 < exitMs) {
         raf = requestAnimationFrame(tick);
         return;
@@ -1180,6 +1197,9 @@ export default function SiteAvatar({
      görünmesin */
   const dropping =
     (stage === "social" && hopIdx === 0 && !squat) || stage === "toFloor";
+  /* ileri sıçrayışlar: zıplama pozu */
+  const leaping =
+    stage === "jump" || (stage === "social" && hopIdx > 0 && !squat);
   const plugged = stage === "plugged";
   const airborne =
     stage === "jump" ||
@@ -1398,6 +1418,8 @@ export default function SiteAvatar({
         <img src={HANG_IMG} alt="" aria-hidden style={{ display: "none" }} />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={STAND_IMG} alt="" aria-hidden style={{ display: "none" }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={JUMP_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
@@ -1550,6 +1572,23 @@ export default function SiteAvatar({
                       : "none",
                 }}
               >
+                {/* Sıçrarken zıplama pozu: en alttaki ayak kutunun altında */}
+                {leaping && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={JUMP_IMG}
+                    alt=""
+                    draggable={false}
+                    className="absolute max-w-none"
+                    style={{
+                      width: JUMP_W,
+                      height: JUMP_H,
+                      left: W / 2 - JUMP_W * JUMP_BODY_X,
+                      top: H - JUMP_H,
+                      filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
+                    }}
+                  />
+                )}
                 {/* Aşağı inerken ayakta poz: ayakları kutunun altında */}
                 {dropping && (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -1690,7 +1729,10 @@ export default function SiteAvatar({
                   playbackRate={RUN_RATE}
                   className="absolute inset-0"
                   style={{
-                    opacity: crouching || dropping || pinching || hanging ? 0 : 1,
+                    opacity:
+                      crouching || dropping || leaping || pinching || hanging
+                        ? 0
+                        : 1,
                   }}
                 />
 

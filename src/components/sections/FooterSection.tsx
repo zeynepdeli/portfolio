@@ -573,7 +573,7 @@ export default function FooterSection({
                 className={`font-mono font-bold leading-[1.1] text-[#c4f7fb] ${short ? "text-[19px]" : "text-[clamp(22px,2.4vw,38px)]"}`}
                 style={{ textShadow: `0 0 22px rgba(${EDGE},.35)` }}
               >
-                Hayal ettiğin <br className="sm:hidden" />
+                Hayalindeki proje <br className="sm:hidden" />
                 <span
                   style={{
                     color: "#6ef5e8",
