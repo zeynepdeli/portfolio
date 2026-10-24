@@ -1871,11 +1871,9 @@ export default function RoadmapSection({
                     }}
                   >
                     <div
-                      className="flex items-center gap-1.5 rounded-full font-mono"
+                      className="flex items-center rounded-full font-mono"
                       style={{
-                        padding: portrait
-                          ? "3px 8px 3px 6px"
-                          : "4px 9px 4px 7px",
+                        padding: portrait ? "3px 8px" : "4px 9px",
                         lineHeight: portrait ? "13px" : "15px",
                         borderRadius: portrait ? 10 : undefined,
                         fontSize: chipFont,
@@ -1902,14 +1900,26 @@ export default function RoadmapSection({
                           : "none",
                       }}
                     >
-                      {/* yol haritası: her yetenek bir durak (harita iğnesi) */}
-                      <MapPin
-                        size={portrait ? 11 : 13}
-                        strokeWidth={1.6}
-                        style={{ opacity: 0.85, flexShrink: 0 }}
-                      />
                       {node.name}
                     </div>
+                    {/* yol haritası: her yetenek bir durak — harita iğnesi
+                        etiketin ALTINDA */}
+                    <MapPin
+                      aria-hidden
+                      className="absolute left-1/2 top-full"
+                      size={portrait ? 12 : 15}
+                      strokeWidth={1.7}
+                      style={{
+                        marginTop: 2,
+                        transform: "translateX(-50%)",
+                        color: collected
+                          ? C.goldLight
+                          : "rgb(var(--c-a8eef6,168,238,246))",
+                        filter: `drop-shadow(0 0 4px rgba(${C.edgeRGB},.7))`,
+                        opacity: collected ? 0 : 0.9,
+                        transition: collected ? "opacity 320ms ease-in 140ms" : "none",
+                      }}
+                    />
                   </div>
                 );
               })}
