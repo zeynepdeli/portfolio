@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { IMG } from "@/components/ui/assets";
 
 /* =========================================================
    OTURAN AVATAR (HTML) — public/images/zeynep-oturma.webp
@@ -9,7 +10,7 @@ import type { CSSProperties } from "react";
    ileri-geri sallanır. ProjectsSection'daki SVG sürümüyle aynı ölçüler.
 ========================================================= */
 
-const SRC = "/images/zeynep-oturma.webp";
+const SRC = IMG.sit;
 const IMG_W = 1584;
 const IMG_H = 672;
 /* kişinin görseldeki yeri (px) */

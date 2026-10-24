@@ -13,6 +13,7 @@ import {
 
 import SciFiBackground from "@/components/ui/ScifiBackground";
 import { useViewport } from "@/components/ui/ChipLayout";
+import { IMG } from "@/components/ui/assets";
 
 /** CSS özel değişkenleri (--d gibi) için tip */
 type CSSVars = CSSProperties & Record<`--${string}`, string | number>;
@@ -785,7 +786,7 @@ function buildCard(
 /* GÖBEKTE OTURAN KİŞİ — public/images/zeynep-oturma.webp
    Görselin piksel boyutu ve kişinin görsel içindeki yeri (ölçüldü).
    Görselin boyutu farklıysa SIT_W / SIT_H'yi gerçek boyutla değiştir. */
-const SIT_SRC = "/images/zeynep-oturma.webp";
+const SIT_SRC = IMG.sit;
 const SIT_W = 1584;
 const SIT_H = 672;
 /** kişinin görseldeki yatay ortası, tepesi ve boyu (px) */

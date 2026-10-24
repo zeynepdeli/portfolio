@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/SocialLinks";
 import { IntroStyles, intro, T } from "@/components/ui/Intro";
 import SciFiBackground from "../ui/ScifiBackground";
+import { WAVE_VIDEO_SRC } from "@/components/ui/assets";
 
 type HeroSectionProps = {
   contentOpacity?: number;
@@ -99,7 +100,7 @@ const CHIP_TURN = 0;
    sonra son karede durur. Video oynamazken aynı karelerin PNG'si gösterilir
    (üzerine gelince parçacık etkisi bu PNG ile çalışır).
    Dosyalar: public/videos/zeynep-wave.mp4, public/images/zeynep-wave-*.webp */
-const WAVE_VIDEO = "/videos/zeynep-wave.mp4";
+const WAVE_VIDEO = WAVE_VIDEO_SRC;
 const WAVE_START = "/images/zeynep-wave-start.webp"; // videonun ilk karesi
 const WAVE_END = "/images/zeynep-wave-end.webp"; // videonun son karesi
 /** video karesi portreden geniştir (kol yana açılınca taşmasın diye):

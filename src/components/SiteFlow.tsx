@@ -123,6 +123,11 @@ const outTransform = (t: number) =>
 const IN_TILT = 9;
 const inTransform = (t: number) =>
   `perspective(1600px) translate3d(0, ${((1 - t) * 100).toFixed(3)}%, 0) rotateX(${(IN_TILT * (1 - t)).toFixed(3)}deg) scale(${(IN_SCALE + (1 - IN_SCALE) * t).toFixed(4)})`;
+/** HERO → ROADMAP: hero bir perde gibi yukarı kalkar, altında roadmap
+ *  YERİNDE bekler (avatar hero'nun zemininde durur, kalkan sayfanın alt
+ *  kenarından nehrin başına düşer — SiteAvatar exitRide/exitTarget) */
+const liftTransform = (t: number) =>
+  `translate3d(0, ${(-100 * t).toFixed(3)}%, 0)`;
 const riseShadowOpacity = (t: number) =>
   t > 0 && t < 1 ? Math.sin(Math.PI * t) : 0;
 const dimOpacity = (t: number) => (t > 0 && t < 1 ? OUT_DIM * t : 0);
@@ -178,11 +183,9 @@ function layerStyles(
   { hero: h, projects: p, footer: f }: Prog,
 ): Record<Layer, LayerStyle> {
   return {
-    hero: { transform: h > 0 ? outTransform(h) : REST },
+    hero: { transform: h > 0 ? liftTransform(h) : REST },
     heroDim: { opacity: dimOpacity(h) },
-    road: {
-      transform: p > 0 ? outTransform(p) : h < 1 ? inTransform(h) : REST,
-    },
+    road: { transform: p > 0 ? outTransform(p) : REST },
     roadShadow: { opacity: riseShadowOpacity(h) },
     roadDim: { opacity: dimOpacity(p) },
     proj: { transform: p < 1 ? inTransform(p) : REST },
@@ -214,6 +217,20 @@ function Dim({ ref }: { ref: Ref<HTMLDivElement> }) {
       aria-hidden
       className="pointer-events-none absolute inset-0 z-60 bg-black"
       style={{ opacity: 0 }}
+    />
+  );
+}
+/** kalkan sayfanın (hero) alt kenarının hemen altına düşen gölge */
+function LiftShadow({ ref }: { ref: Ref<HTMLDivElement> }) {
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-full h-24"
+      style={{
+        opacity: 0,
+        background: "linear-gradient(180deg, rgba(0,0,0,.6), transparent)",
+      }}
     />
   );
 }
@@ -482,9 +499,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
 
       /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
-         - roadmap: hero'daki kişi aşağı dalar, geçiş biterken ekranın
-           üstünden nehrin başına düşer (SiteAvatar exitTarget); indiği an
-           roadmapEntering. Bu zamanlayıcı yalnızca yedek.
+         - roadmap: hero perde gibi kalkar; kişi onun zemininde taşınır,
+           alt kenarından nehrin başına düşer (SiteAvatar exitTarget /
+           exitRide); indiği an roadmapEntering. Zamanlayıcı yalnızca yedek.
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
         window.setTimeout(() => setRoadmapEntering(true), dur + 1500);
@@ -563,6 +580,11 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     return { x: r.left, y: r.top };
   }, []);
   const onHeroLand = useCallback(() => setRoadmapEntering(true), []);
+  /* hero'nun o anki dikey kayması (perde yukarı kalkarken eksi) */
+  const heroLift = useCallback(
+    () => heroRef.current?.getBoundingClientRect().top ?? 0,
+    [],
+  );
   const onHeroExit = useCallback(() => {
     setHeroTransitioning(true);
     runStep(0, 1);
@@ -805,14 +827,18 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       {/* HERO */}
       <section
         ref={heroRef}
-        className="flow-sec absolute inset-0 z-0"
+        className="flow-sec absolute inset-0"
         style={{
-          transform: startIndex > 0 ? outTransform(1) : REST,
+          /* perde: roadmap'in ÜSTÜNDE (yukarı kalkınca altındaki görünür) */
+          zIndex: 15,
+          transform: startIndex > 0 ? liftTransform(1) : REST,
           visibility: startIndex > 0 ? "hidden" : "visible",
         }}
       >
         {hero}
         <Dim ref={heroDimRef} />
+        {/* kalkan perdenin alt kenarının altına düşen gölge */}
+        <LiftShadow ref={roadShadowRef} />
       </section>
 
       {/* ROADMAP */}
@@ -821,11 +847,10 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         className="flow-sec absolute inset-0 z-10"
         style={{
           transform:
-            startIndex === 1 ? REST : startIndex > 1 ? outTransform(1) : inTransform(0),
+            startIndex > 1 ? outTransform(1) : REST,
           visibility: startIndex === 1 ? "visible" : "hidden",
         }}
       >
-        <RiseShadow ref={roadShadowRef} />
         {roadmap}
         <Dim ref={roadDimRef} />
       </section>
@@ -902,6 +927,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           onPlugged={() => setPowered(true)}
           onExitStart={onHeroExit}
           exitTarget={roadmapEntry}
+          exitRide={heroLift}
           exitMs={isNarrow() ? MOBILE_TRANSITION_MS : TRANSITION_MS}
           onExitLand={onHeroLand}
           onSequenceComplete={() => {
