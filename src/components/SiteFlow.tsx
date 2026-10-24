@@ -80,9 +80,6 @@ const FOOTER_MS = 1400;
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
 const ARRIVE_PAUSE_MS = 140;
-/** roadmap'te kişi, geçişin bu oranında nehrin kaynağından kaymaya başlar
- *  (sayfa son yavaşlamasındayken: kişi oturan sayfada belirir) */
-const ROADMAP_ENTER_AT = 0.8;
 /** projelerde kişi, geçişin bu oranında akmaya başlar */
 const PROJECTS_ENTER_AT = 0.5;
 /** sahne kurulmadan önce yazı tipi / görsel için en fazla bekleme (ms) */
@@ -485,14 +482,12 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
 
       /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
-         - roadmap: hero'daki kişi aşağı dalar; sayfa yerine otururken
-           nehrin başladığı sol üst köşeden suyla kayarak gelir
+         - roadmap: hero'daki kişi alttan yükselen sayfadaki nehrin başına
+           atlar (SiteAvatar exitTarget); indiği an roadmapEntering. Bu
+           zamanlayıcı yalnızca yedek (atlayış olmadıysa).
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
-        window.setTimeout(
-          () => setRoadmapEntering(true),
-          dur * ROADMAP_ENTER_AT,
-        );
+        window.setTimeout(() => setRoadmapEntering(true), dur);
       if (dir > 0 && key === "projects")
         window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
 
@@ -559,6 +554,15 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
 
   /* ---------------- HİKÂYE (yalnızca "/") ---------------- */
   /* avatar dalmaya başlayınca → roadmap */
+  /* hero'daki kişinin ineceği yer: roadmap'teki nehrin başı (ekranda,
+     sayfa yükselirken her karede canlı) */
+  const roadmapEntry = useCallback(() => {
+    const mark = roadmapRef.current?.querySelector("[data-rm-entry]");
+    if (!mark) return null;
+    const r = mark.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  }, []);
+  const onHeroLand = useCallback(() => setRoadmapEntering(true), []);
   const onHeroExit = useCallback(() => {
     setHeroTransitioning(true);
     runStep(0, 1);
@@ -897,6 +901,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         <SiteAvatar
           onPlugged={() => setPowered(true)}
           onExitStart={onHeroExit}
+          exitTarget={roadmapEntry}
+          exitMs={isNarrow() ? MOBILE_TRANSITION_MS : TRANSITION_MS}
+          onExitLand={onHeroLand}
           onSequenceComplete={() => {
             onHeroExit();
             setHeroAvatarGone(true);

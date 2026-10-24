@@ -11,7 +11,7 @@ import {
   type Ref,
 } from "react";
 
-import type { LucideIcon } from "lucide-react";
+import { MapPin } from "lucide-react";
 
 import CollectedSkillsPanel, {
   DEFAULT_CATEGORIES,
@@ -371,7 +371,6 @@ const BINARY = BINARY_LANES.map((_, i) => seededBinary(1200, i + 3));
 const NODES = DEFAULT_CATEGORIES.flatMap((cat, ci) =>
   cat.techs.map((tech) => ({
     cat: ci,
-    icon: cat.icon as LucideIcon, // paneldeki kategori ikonuyla aynı
     name: tech.name,
   })),
 ).map((n, i) => ({ ...n, number: i + 1 }));
@@ -994,6 +993,12 @@ const AVATAR_CSS = `
     15%  { opacity: 1; }
     100% { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
   }
+  @keyframes rmAvLand {
+    0%   { transform: translateY(4px) scale(1.08, .8); }
+    40%  { transform: translateY(-3px) scale(.97, 1.05); }
+    70%  { transform: translateY(1px) scale(1.01, .98); }
+    100% { transform: none; }
+  }
   @keyframes rmAvRing {
     0%   { transform: translate(-50%, -50%) scale(.3); opacity: .9; }
     100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
@@ -1025,11 +1030,11 @@ export default function RoadmapSection({
 
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  /* NEHRİN KAYNAĞINDAN GİRİŞ (hikâye): hero'daki kişi aşağı dalar; sayfa
-     yerine otururken kişi nehrin başladığı köşeden (panelin sol üst
-     köşesi) suyla birlikte kayarak gelir ve durmadan yoluna devam eder. */
+  /* NEHRİN BAŞINA İNİŞ (hikâye): hero'daki kişi atlar, alttan yükselen bu
+     sayfadaki nehrin başına (data-rm-entry) iner. İndiği an buradaki kişi
+     devralır: sayfayla birlikte yerine oturur, sonra kaymaya başlar. */
   const landed = entering;
-  const rideGo = staged ? landed : active;
+  const rideGo = active && (!staged || landed);
 
   /* PERFORMANS: kişinin nehirdeki yeri ve dikey ekrandaki kamera kayması
      React state ile DEĞİL, doğrudan stil yazılarak güncellenir — her
@@ -1303,8 +1308,7 @@ export default function RoadmapSection({
   /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
      kişiyi ve kamerayı son konuma yeniden yerleştir */
   useLayoutEffect(() => {
-    /* menüden gelince kişi doğrudan girişte; hikâyede kaynaktan (0) gelir */
-    if (!staged && active && avatarRef.current < entryK)
+    if ((staged || active) && avatarRef.current < entryK)
       avatarRef.current = entryK;
     placeAvatar(avatarRef.current);
   });
@@ -1319,9 +1323,8 @@ export default function RoadmapSection({
   useEffect(() => {
     if (!rideGo) return;
 
-    /* menüden gelince kişi panelin içinde başlar (entryK — yukarıda);
-       hikâyede nehrin kaynağından (köşeden) */
-    if (!staged && avatarRef.current < entryK) avatarRef.current = entryK;
+    /* KİŞİ PANELİN İÇİNDE, NEHRİN BAŞINDA BAŞLAR (entryK — yukarıda) */
+    if (avatarRef.current < entryK) avatarRef.current = entryK;
     const from = avatarRef.current;
     /* geniş ekranda son (uzatma) bölüm ekran dışında: kişi orada durur */
     const to = G.middle.length - 1 - (portrait ? 0 : STEPS);
@@ -1853,8 +1856,6 @@ export default function RoadmapSection({
                 if (phoneHidden(portrait, i)) return null;
                 const pos = chipPositions[i];
                 const collected = arrived >= node.number;
-                const Icon = node.icon;
-
                 return (
                   <div
                     key={node.number}
@@ -1901,7 +1902,8 @@ export default function RoadmapSection({
                           : "none",
                       }}
                     >
-                      <Icon
+                      {/* yol haritası: her yetenek bir durak (harita iğnesi) */}
+                      <MapPin
                         size={portrait ? 11 : 13}
                         strokeWidth={1.6}
                         style={{ opacity: 0.85, flexShrink: 0 }}
@@ -1912,6 +1914,24 @@ export default function RoadmapSection({
                 );
               })}
 
+            {/* NEHRİN BAŞI İŞARETİ: hero'daki kişi atlarken buraya iner
+                (SiteFlow her karede canlı okur). Kişinin oturduğu nokta. */}
+            {size.w > 0 && (
+              <div
+                data-rm-entry
+                aria-hidden
+                className="pointer-events-none absolute top-0 left-0 size-0"
+                style={{
+                  transform: `translate3d(${
+                    frame.px +
+                    pointAt(G.middle, entryK).x * frame.sc +
+                    (SEAT_X - 0.5) * AV_W
+                  }px, ${
+                    frame.py + pointAt(G.middle, entryK).y * frame.sc + AV_H * 0.04
+                  }px, 0)`,
+                }}
+              />
+            )}
             {size.w > 0 &&
               /* sayfa yükselirken de girişte görünür (staged) */
               (arrived >= 0 || (staged && landed)) &&
@@ -1926,6 +1946,7 @@ export default function RoadmapSection({
                   facingScreen={facingScreen}
                   collecting={moving && arrived >= 1 && arrived <= NODES.length}
                   pickKey={arrived}
+                  landing={landed && arrived < 0}
                 />
               )}
           </div>
@@ -2018,7 +2039,10 @@ function WalkingAvatar({
   facingScreen,
   collecting,
   pickKey,
+  landing = false,
 }: {
+  /** üstten yeni indi: çöküp yaylanarak oturur */
+  landing?: boolean;
   /** konumu üst bileşen doğrudan yazar (transform) */
   elRef: Ref<HTMLDivElement>;
   moving: boolean;
@@ -2074,6 +2098,10 @@ function WalkingAvatar({
           /* hep ileriye (sağa) bakar; nehir sola kıvrılsa da geri dönmez */
           transform: facingLeft && FLIP_ON_LEFT ? "scaleX(-1)" : "none",
           transition: "transform 220ms, opacity 160ms ease",
+          /* üstten inince çöküp yaylanarak oturur */
+          animation: landing
+            ? "rmAvLand 520ms cubic-bezier(.3,.8,.4,1) both"
+            : undefined,
         }}
       >
         {/* Hız izi: kayarken arkasında buz mavisi ışık çizgileri */}
