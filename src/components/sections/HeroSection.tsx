@@ -82,9 +82,11 @@ const ROLE = "FULL STACK DEVELOPER";
 const STACK = ["REACT", "REACT NATIVE", "NEXT.JS", "NODE.JS", "TYPESCRIPT"];
 
 /** Dar yerde alt alta yazılan satırlar */
-const SUBTITLE_LINES = [`>>> ${ROLE}`, STACK.join(" · ")];
+const SUBTITLE_LINES = [ROLE, STACK.join(" · ")];
 /** Geniş yerde tek satır */
-const SUBTITLE_ONE_LINE = `>>> ${ROLE} | ${STACK.join(" | ")}`;
+const SUBTITLE_ONE_LINE = `${ROLE} | ${STACK.join(" | ")}`;
+/** terminal istemi (footer'daki commit satırıyla aynı): "~/zeynep $" */
+const PROMPT_PATH = "~/zeynep";
 
 const CHIP_TILT = 0;
 const CHIP_SPIN = -8;
@@ -137,7 +139,9 @@ const CINEMATIC_INTRO = true;
 const QUICK_INTRO_MS = 700;
 /** terminal yazma hızı (harf / sn) */
 const TYPE_CPS_NAME = 38;
-const TYPE_CPS_TEXT = 90;
+/* alt yazı terminalde elle yazılıyormuş gibi (footer'daki commit
+   satırına yakın hız) */
+const TYPE_CPS_TEXT = 32;
 /** isim yazılmaya başlama gecikmesi (ms) */
 const TYPE_NAME_DELAY = 180;
 /** isim yazıldıktan sonra alt yazının başlama gecikmesi (ms).
@@ -149,7 +153,7 @@ const nameTypeMs = (text: string) =>
 /** mobilde teknolojiler unvandan sonra sırayla yazılır */
 const stackDelay = (i: number) =>
   nameTypeMs(NAME) +
-  ((`>>> ${ROLE}`.length + STACK.slice(0, i).join("").length) * 1000) /
+  ((ROLE.length + STACK.slice(0, i).join("").length) * 1000) /
     TYPE_CPS_TEXT;
 
 /* =========================================================
@@ -166,7 +170,11 @@ function TerminalText({
   cps = TYPE_CPS_TEXT,
   keepCursor = false,
   bend = false,
+  prompt = false,
 }: {
+  /** başında terminal istemi ("~/zeynep $"): baştan görünür, yazı
+   *  onun arkasından yazılır (footer'daki commit satırı gibi) */
+  prompt?: boolean;
   text: string;
   color?: string;
   active: boolean;
@@ -198,10 +206,19 @@ function TerminalText({
   const shown = instant ? text.length : active ? n : 0;
   const typing = !instant && active && shown > 0 && shown < text.length;
   const cursor = typing || (keepCursor && shown === text.length);
+  const promptEl = prompt && (
+    <>
+      <span style={{ color: "rgb(var(--c-5df2a6,93,242,166))" }}>
+        {PROMPT_PATH}
+      </span>
+      <span style={{ color: "rgb(var(--c-46beff,70,190,255))" }}> $ </span>
+    </>
+  );
 
   return (
     <span className="relative inline-block" style={{ color }}>
       <span aria-hidden className="invisible">
+        {promptEl}
         {text}
       </span>
       {/* harfler ayrı kutudayken satır harf aralarından KIRILMASIN
@@ -212,6 +229,7 @@ function TerminalText({
         className={`absolute inset-0 ${bend ? "whitespace-nowrap" : ""}`}
         aria-label={text}
       >
+        {promptEl}
         {bend
           ? Array.from(text.slice(0, shown)).map((ch, i) => (
               <span
@@ -223,12 +241,14 @@ function TerminalText({
               </span>
             ))
           : text.slice(0, shown)}
+        {/* imleç footer'daki gibi: yanıp sönen alt çizgi */}
         {cursor && (
           <span
             aria-hidden
-            className={keepCursor && !typing ? "term-cursor" : undefined}
+            className="term-cursor ml-px"
+            style={{ color: "rgb(var(--c-a8eef6,168,238,246))" }}
           >
-            ▋
+            _
           </span>
         )}
       </span>
@@ -854,10 +874,11 @@ export default function HeroSection({
                   <span className="w-full whitespace-nowrap">
                     <TerminalText
                       color="rgb(var(--c-7fe3ef,127,227,239))"
-                      text={`>>> ${ROLE}`}
+                      text={ROLE}
                       instant={final}
                       active={nameReady}
                       delay={nameTypeMs(NAME)}
+                      prompt
                     />
                   </span>
                   {STACK.map((item, i) => (
@@ -925,7 +946,10 @@ export default function HeroSection({
                     alt alta (her satır kendi decode efektiyle) yazılır */}
                 {/* tek satır sığıyorsa tek satır (mono font: karakter ≈ 0.62em) */}
                 {textWidth >=
-                SUBTITLE_ONE_LINE.length * 14 * 0.62 * textScale ? (
+                (PROMPT_PATH.length + 3 + SUBTITLE_ONE_LINE.length) *
+                  14 *
+                  0.62 *
+                  textScale ? (
                   <p
                     data-avatar-skills
                     className="font-mono text-accent/80"
@@ -938,6 +962,7 @@ export default function HeroSection({
                       active={nameReady}
                       delay={nameTypeMs(`>>> ${NAME}`)}
                       keepCursor
+                      prompt
                     />
                   </p>
                 ) : (
@@ -959,6 +984,7 @@ export default function HeroSection({
                             (1000 / TYPE_CPS_TEXT)
                         }
                         keepCursor={i === SUBTITLE_LINES.length - 1}
+                        prompt={i === 0}
                       />
                     ))}
                   </p>

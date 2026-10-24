@@ -1294,8 +1294,10 @@ export default function RoadmapSection({
   const entryK = useMemo(() => {
     if (!size.w) return 0;
     const f = frameOf(size.w, size.h, portrait);
-    const minX = size.w * PANEL_L + 28;
-    const minY = size.h * PANEL_T + (portrait ? 92 : 80);
+    /* panelin sol üst köşesine olabildiğince yakın: oturan kişi (boyu
+       AV_H) panelin üst kenarına değmeden sığsın — her ekranda aynı */
+    const minX = size.w * PANEL_L + 16;
+    const minY = size.h * PANEL_T + AV_H * 0.98 + 2;
     let k = 0;
     while (k < G.middle.length - 1) {
       const q = G.middle[k];
