@@ -104,12 +104,10 @@ export const PERF_LITE_CSS = `
   html.perf-lite .pf-flow,
   html.perf-lite .rm-flow,
   html.perf-lite .ft-lane,
-  html.perf-lite .cable-flow,
-  html.perf-lite .ft-bits {
+  html.perf-lite .cable-flow {
     animation: none !important;
   }
-  /* footer nehrindeki süzülen rakamlar hafif modda hiç görünmez */
-  html.perf-lite .ft-digit {
-    display: none;
-  }
+  /* footer nehrindeki akan bitler ve süzülen rakamlar hafif modda da
+     akar: yalnızca transform / opacity (kompozitörde, yeniden boyama
+     yok) — nehir durmuş gibi görünmesin */
 `;

@@ -253,19 +253,45 @@ export default function WaveVideo({
 
     video.addEventListener("ended", finish);
     video.currentTime = 0;
-    video
-      .play()
-      .then(loop)
-      .catch(() => finish()); // otomatik oynatma engellenirse fotoğrafa geç
-    /* bazı cihazlar (iPhone düşük güç modu vb.) play()'i ne reddeder ne
-       oynatır: video 2 sn içinde ilerlemezse fotoğrafa geç (portre
-       görünmez kalmasın) */
-    const stall = window.setTimeout(() => {
-      if (video.currentTime === 0) {
-        video.pause();
-        finish();
-      }
-    }, 2000);
+    const tryPlay = () =>
+      video
+        .play()
+        .then(loop)
+        .catch((e: unknown) => {
+          /* otomatik oynatma engellendi (düşük güç modu vb.): fotoğraf kalır */
+          if ((e as { name?: string })?.name === "NotAllowedError") finish();
+        });
+    void tryPlay();
+    /* TELEFONDA: site artık çok hızlı açıldığı için el sallama başlarken
+       video henüz inmemiş olabiliyor. Eskiden 2 sn'de ilerlemezse el
+       sallama hiç oynamıyordu. Artık video inene kadar beklenir (bu
+       sırada fotoğraf görünür); ancak hiç veri gelmezse ya da veri
+       geldiği halde oynamıyorsa fotoğrafa geçilir. */
+    let stall = 0;
+    const watch = (ms: number) => {
+      stall = window.setTimeout(() => {
+        if (video.currentTime > 0 || stopped) return;
+        if (video.readyState >= 3) {
+          /* veri var ama oynamıyor: bir kez daha dene, olmazsa bırak */
+          void tryPlay();
+          stall = window.setTimeout(() => {
+            if (video.currentTime === 0) {
+              video.pause();
+              finish();
+            }
+          }, 1500);
+          return;
+        }
+        if (performance.now() - begun > 9000) {
+          video.pause();
+          finish();
+          return;
+        }
+        watch(700);
+      }, ms);
+    };
+    const begun = performance.now();
+    watch(1500);
 
     return () => {
       stopped = true;

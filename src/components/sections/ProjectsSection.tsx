@@ -420,6 +420,9 @@ type StreamGeo = {
   lead?: number;
 };
 
+/** ölçüm işaretlerinin arası (fan birimi) */
+const PROBE = 100;
+
 /** ekranın sağ üst köşesi, fan (SVG) koordinatında — ölçülür */
 type Corner = {
   /** köşe noktası */
@@ -974,13 +977,39 @@ function ProjectFan({
     const svg = svgRef.current;
     if (!svg) return;
     const measure = () => {
+      /* Ekran ↔ fan dönüşümü, SVG'deki üç küçük işaretin ekrandaki
+         yerinden çıkarılır. (getScreenCTM iPhone Safari'de üst
+         kutulardaki CSS döndürmesini — dikey ekranda fan 90° dönük —
+         hesaba katmıyordu: telefonda nehir köşeden gelmiyordu.) */
+      const probes = svg.querySelectorAll<SVGRectElement>("[data-probe]");
+      if (probes.length < 3) return;
       const sec = svg.closest<HTMLElement>(".flow-sec");
       const prev = sec?.style.transform ?? "";
       if (sec) sec.style.transform = "none";
-      const m = svg.getScreenCTM();
+      const c = Array.from(probes).map((p) => {
+        const r = p.getBoundingClientRect();
+        return [r.left + r.width / 2, r.top + r.height / 2];
+      });
       if (sec) sec.style.transform = prev;
-      if (!m) return;
-      const inv = m.inverse();
+      /* fan (CX,CY) → c0, (CX+100,CY) → c1, (CX,CY+100) → c2 */
+      const a = (c[1][0] - c[0][0]) / PROBE;
+      const b = (c[1][1] - c[0][1]) / PROBE;
+      const cc = (c[2][0] - c[0][0]) / PROBE;
+      const d = (c[2][1] - c[0][1]) / PROBE;
+      const det = a * d - b * cc;
+      if (!det || !Number.isFinite(det)) return;
+      const ia = d / det;
+      const ib = -b / det;
+      const ic = -cc / det;
+      const id = a / det;
+      const inv = {
+        a: ia,
+        b: ib,
+        c: ic,
+        d: id,
+        e: CX - (ia * c[0][0] + ic * c[0][1]),
+        f: CY - (ib * c[0][0] + id * c[0][1]),
+      };
       const pt = (x: number, y: number): [number, number] => [
         inv.a * x + inv.c * y + inv.e,
         inv.b * x + inv.d * y + inv.f,
@@ -1353,6 +1382,23 @@ function ProjectFan({
         viewBox={`${viewLeft} ${viewTop} ${viewW} ${viewH}`}
         className="size-full overflow-visible"
       >
+        {/* ölçüm işaretleri (görünmez): ekran ↔ fan dönüşümü için */}
+        {[
+          [0, 0],
+          [PROBE, 0],
+          [0, PROBE],
+        ].map(([dx, dy]) => (
+          <rect
+            key={`${dx}-${dy}`}
+            data-probe
+            x={CX + dx - 1}
+            y={CY + dy - 1}
+            width={2}
+            height={2}
+            fill="none"
+            aria-hidden
+          />
+        ))}
         <defs>
           <filter
             id={id("glow")}

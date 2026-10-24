@@ -172,19 +172,13 @@ const CROUCH_LEDGE = 0.954;
 const CROUCH_ABOVE = 34; // yüzeyin üstünde kalan boy (px)
 const CROUCH_H = Math.round(CROUCH_ABOVE / CROUCH_LEDGE);
 const CROUCH_W = Math.round((CROUCH_H * 242) / 240);
-/* DURMA POZU (ayakta, dik) — aşağı inişlerde (isimden satıra, satırdan
-   ilk ikona, son ikondan yere): havada koşuyor ya da çömelmiş
-   görünmesin. Ayaklar görselin altında. */
-const STAND_IMG = "/images/zeynep-durma.webp";
-const STAND_H = 60; // boy (px, AV_SCALE'den önce)
-const STAND_W = Math.round((STAND_H * 234) / 720);
-/* ZIPLAMA POZU — ileri / yukarı sıçrayışlarda (porttan isme, ikondan
-   ikona). Görselin altı = en alttaki ayak; gövde x'in %40.5'inde. */
+/* ZIPLAMA POZU — bütün sıçrayışlarda: porttan isme, isimden yetenek
+   satırına, satırdan ikonlara, ikondan ikona, son ikondan yere. Görselin altı = en alttaki ayak; gövde x'in %40.5'inde. */
 const JUMP_IMG = "/images/zeynep-ziplama.webp";
 const JUMP_H = 62;
 const JUMP_W = Math.round((JUMP_H * 582) / 720);
 const JUMP_BODY_X = 0.405;
-/** satıra düşerken ayakta pozun üst kenarı (asılma kutusunda): başı,
+/** satıra düşerken zıplama pozunun üst kenarı (asılma kutusunda): başı,
  *  yakalayınca asılan pozun başıyla aynı yerde → poz değişimi sıçramaz */
 const HANG_DROP_TOP = Math.round(
   HANG_BOX - HANG_H * HANG_GRIP_Y + HANG_H * 0.12,
@@ -551,11 +545,11 @@ type SiteAvatarProps = {
   /** avatar aşağıdaki sayfaya dalmaya BAŞLADI (sayfa geçişi bununla
    *  aynı anda başlar: avatar yükselen roadmap'e atlar) */
   onExitStart?: () => void;
-  /** atlayışın hedefi: alttan yükselen sayfadaki nokta, HER KAREDE
-   *  canlı sorulur (sayfa hareket ederken de). Verilirse kişi o noktaya
-   *  atlar, değince `onExitLand` çağrılır ve avatar biter. */
+  /** sonraki sayfadaki iniş noktası, HER KAREDE canlı sorulur.
+   *  Verilirse kişi aşağı dalar, sayfa geçişi biterken ekranın üstünden
+   *  bu noktaya düşer; değince `onExitLand` çağrılır ve avatar biter. */
   exitTarget?: () => Pt | null;
-  /** en geç bu sürede iner (ms) */
+  /** sayfa geçişinin süresi (ms): düşüş bunun sonuna denk gelir */
   exitMs?: number;
   onExitLand?: () => void;
   hidden?: boolean;
@@ -979,45 +973,66 @@ export default function SiteAvatar({
     floorRunMs,
   ]);
 
-  /* HEDEFLİ ATLAYIŞ: kişi küçük bir sıçrayışla havalanır ve alttan
-     yükselen sayfadaki noktaya (roadmap'te nehrin başı) iner. Hedef her
-     karede CANLI okunur; kişi yukarı uçmaz: nokta yükselip kişinin
-     ayağına değdiği an iner ve sayfanın kendi avatarı devralır (sayfayla
-     birlikte yukarı taşınır). `exitMs`: en geç bu sürede iner. */
+  /* SONRAKİ SAYFAYA GEÇİŞ (her ekranda aynı):
+     1) burnunu tutup küçük bir sıçrayışla ekranın altından dalar,
+     2) sayfa geçişi biterken ekranın ÜSTÜNDEN, yeni sayfadaki noktanın
+        (roadmap'te sol üst köşedeki nehrin başı) tam üstünden düşer,
+     3) noktaya değdiği an sayfanın kendi avatarı devralır (suya oturur).
+     Hedef her karede canlı okunur. `exitMs` = sayfa geçişinin süresi. */
   useEffect(() => {
     if (stage !== "descending" || !chaseFrom) return;
     const el = rootRef.current;
     if (!el) return;
     const start = performance.now();
-    /* sıçrayış: 0.34 sn'de 70 px tepe, sonra yerçekimiyle düşüş. Kişi
-       en az MIN_AIR havada kalır (telefonda sayfa çok hızlı yükseldiği
-       için atlayış görünmüyordu) */
-    const PEAK_T = 0.34;
-    const MIN_AIR = 0.5;
-    const v0 = (2 * 70) / PEAK_T;
+    const vh = window.innerHeight;
+    const boxH = H * AV_SCALE;
+    /* dalış: 0.22 sn'de 34 px tepe, sonra yerçekimi */
+    const PEAK_T = 0.22;
+    const v0 = (2 * 34) / PEAK_T;
     const g = v0 / PEAK_T;
+    /* düşüş: geçişin sonuna doğru başlar, sayfa oturduğunda iner */
+    const FALL_G = 1700;
+    const fallAt = (exitMs * 0.8) / 1000;
+    let fallStart = -1;
+    let fallFromY = 0;
     let raf = 0;
-    let crossAt = -1;
+    const set = (x: number, y: number, show: boolean) => {
+      el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
+      el.style.visibility = show ? "" : "hidden";
+    };
     const tick = (now: number) => {
       const e = (now - start) / 1000;
-      const t = cbs.current.exitTarget?.();
-      const fallY = chaseFrom.y - v0 * e + 0.5 * g * e * e;
-      /* nokta kişinin ayak hizasını geçti: kişi ona oturur (kısa geçişle) */
-      if (t && crossAt < 0 && t.y <= fallY && t.y < window.innerHeight)
-        crossAt = e;
-      const j = crossAt < 0 ? 0 : Math.min(1, (e - crossAt) / 0.18);
-      const y = t ? fallY + (t.y - fallY) * j * j * (3 - 2 * j) : fallY;
-      const k = Math.min(1, e / 0.45);
-      const ease = k * k * (3 - 2 * k);
-      const x = t ? chaseFrom.x + (t.x - chaseFrom.x) * ease : chaseFrom.x;
-      el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
-      /* indiği yerdeki oturan kişiyle aynı boya küçülür */
-      el.style.scale = String(1 - 0.12 * Math.min(1, e / 0.5));
-      const met = e >= MIN_AIR && j >= 1;
-      if (!met && e * 1000 < exitMs) {
+      if (e < fallAt || fallStart < 0) {
+        /* 1) dalış (ekranın altından çıkınca görünmez bekler) */
+        const y = chaseFrom.y - v0 * e + 0.5 * g * e * e;
+        set(chaseFrom.x, Math.min(y, vh + boxH + 40), y < vh + boxH);
+        if (e >= fallAt) {
+          fallStart = e;
+          fallFromY = -boxH * 0.4; // ekranın üstünden girer
+        }
         raf = requestAnimationFrame(tick);
         return;
       }
+      /* 2) yukarıdan düşüş: hedefin tam üstünden; oturan kişiyle aynı
+         boyda (roadmap'teki avatar daha küçük) */
+      el.style.scale = "0.88";
+      /* 2) yukarıdan düşüş: hedefin tam üstünden */
+      const t = cbs.current.exitTarget?.();
+      if (!t) {
+        cbs.current.onExitLand?.();
+        setStage("done");
+        cbs.current.onSequenceComplete?.();
+        return;
+      }
+      const f = e - fallStart;
+      const y = fallFromY + 0.5 * FALL_G * f * f;
+      if (y < t.y) {
+        set(t.x, y, true);
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      /* 3) iniş */
+      set(t.x, t.y, true);
       cbs.current.onExitLand?.();
       setStage("done");
       cbs.current.onSequenceComplete?.();
@@ -1026,6 +1041,7 @@ export default function SiteAvatar({
     return () => {
       cancelAnimationFrame(raf);
       el.style.translate = "";
+      el.style.visibility = "";
       el.style.scale = "";
     };
   }, [stage, chaseFrom, exitMs]);
@@ -1197,9 +1213,9 @@ export default function SiteAvatar({
      görünmesin */
   const dropping =
     (stage === "social" && hopIdx === 0 && !squat) || stage === "toFloor";
-  /* ileri sıçrayışlar: zıplama pozu */
+  /* bütün sıçrayışlar (ileri ve aşağı): zıplama pozu */
   const leaping =
-    stage === "jump" || (stage === "social" && hopIdx > 0 && !squat);
+    stage === "jump" || (stage === "social" && !squat) || stage === "toFloor";
   const plugged = stage === "plugged";
   const airborne =
     stage === "jump" ||
@@ -1417,8 +1433,6 @@ export default function SiteAvatar({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={HANG_IMG} alt="" aria-hidden style={{ display: "none" }} />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={STAND_IMG} alt="" aria-hidden style={{ display: "none" }} />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={JUMP_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
@@ -1589,23 +1603,6 @@ export default function SiteAvatar({
                     }}
                   />
                 )}
-                {/* Aşağı inerken ayakta poz: ayakları kutunun altında */}
-                {dropping && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={STAND_IMG}
-                    alt=""
-                    draggable={false}
-                    className="absolute max-w-none"
-                    style={{
-                      width: STAND_W,
-                      height: STAND_H,
-                      left: (W - STAND_W) / 2,
-                      top: H - STAND_H,
-                      filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
-                    }}
-                  />
-                )}
                 {/* Çömelme pozu (fotoğraf): eller yüzeyde, yüzey = kutunun altı */}
                 {crouching && (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -1643,23 +1640,23 @@ export default function SiteAvatar({
                     }}
                   >
                     {stage === "toHang" ? (
-                      /* DÜŞÜŞ: ayakta pozla isimden aşağı iner, satırın
+                      /* DÜŞÜŞ: zıplama pozuyla isimden aşağı atlar, satırın
                          arkasından geçer; yakalayınca asılır */
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={STAND_IMG}
+                        src={JUMP_IMG}
                         alt=""
                         draggable={false}
                         className="av-anim absolute max-w-none"
                         style={{
-                          width: STAND_W,
-                          height: STAND_H,
-                          left: HANG_BOX / 2 - STAND_W / 2,
+                          width: JUMP_W,
+                          height: JUMP_H,
+                          left: HANG_BOX / 2 - JUMP_W * JUMP_BODY_X,
                           top: HANG_DROP_TOP,
                           animation: `avFall ${TO_HANG_MS}ms cubic-bezier(.55,0,.9,.6) both`,
                           /* başlangıç: ayakları isimde, düştüğü yerin üstünde */
                           ["--fx" as string]: `${((spots.end.x - spots.hang.x) / AV_SCALE).toFixed(1)}px`,
-                          ["--fy" as string]: `${((spots.end.y - spots.hang.y) / AV_SCALE + HANG_BOX - HANG_DROP_TOP - STAND_H).toFixed(1)}px`,
+                          ["--fy" as string]: `${((spots.end.y - spots.hang.y) / AV_SCALE + HANG_BOX - HANG_DROP_TOP - JUMP_H).toFixed(1)}px`,
                           filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
                         }}
                       />

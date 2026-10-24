@@ -482,12 +482,12 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
 
       /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
-         - roadmap: hero'daki kişi alttan yükselen sayfadaki nehrin başına
-           atlar (SiteAvatar exitTarget); indiği an roadmapEntering. Bu
-           zamanlayıcı yalnızca yedek (atlayış olmadıysa).
+         - roadmap: hero'daki kişi aşağı dalar, geçiş biterken ekranın
+           üstünden nehrin başına düşer (SiteAvatar exitTarget); indiği an
+           roadmapEntering. Bu zamanlayıcı yalnızca yedek.
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
-        window.setTimeout(() => setRoadmapEntering(true), dur);
+        window.setTimeout(() => setRoadmapEntering(true), dur + 1500);
       if (dir > 0 && key === "projects")
         window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
 
