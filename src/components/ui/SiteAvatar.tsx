@@ -3,7 +3,6 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -132,63 +131,6 @@ const PINCH_IMG = "/images/zeynep-burun.webp";
 const PINCH_MS = ms(260); // burnunu tutup hazırlanma
 const PINCH_H = 58; // ayakta boyu (px)
 const PINCH_W = Math.round((PINCH_H * 223) / 720);
-/** roadmap'teki oturan kişinin boyu / buradaki burun tutma pozunun boyu:
- *  atlayış boyunca bu orana küçülür (indiği an iki görsel aynı boyda) */
-const LAND_SCALE = 0.88;
-
-/** sonraki sayfaya atlayış planı (SiteFlow verir) */
-export type ExitPlan = {
-  /** iniş noktası (ekranda, ayak ucu) */
-  x: number;
-  y: number;
-  /** atlayış süresi = sayfa geçişi süresi (ms) */
-  ms: number;
-  /** kalkış noktası (ayak ucu) — atlayış başlarken ölçülür */
-  from?: Pt;
-};
-
-/** zıplama yayı: yatay sabit hız, dikey yerçekimi (parabol). Tepe
- *  noktası iki uçtan da yukarıda; ekranın üstünden fazla taşmaz. */
-function leapKeyframes(
-  from: Pt,
-  to: Pt,
-  endScale: number,
-): Keyframe[] {
-  const dist = Math.hypot(to.x - from.x, to.y - from.y);
-  const lift = Math.min(170, Math.max(70, dist * 0.22));
-  const apex = Math.max(36, Math.min(from.y, to.y) - lift);
-  /* ikinci derece Bezier'in kontrol noktası: en tepesi `apex` olsun */
-  const yAt = (c: number, u: number) =>
-    (1 - u) * (1 - u) * from.y + 2 * u * (1 - u) * c + u * u * to.y;
-  const minOf = (c: number) => {
-    const d = from.y - 2 * c + to.y;
-    const u = d !== 0 ? (from.y - c) / d : -1;
-    return u > 0 && u < 1 ? yAt(c, u) : Math.min(from.y, to.y);
-  };
-  let lo = apex - 4 * (lift + dist);
-  let hi = Math.min(from.y, to.y);
-  for (let i = 0; i < 32; i++) {
-    const mid = (lo + hi) / 2;
-    if (minOf(mid) < apex) lo = mid;
-    else hi = mid;
-  }
-  const c = (lo + hi) / 2;
-  const N = 24;
-  const frames: Keyframe[] = [];
-  for (let i = 0; i <= N; i++) {
-    const u = i / N;
-    const x = from.x + (to.x - from.x) * u;
-    const y = yAt(c, u);
-    frames.push({
-      offset: u,
-      translate: `${(x - to.x).toFixed(1)}px ${(y - to.y).toFixed(1)}px`,
-      /* havada hafifçe öne döner, suya dik girer */
-      rotate: `${(Math.sin(u * Math.PI) * -9).toFixed(2)}deg`,
-      scale: `${(1 + (endScale - 1) * u * u).toFixed(3)}`,
-    });
-  }
-  return frames;
-}
 /* İSİMDEN SONRA: isimden düşer, alttaki yetenek satırının BAŞINDAN
    tek eliyle (kolu yukarıda) tutunur, sallanır, sonra bırakıp ikonlara
    atlar. Görsel zeynep3.png'den üretildi: kol yukarı kaldırıldı. */
@@ -560,9 +502,6 @@ type SiteAvatarProps = {
   /** avatar aşağıdaki sayfaya dalmaya BAŞLADI (sayfa geçişi bununla
    *  aynı anda başlar: avatar yükselen roadmap'e atlar) */
   onExitStart?: () => void;
-  /** atlayışın nereye / ne kadar sürede olacağı (yoksa ekrandan aşağı
-   *  dalıp çıkar) — atlayış başlarken bir kez sorulur */
-  exitPlan?: () => ExitPlan | null;
   hidden?: boolean;
   climbSrc?: string;
   walkSrc?: string;
@@ -575,7 +514,6 @@ export default function SiteAvatar({
   onSequenceComplete,
   onPlugged,
   onExitStart,
-  exitPlan,
   hidden = false,
   climbSrc = CLIMB_VIDEO,
   walkSrc = WALK_VIDEO,
@@ -587,8 +525,6 @@ export default function SiteAvatar({
   const [hand, setHand] = useState(() => handAt(0));
   const [videoStatus, setVideoStatus] = useState("bekleniyor");
   const [spots, setSpots] = useState<NameSpots | null>(null);
-  /* bir sonraki sayfaya atlayış (iniş noktası + süre) */
-  const [exit, setExit] = useState<ExitPlan | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const dentImgRef = useRef<SVGFEImageElement>(null);
   const dentMapRef = useRef<SVGFEDisplacementMapElement>(null);
@@ -909,9 +845,9 @@ export default function SiteAvatar({
   /* Üst bileşenin geri çağrıları ref'te: üst bileşen her yeniden
      çizildiğinde (sayfa geçişinde birkaç kez) zamanlayıcı baştan
      kurulmasın — eskiden atlayış bitince avatar 2-3 sn havada kalıyordu */
-  const cbs = useRef({ onPlugged, onExitStart, onSequenceComplete, exitPlan });
+  const cbs = useRef({ onPlugged, onExitStart, onSequenceComplete });
   useEffect(() => {
-    cbs.current = { onPlugged, onExitStart, onSequenceComplete, exitPlan };
+    cbs.current = { onPlugged, onExitStart, onSequenceComplete };
   });
 
   /* Aşama zamanlayıcıları (tırmanma videoyla biter; bu süre yedek) */
@@ -928,7 +864,7 @@ export default function SiteAvatar({
       pinch: ["descending", PINCH_MS],
       descending: [
         "done",
-        exit?.ms ?? (hops.length ? EXIT_MS : DESCEND_MS),
+        hops.length ? EXIT_MS : DESCEND_MS,
       ],
     };
     /* İsimden sonra: ikon varsa onlara, yoksa eskisi gibi sol alta */
@@ -949,17 +885,7 @@ export default function SiteAvatar({
     if (!step) return;
 
     const t = setTimeout(() => {
-      /* iniş noktası, sayfa geçişi başlamadan (sayfa yerindeyken) ölçülür */
       const cb = cbs.current;
-      if (step[0] === "descending") {
-        const plan = cb.exitPlan?.() ?? null;
-        const r = rootRef.current?.getBoundingClientRect();
-        setExit(
-          plan && r
-            ? { ...plan, from: { x: r.left + r.width / 2, y: r.bottom } }
-            : null,
-        );
-      }
       setStage(step[0]);
       if (step[0] === "plugged") cb.onPlugged?.();
       if (step[0] === "descending") cb.onExitStart?.();
@@ -968,35 +894,12 @@ export default function SiteAvatar({
     return () => clearTimeout(t);
   }, [
     stage,
-    exit,
     isActive,
     hasHang,
     hops.length,
     plugGo,
     floorRunMs,
   ]);
-
-  /* ATLAYIŞ YAYI: kişi iniş noktasına yazıldığı karede, eski yerinden
-     oraya parabol çizerek uçar (translate / rotate / scale — kompozitörde,
-     ana iş parçacığı meşgulken de akar). Sayfa da aynı sürede yükselir:
-     kişi sayfa oturduğu an nehrin girişine iner. */
-  useLayoutEffect(() => {
-    if (stage !== "descending" || !exit) return;
-    const el = rootRef.current;
-    if (!el || typeof el.animate !== "function") return;
-    const from = exit.from ?? {
-      x: floorEndX,
-      y: window.innerHeight - FLOOR_GAP,
-    };
-    const a = el.animate(leapKeyframes(from, exit, LAND_SCALE), {
-      /* biraz erken iner: zamanlayıcı / kare gecikmesinde bile kişi
-         kaybolmadan önce tam noktaya oturmuş olur */
-      duration: Math.max(300, exit.ms - 140),
-      easing: "linear",
-      fill: "both",
-    });
-    return () => a.cancel();
-  }, [stage, exit, floorEndX]);
 
   /* İkinci kopya: hiçbir şey çizme */
   if (!owner) return null;
@@ -1081,10 +984,6 @@ export default function SiteAvatar({
                 : (stage === "toLeft" || stage === "pinch") && hops.length
                   ? /* yerde koşarak ekranın en soluna */
                     at({ x: floorEndX, y: window.innerHeight - FLOOR_GAP })
-                  : stage === "descending" && exit
-                    ? /* yükselen roadmap'teki nehrin girişine atlar
-                         (yay aşağıdaki efektte, kompozitörde) */
-                      at(exit)
                   : stage === "descending" && hops.length
                     ? /* en soldan aşağı atlayıp alttaki sayfaya geçer */
                       at({
@@ -1127,8 +1026,6 @@ export default function SiteAvatar({
               ? `left ${TO_FLOOR_MS}ms linear, top ${TO_FLOOR_MS}ms cubic-bezier(.3,-0.6,.7,1)`
               : stage === "toLeft"
                 ? `left ${floorRunMs}ms cubic-bezier(.3,0,.7,1), top ${floorRunMs}ms linear`
-                : stage === "descending" && exit
-                  ? "none"
                 : stage === "descending" && hops.length
                   ? /* önce hafifçe yukarı sıçrar, sonra dimdik aşağı dalar */
                     `left ${EXIT_MS}ms linear, top ${EXIT_MS}ms cubic-bezier(.35,-0.55,.75,.9)`
@@ -1143,7 +1040,7 @@ export default function SiteAvatar({
     stage === "social" ||
     stage === "toFloor" ||
     stage === "toLeft" ||
-    (stage === "descending" && !hops.length && !exit);
+    (stage === "descending" && !hops.length);
   /* Sosyal ikonlarda bir önceki noktaya göre yön */
   const hopPrevX =
     hopIdx === 0
@@ -1181,11 +1078,10 @@ export default function SiteAvatar({
     (stage === "social" && !squat) ||
     stage === "toFloor" ||
     stage === "toLeft" ||
-    (stage === "descending" && !hops.length && !exit);
+    (stage === "descending" && !hops.length);
   /* Burnunu tutup atlama (ayakta, ekrana dönük) */
   const pinching =
-    (hops.length > 0 && stage === "pinch") ||
-    (stage === "descending" && (hops.length > 0 || !!exit));
+    hops.length > 0 && (stage === "pinch" || stage === "descending");
   /* yetenek satırına asılı (elleri satırda) */
   const hanging = stage === "hang" || (stage === "toHang" && !!spots?.hang);
   /* Konma anları: ayak altında ışık halkası */
@@ -1368,7 +1264,7 @@ export default function SiteAvatar({
              "visible" yazdığı için gizli üst kutuyu deliyordu */
           opacity: preloading
             ? 0
-            : stage === "descending" && !hops.length && !exit
+            : stage === "descending" && !hops.length
               ? 0.9
               : 1,
         }}
