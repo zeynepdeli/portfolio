@@ -8,19 +8,27 @@
    bir bölüm görünmeden önce onun görselleri hazır olur.
 ========================================================= */
 
+/** Görselin İÇERİĞİ değişince bu sürüm artırılır: tarayıcılar görselleri
+ *  bir süre önbellekte tuttuğu için aynı adla yüklenen yeni görsel
+ *  (ör. yeni oturma pozu) telefonda hemen görünmüyordu. */
+const V = "?v=3";
+
 export const IMG = {
-  sit: "/images/zeynep-oturma.webp",
+  sit: `/images/zeynep-oturma.webp${V}`,
   ride: "/images/zeynep-kayma.webp",
   rideFront: "/images/zeynep-kayma-on.webp",
   pinch: "/images/zeynep-burun.webp",
-  hang: "/images/zeynep-asilma.webp",
+  hang: `/images/zeynep-asilma.webp${V}`,
   crouch: "/images/zeynep-comelme.webp",
   climbStill: "/images/zeynep-tirmanma-kare.webp",
   runStill: "/images/zeynep-kosma-kare.webp",
   waveStart: "/images/zeynep-wave-start.webp",
   waveEnd: "/images/zeynep-wave-end.webp",
-  jump: "/images/zeynep-ziplama.webp",
+  jump: `/images/zeynep-ziplama.webp${V}`,
 } as const;
+
+/** el sallama videosu (sürümlü: yeniden sıkıştırıldı) */
+export const WAVE_VIDEO_SRC = `/videos/zeynep-wave.mp4${V}`;
 
 /** sitedeki bütün avatar görselleri */
 export const ALL_AVATAR_IMAGES: string[] = Object.values(IMG);

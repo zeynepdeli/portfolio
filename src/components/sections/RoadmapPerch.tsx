@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, type CSSProperties } from "react";
+import { IMG } from "@/components/ui/assets";
 
 /* ================================================================
    ROADMAP — NEHRİN SAĞINDA OTURAN KİŞİ
@@ -12,7 +13,7 @@ import { useId, type CSSProperties } from "react";
 ================================================================ */
 
 /* GÖRSEL — ProjectsSection ile aynı ölçüler (public/images/zeynep-oturma.webp) */
-const SIT_SRC = "/images/zeynep-oturma.webp";
+const SIT_SRC = IMG.sit;
 const SIT_W = 1584;
 const SIT_H = 672;
 const SIT_CX = 795;

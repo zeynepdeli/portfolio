@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* Avatar görselleri, videolar ve belgeler: tarayıcı bir gün önbellekte
-     tutar (her ziyarette yeniden doğrulamak yerine), arka planda tazeler.
-     Dosya değişirse en geç bir gün içinde yenisi gelir. */
+  /* Avatar görselleri, videolar ve belgeler: tarayıcı bir saat önbellekte
+     tutar, sonra arka planda tazeler. İçeriği değişen görselin adresine
+     sürüm eklenir (components/ui/assets.ts → V): yenisi hemen gelir. */
   async headers() {
     const cache = [
       {
         key: "Cache-Control",
-        value: "public, max-age=86400, stale-while-revalidate=604800",
+        value: "public, max-age=3600, stale-while-revalidate=86400",
       },
     ];
     return [
