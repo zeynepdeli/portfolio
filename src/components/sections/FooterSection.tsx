@@ -612,6 +612,9 @@ export default function FooterSection({
                   _
                 </span>
               </p>
+              {/* HİKÂYEYİ BAŞTAN İZLE: terminal komutu gibi; tıklayınca
+                  açılış animasyonu baştan oynar */}
+              <ReplayIntro />
             </div>
             <div data-ft-in style={ftI(1)}>
               <EmailCopy />
@@ -1828,6 +1831,34 @@ function Screw({
         style={{ background: `rgba(${DEEP},.9)` }}
       />
     </span>
+  );
+}
+
+/** Açılış hikâyesini baştan oynatır (ana sayfayı yeniden yükler). */
+function ReplayIntro() {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        /* tam yeniden yükleme: hikâye sıfırdan başlasın (istemci tarafı
+           geçişte bölümler son halinde kalıyordu) */
+        if (window.location.pathname === "/") window.location.reload();
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- bilerek tam yükleme
+        else window.location.href = "/";
+      }}
+      className="group flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-[rgba(70,190,255,.28)] bg-[rgba(6,22,46,.55)] px-2.5 py-1 font-mono text-[11px] text-[#8fdcea] transition-colors hover:border-[#6ef5e8] hover:text-[#c4f7fb] focus-visible:outline-2 focus-visible:outline-[#6ef5e8] sm:text-[12px]"
+      aria-label="Açılış animasyonunu baştan izle"
+    >
+      <span
+        aria-hidden
+        className="inline-block transition-transform duration-500 group-hover:-rotate-180"
+        style={{ color: "#6ef5e8" }}
+      >
+        ↻
+      </span>
+      <span style={{ color: "#5df2a6" }}>./hikaye</span>
+      <span>--bastan-izle</span>
+    </button>
   );
 }
 

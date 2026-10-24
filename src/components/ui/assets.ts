@@ -19,7 +19,6 @@ export const IMG = {
   runStill: "/images/zeynep-kosma-kare.webp",
   waveStart: "/images/zeynep-wave-start.webp",
   waveEnd: "/images/zeynep-wave-end.webp",
-  stand: "/images/zeynep-durma.webp",
   jump: "/images/zeynep-ziplama.webp",
 } as const;
 
