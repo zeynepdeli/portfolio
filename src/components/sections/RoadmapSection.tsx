@@ -92,10 +92,6 @@ const FRONT_INTRO_UNTIL = 8 * STEPS;
  *  bekler, sonra projelere geçer (ms) */
 const END_HOLD_MS = 1600;
 /** Alırken saçılan altın kıvılcımlar */
-/** suya inişte sıçrayan damlalar (px) */
-const SPLASH_DROPS: [number, number][] = [
-  [-26, -22], [-14, -34], [0, -40], [14, -32], [26, -20], [-34, -8], [34, -10],
-];
 
 const PICK_SPARKS: [number, number][] = [
   [-18, -46],
@@ -998,21 +994,6 @@ const AVATAR_CSS = `
     15%  { opacity: 1; }
     100% { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
   }
-  /* suya inince oturur: çömelip yaylanarak oturma pozuna geçer */
-  @keyframes rmAvSit {
-    0%   { transform: translateY(8px) scale(.9, .72); opacity: 0; }
-    35%  { transform: translateY(-3px) scale(1.04, 1.06); opacity: 1; }
-    65%  { transform: translateY(1px) scale(.99, .97); }
-    100% { transform: none; opacity: 1; }
-  }
-  @keyframes rmAvSplashRing {
-    0%   { transform: translate(-50%, -50%) scale(.2); opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-  }
-  @keyframes rmAvDrop {
-    0%   { transform: translate(0, 0); opacity: 1; }
-    100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
-  }
   @keyframes rmAvRing {
     0%   { transform: translate(-50%, -50%) scale(.3); opacity: .9; }
     100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
@@ -1044,12 +1025,11 @@ export default function RoadmapSection({
 
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  /* SUYA İNİŞ: hero'daki kişi atlayıp tam nehrin giriş noktasına
-     (aşağıda data-rm-entry) düşer; düştüğü an burada sıçrayan suyla
-     oturur. Kayma bundan sonra başlar. Hikâye dışında iniş yok. */
+  /* NEHRİN KAYNAĞINDAN GİRİŞ (hikâye): hero'daki kişi aşağı dalar; sayfa
+     yerine otururken kişi nehrin başladığı köşeden (panelin sol üst
+     köşesi) suyla birlikte kayarak gelir ve durmadan yoluna devam eder. */
   const landed = entering;
-  /* kayma: hikâyede kişi suya indikten sonra */
-  const rideGo = active && (!staged || landed);
+  const rideGo = staged ? landed : active;
 
   /* PERFORMANS: kişinin nehirdeki yeri ve dikey ekrandaki kamera kayması
      React state ile DEĞİL, doğrudan stil yazılarak güncellenir — her
@@ -1323,7 +1303,8 @@ export default function RoadmapSection({
   /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
      kişiyi ve kamerayı son konuma yeniden yerleştir */
   useLayoutEffect(() => {
-    if ((staged || active) && avatarRef.current < entryK)
+    /* menüden gelince kişi doğrudan girişte; hikâyede kaynaktan (0) gelir */
+    if (!staged && active && avatarRef.current < entryK)
       avatarRef.current = entryK;
     placeAvatar(avatarRef.current);
   });
@@ -1338,8 +1319,9 @@ export default function RoadmapSection({
   useEffect(() => {
     if (!rideGo) return;
 
-    /* KİŞİ PANELİN İÇİNDE BAŞLAR (entryK — yukarıda) */
-    if (avatarRef.current < entryK) avatarRef.current = entryK;
+    /* menüden gelince kişi panelin içinde başlar (entryK — yukarıda);
+       hikâyede nehrin kaynağından (köşeden) */
+    if (!staged && avatarRef.current < entryK) avatarRef.current = entryK;
     const from = avatarRef.current;
     /* geniş ekranda son (uzatma) bölüm ekran dışında: kişi orada durur */
     const to = G.middle.length - 1 - (portrait ? 0 : STEPS);
@@ -1930,24 +1912,6 @@ export default function RoadmapSection({
                 );
               })}
 
-            {/* GİRİŞ NOKTASI İŞARETİ: hero'daki kişi atlarken buraya
-                düşer (SiteFlow ölçer). Kişinin oturduğu nokta. */}
-            {size.w > 0 && (
-              <div
-                data-rm-entry
-                aria-hidden
-                className="pointer-events-none absolute top-0 left-0 size-0"
-                style={{
-                  transform: `translate3d(${
-                    frame.px +
-                    pointAt(G.middle, entryK).x * frame.sc +
-                    (SEAT_X - 0.5) * AV_W
-                  }px, ${
-                    frame.py + pointAt(G.middle, entryK).y * frame.sc + AV_H * 0.04
-                  }px, 0)`,
-                }}
-              />
-            )}
             {size.w > 0 &&
               /* sayfa yükselirken de girişte görünür (staged) */
               (arrived >= 0 || (staged && landed)) &&
@@ -1962,7 +1926,6 @@ export default function RoadmapSection({
                   facingScreen={facingScreen}
                   collecting={moving && arrived >= 1 && arrived <= NODES.length}
                   pickKey={arrived}
-                  splash={landed && arrived < 0}
                 />
               )}
           </div>
@@ -2055,10 +2018,7 @@ function WalkingAvatar({
   facingScreen,
   collecting,
   pickKey,
-  splash = false,
 }: {
-  /** suya yeni indi: sıçrayan su */
-  splash?: boolean;
   /** konumu üst bileşen doğrudan yazar (transform) */
   elRef: Ref<HTMLDivElement>;
   moving: boolean;
@@ -2107,42 +2067,9 @@ function WalkingAvatar({
         />
       ))}
 
-      {/* suya iniş: sıçrayan su halkası + damlalar */}
-      {splash && (
-        <div className="absolute" style={{ left: AV_W * SEAT_X, top: AV_H - 4 }}>
-          <span
-            className="absolute rounded-[50%]"
-            style={{
-              width: AV_W * 1.8,
-              height: 16,
-              border: `2px solid rgba(${C.edgeRGB},.9)`,
-              boxShadow: `0 0 12px rgba(${C.edgeRGB},.7)`,
-              animation: "rmAvSplashRing 700ms ease-out both",
-            }}
-          />
-          {SPLASH_DROPS.map(([dx, dy], i) => (
-            <span
-              key={i}
-              className="absolute size-1.5 rounded-full"
-              style={
-                {
-                  background: `rgba(${C.edgeRGB},.95)`,
-                  boxShadow: `0 0 6px rgba(${C.edgeRGB},.9)`,
-                  "--dx": `${dx}px`,
-                  "--dy": `${dy}px`,
-                  animation: `rmAvDrop 620ms cubic-bezier(.2,.7,.5,1) ${i * 15}ms both`,
-                } as CSSVars
-              }
-            />
-          ))}
-        </div>
-      )}
-
       <div
         className="absolute inset-0"
         style={{
-          /* suya inince yaylanarak oturur */
-          animation: splash ? "rmAvSit 650ms cubic-bezier(.3,.8,.4,1) both" : undefined,
           transformOrigin: `${SEAT_X * 100}% 100%`,
           /* hep ileriye (sağa) bakar; nehir sola kıvrılsa da geri dönmez */
           transform: facingLeft && FLIP_ON_LEFT ? "scaleX(-1)" : "none",

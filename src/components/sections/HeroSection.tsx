@@ -1186,11 +1186,11 @@ export default function HeroSection({
               />
             </div>
             <div ref={portRef1}>
-              {/* FENER: portre sahneye gelir gelmez DOĞRUDAN fotoğrafa
-                  tutulur (karanlıkta da yanık); isim ışığı fişle yanar */}
+              {/* FENER: portreye tutulan ışık da (isim ışığı gibi) ancak
+                  avatar fişi takınca yanar */}
               <SidePort
                 type="audio"
-                lit={powered || portraitGo || !CINEMATIC_INTRO}
+                lit={powered || !CINEMATIC_INTRO}
                 swing={spots[1]?.swing ?? 0}
                 beamAngle={spots[1]?.beamAngle ?? 0}
                 beamLength={spots[1]?.len ?? 650}
@@ -1243,10 +1243,7 @@ export default function HeroSection({
                       background:
                         "radial-gradient(closest-side, rgba(var(--c-d7eeff,215,238,255),.18), rgba(var(--c-c8ebff,200,235,255),.07) 55%, transparent)",
                       mixBlendMode: "screen",
-                      opacity:
-                        powered || (i === 1 && (portraitGo || !CINEMATIC_INTRO))
-                          ? 1
-                          : 0,
+                      opacity: powered || !CINEMATIC_INTRO ? 1 : 0,
                       transition: `opacity ${POWER_FADE_MS}ms ease ${powered ? POWER_LIGHT_MS : 0}ms`,
                     }}
                   />

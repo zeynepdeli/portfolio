@@ -13,7 +13,7 @@ import HeroSection from "@/components/sections/HeroSection";
 import RoadmapSection from "@/components/sections/RoadmapSection";
 import ProjectsSection from "@/components/sections/ProjectsSection";
 import FooterSection from "@/components/sections/FooterSection";
-import SiteAvatar, { type ExitPlan } from "@/components/ui/SiteAvatar";
+import SiteAvatar from "@/components/ui/SiteAvatar";
 import { type MenuKey } from "@/components/layout/MobileMenu";
 import SiteMenu from "@/components/layout/SiteMenu";
 import FinalState from "@/components/ui/FinalState";
@@ -80,6 +80,9 @@ const FOOTER_MS = 1400;
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
 const ARRIVE_PAUSE_MS = 140;
+/** roadmap'te kişi, geçişin bu oranında nehrin kaynağından kaymaya başlar
+ *  (sayfa son yavaşlamasındayken: kişi oturan sayfada belirir) */
+const ROADMAP_ENTER_AT = 0.8;
 /** projelerde kişi, geçişin bu oranında akmaya başlar */
 const PROJECTS_ENTER_AT = 0.5;
 /** sahne kurulmadan önce yazı tipi / görsel için en fazla bekleme (ms) */
@@ -482,11 +485,14 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
 
       /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
-         - roadmap: hero'daki kişi geçişle AYNI SÜREDE nehrin girişine
-           atlar (SiteAvatar exitPlan); sayfa oturduğu an suya iner
+         - roadmap: hero'daki kişi aşağı dalar; sayfa yerine otururken
+           nehrin başladığı sol üst köşeden suyla kayarak gelir
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
-        window.setTimeout(() => setRoadmapEntering(true), dur);
+        window.setTimeout(
+          () => setRoadmapEntering(true),
+          dur * ROADMAP_ENTER_AT,
+        );
       if (dir > 0 && key === "projects")
         window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
 
@@ -553,23 +559,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
 
   /* ---------------- HİKÂYE (yalnızca "/") ---------------- */
   /* avatar dalmaya başlayınca → roadmap */
-  /* hero'daki kişinin atlayacağı yer: roadmap'teki nehrin giriş noktası,
-     sayfa YERİNDEYKEN nerede olacaksa orası (geçiş başlamadan ölçülür) */
-  const heroExitPlan = useCallback((): ExitPlan | null => {
-    const sec = roadmapRef.current;
-    const mark = sec?.querySelector<HTMLElement>("[data-rm-entry]");
-    if (!sec || !mark) return null;
-    const prev = sec.style.transform;
-    sec.style.transform = "none";
-    const r = mark.getBoundingClientRect();
-    sec.style.transform = prev;
-    if (!r.width && !r.left && !r.top) return null;
-    return {
-      x: r.left,
-      y: r.top,
-      ms: isNarrow() ? MOBILE_TRANSITION_MS : TRANSITION_MS,
-    };
-  }, []);
   const onHeroExit = useCallback(() => {
     setHeroTransitioning(true);
     runStep(0, 1);
@@ -908,7 +897,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         <SiteAvatar
           onPlugged={() => setPowered(true)}
           onExitStart={onHeroExit}
-          exitPlan={heroExitPlan}
           onSequenceComplete={() => {
             onHeroExit();
             setHeroAvatarGone(true);

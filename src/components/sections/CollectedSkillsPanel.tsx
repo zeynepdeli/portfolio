@@ -12,6 +12,7 @@ import {
   BadgeCheck,
   ChevronsUp,
   Database,
+  Map as MapIcon,
   Monitor,
   Server,
   Smartphone,
@@ -316,15 +317,23 @@ export default function CollectedSkillsPanel({
       >
         {/* Panel başlığı */}
         <div
-          className="pointer-events-none absolute font-mono tracking-[.14em]"
+          className="pointer-events-none absolute flex items-center font-mono tracking-[.14em]"
           style={{
             left: compact ? 8 : CONTENT_X,
             top: compact ? 10 : 34,
+            gap: 8 * S,
             fontSize: 15 * S,
             color: `rgb(${ICE})`,
             textShadow: `0 0 10px rgba(${EDGE},0.5)`,
           }}
         >
+          {/* yol haritası ikonu */}
+          <MapIcon
+            aria-hidden
+            size={Math.round(17 * S)}
+            strokeWidth={1.6}
+            style={{ filter: `drop-shadow(0 0 4px rgba(${EDGE},.7))`, flexShrink: 0 }}
+          />
           [YETENEKLER / SKILLS]
         </div>
 
