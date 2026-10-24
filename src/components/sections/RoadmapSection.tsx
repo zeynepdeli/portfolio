@@ -1030,9 +1030,9 @@ export default function RoadmapSection({
 
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  /* NEHRİN BAŞINA İNİŞ (hikâye): hero'daki kişi atlar, alttan yükselen bu
-     sayfadaki nehrin başına (data-rm-entry) iner. İndiği an buradaki kişi
-     devralır: sayfayla birlikte yerine oturur, sonra kaymaya başlar. */
+  /* NEHRİN BAŞINA İNİŞ (hikâye): hero'daki kişi aşağı dalar, geçiş biterken
+     ekranın üstünden nehrin başına (data-rm-entry) düşer. İndiği an buradaki kişi
+     devralır: çöküp yaylanarak oturur, sonra kaymaya başlar. */
   const landed = entering;
   const rideGo = active && (!staged || landed);
 

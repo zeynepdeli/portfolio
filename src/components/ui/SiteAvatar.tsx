@@ -545,11 +545,11 @@ type SiteAvatarProps = {
   /** avatar aşağıdaki sayfaya dalmaya BAŞLADI (sayfa geçişi bununla
    *  aynı anda başlar: avatar yükselen roadmap'e atlar) */
   onExitStart?: () => void;
-  /** atlayışın hedefi: alttan yükselen sayfadaki nokta, HER KAREDE
-   *  canlı sorulur (sayfa hareket ederken de). Verilirse kişi o noktaya
-   *  atlar, değince `onExitLand` çağrılır ve avatar biter. */
+  /** sonraki sayfadaki iniş noktası, HER KAREDE canlı sorulur.
+   *  Verilirse kişi aşağı dalar, sayfa geçişi biterken ekranın üstünden
+   *  bu noktaya düşer; değince `onExitLand` çağrılır ve avatar biter. */
   exitTarget?: () => Pt | null;
-  /** en geç bu sürede iner (ms) */
+  /** sayfa geçişinin süresi (ms): düşüş bunun sonuna denk gelir */
   exitMs?: number;
   onExitLand?: () => void;
   hidden?: boolean;
@@ -973,45 +973,66 @@ export default function SiteAvatar({
     floorRunMs,
   ]);
 
-  /* HEDEFLİ ATLAYIŞ: kişi küçük bir sıçrayışla havalanır ve alttan
-     yükselen sayfadaki noktaya (roadmap'te nehrin başı) iner. Hedef her
-     karede CANLI okunur; kişi yukarı uçmaz: nokta yükselip kişinin
-     ayağına değdiği an iner ve sayfanın kendi avatarı devralır (sayfayla
-     birlikte yukarı taşınır). `exitMs`: en geç bu sürede iner. */
+  /* SONRAKİ SAYFAYA GEÇİŞ (her ekranda aynı):
+     1) burnunu tutup küçük bir sıçrayışla ekranın altından dalar,
+     2) sayfa geçişi biterken ekranın ÜSTÜNDEN, yeni sayfadaki noktanın
+        (roadmap'te sol üst köşedeki nehrin başı) tam üstünden düşer,
+     3) noktaya değdiği an sayfanın kendi avatarı devralır (suya oturur).
+     Hedef her karede canlı okunur. `exitMs` = sayfa geçişinin süresi. */
   useEffect(() => {
     if (stage !== "descending" || !chaseFrom) return;
     const el = rootRef.current;
     if (!el) return;
     const start = performance.now();
-    /* sıçrayış: 0.34 sn'de 70 px tepe, sonra yerçekimiyle düşüş. Kişi
-       en az MIN_AIR havada kalır (telefonda sayfa çok hızlı yükseldiği
-       için atlayış görünmüyordu) */
-    const PEAK_T = 0.34;
-    const MIN_AIR = 0.5;
-    const v0 = (2 * 70) / PEAK_T;
+    const vh = window.innerHeight;
+    const boxH = H * AV_SCALE;
+    /* dalış: 0.22 sn'de 34 px tepe, sonra yerçekimi */
+    const PEAK_T = 0.22;
+    const v0 = (2 * 34) / PEAK_T;
     const g = v0 / PEAK_T;
+    /* düşüş: geçişin sonuna doğru başlar, sayfa oturduğunda iner */
+    const FALL_G = 1700;
+    const fallAt = (exitMs * 0.8) / 1000;
+    let fallStart = -1;
+    let fallFromY = 0;
     let raf = 0;
-    let crossAt = -1;
+    const set = (x: number, y: number, show: boolean) => {
+      el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
+      el.style.visibility = show ? "" : "hidden";
+    };
     const tick = (now: number) => {
       const e = (now - start) / 1000;
-      const t = cbs.current.exitTarget?.();
-      const fallY = chaseFrom.y - v0 * e + 0.5 * g * e * e;
-      /* nokta kişinin ayak hizasını geçti: kişi ona oturur (kısa geçişle) */
-      if (t && crossAt < 0 && t.y <= fallY && t.y < window.innerHeight)
-        crossAt = e;
-      const j = crossAt < 0 ? 0 : Math.min(1, (e - crossAt) / 0.18);
-      const y = t ? fallY + (t.y - fallY) * j * j * (3 - 2 * j) : fallY;
-      const k = Math.min(1, e / 0.45);
-      const ease = k * k * (3 - 2 * k);
-      const x = t ? chaseFrom.x + (t.x - chaseFrom.x) * ease : chaseFrom.x;
-      el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
-      /* indiği yerdeki oturan kişiyle aynı boya küçülür */
-      el.style.scale = String(1 - 0.12 * Math.min(1, e / 0.5));
-      const met = e >= MIN_AIR && j >= 1;
-      if (!met && e * 1000 < exitMs) {
+      if (e < fallAt || fallStart < 0) {
+        /* 1) dalış (ekranın altından çıkınca görünmez bekler) */
+        const y = chaseFrom.y - v0 * e + 0.5 * g * e * e;
+        set(chaseFrom.x, Math.min(y, vh + boxH + 40), y < vh + boxH);
+        if (e >= fallAt) {
+          fallStart = e;
+          fallFromY = -boxH * 0.4; // ekranın üstünden girer
+        }
         raf = requestAnimationFrame(tick);
         return;
       }
+      /* 2) yukarıdan düşüş: hedefin tam üstünden; oturan kişiyle aynı
+         boyda (roadmap'teki avatar daha küçük) */
+      el.style.scale = "0.88";
+      /* 2) yukarıdan düşüş: hedefin tam üstünden */
+      const t = cbs.current.exitTarget?.();
+      if (!t) {
+        cbs.current.onExitLand?.();
+        setStage("done");
+        cbs.current.onSequenceComplete?.();
+        return;
+      }
+      const f = e - fallStart;
+      const y = fallFromY + 0.5 * FALL_G * f * f;
+      if (y < t.y) {
+        set(t.x, y, true);
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      /* 3) iniş */
+      set(t.x, t.y, true);
       cbs.current.onExitLand?.();
       setStage("done");
       cbs.current.onSequenceComplete?.();
@@ -1020,6 +1041,7 @@ export default function SiteAvatar({
     return () => {
       cancelAnimationFrame(raf);
       el.style.translate = "";
+      el.style.visibility = "";
       el.style.scale = "";
     };
   }, [stage, chaseFrom, exitMs]);
