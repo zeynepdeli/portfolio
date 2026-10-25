@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Chakra_Petch } from "next/font/google";
 import { ThemeStyles } from "@/components/ui/Theme";
 import "./globals.css";
+import { LangProvider } from "@/i18n/lang";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,14 +31,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="tr"
       className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* RENK PALETİ (Theme.tsx → PALETTE): layout'ta olduğu için
             "/", "/home", "/projects", "/roadmap" — tüm sayfalarda geçerli */}
         <ThemeStyles />
-        {children}
+        <LangProvider>{children}</LangProvider>
       </body>
     </html>
   );

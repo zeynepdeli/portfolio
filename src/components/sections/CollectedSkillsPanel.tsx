@@ -24,6 +24,7 @@ import {
   glassShadow,
   glassSurface,
 } from "@/components/ui/Glass";
+import { useLang, type Lang } from "@/i18n/lang";
 
 /* =========================================================
    PALET — sitenin geri kalanıyla aynı
@@ -37,15 +38,23 @@ const GOLD_LIGHT = "255,228,170";
 /* =========================================================
    TİPLER
 ========================================================= */
+/** iki dilli metin (her iki dilde aynıysa düz yazı) */
+export type Txt = string | { tr: string; en: string };
+/** metni seçili dilde verir */
+export const txt = (v: Txt, lang: Lang) => (typeof v === "string" ? v : v[lang]);
+/** iki dilden uzun olanı (yer hesabı dile göre değişmesin) */
+export const txtMax = (v: Txt) =>
+  typeof v === "string" ? v : v.tr.length >= v.en.length ? v.tr : v.en;
+
 export type Tech = {
-  name: string;
+  name: Txt;
   /** Kısa not, örn. "App Router · SSR" */
-  note?: string;
+  note?: Txt;
 };
 
 export type SkillCategory = {
   key: string;
-  label: string;
+  label: Txt;
   icon: ElementType;
   techs: Tech[];
 };
@@ -75,22 +84,22 @@ export const DEFAULT_CATEGORIES: SkillCategory[] = [
     label: "FRONTEND",
     icon: Monitor,
     techs: [
-      { name: "React", note: "Yeniden kullanılabilir bileşenler" },
-      { name: "Next.js", note: "Full-stack web uygulamaları" },
-      { name: "Astro", note: "Hızlı, SEO dostu sayfalar" },
-      { name: "JavaScript · TypeScript", note: "Tip güvenli kod" },
+      { name: "React", note: { tr: "Yeniden kullanılabilir bileşenler", en: "Reusable components" } },
+      { name: "Next.js", note: { tr: "Full-stack web uygulamaları", en: "Full-stack web apps" } },
+      { name: "Astro", note: { tr: "Hızlı, SEO dostu sayfalar", en: "Fast, SEO-friendly pages" } },
+      { name: "JavaScript · TypeScript", note: { tr: "Tip güvenli kod", en: "Type-safe code" } },
       { name: "HTML5 · CSS3 · SCSS", note: "Tailwind CSS · Bootstrap" },
-      { name: "Redux Toolkit · Zustand", note: "Context API · State yönetimi" },
+      { name: "Redux Toolkit · Zustand", note: { tr: "Context API · State yönetimi", en: "Context API · State management" } },
     ],
   },
   {
     key: "mobile",
-    label: "MOBİL",
+    label: { tr: "MOBİL", en: "MOBILE" },
     icon: Smartphone,
     techs: [
-      { name: "React Native", note: "Web & mobil uygulamalar" },
-      { name: "Expo", note: "Hızlı mobil geliştirme" },
-      { name: "NativeWind", note: "Mobilde Tailwind" },
+      { name: "React Native", note: { tr: "Web & mobil uygulamalar", en: "Web & mobile apps" } },
+      { name: "Expo", note: { tr: "Hızlı mobil geliştirme", en: "Fast mobile development" } },
+      { name: "NativeWind", note: { tr: "Mobilde Tailwind", en: "Tailwind on mobile" } },
     ],
   },
   {
@@ -98,38 +107,53 @@ export const DEFAULT_CATEGORIES: SkillCategory[] = [
     label: "BACKEND",
     icon: Server,
     techs: [
-      { name: "Node.js", note: "Sunucu tarafı geliştirme" },
+      { name: "Node.js", note: { tr: "Sunucu tarafı geliştirme", en: "Server-side development" } },
       { name: "Express.js", note: "REST API" },
-      { name: "NestJS", note: "Modüler mimari" },
+      { name: "NestJS", note: { tr: "Modüler mimari", en: "Modular architecture" } },
       {
-        name: "REST API & Entegrasyon",
-        note: "Ürün · sipariş · ödeme sistemleri",
+        name: { tr: "REST API & Entegrasyon", en: "REST API & Integration" },
+        note: {
+          tr: "Ürün · sipariş · ödeme sistemleri",
+          en: "Product · order · payment systems",
+        },
       },
     ],
   },
   {
     key: "database",
-    label: "VERİTABANI",
+    label: { tr: "VERİTABANI", en: "DATABASE" },
     icon: Database,
     techs: [
-      { name: "PostgreSQL", note: "İlişkisel veritabanı" },
-      { name: "Prisma ORM", note: "Şema · migration" },
-      { name: "Firebase", note: "Bulut veritabanı" },
-      { name: "NoSQL", note: "Doküman tabanlı" },
+      { name: "PostgreSQL", note: { tr: "İlişkisel veritabanı", en: "Relational database" } },
+      { name: "Prisma ORM", note: { tr: "Şema · migration", en: "Schema · migrations" } },
+      { name: "Firebase", note: { tr: "Bulut veritabanı", en: "Cloud database" } },
+      { name: "NoSQL", note: { tr: "Doküman tabanlı", en: "Document-based" } },
     ],
   },
   {
     key: "tools",
-    label: "ARAÇLAR & YETKİNLİKLER",
+    label: { tr: "ARAÇLAR & YETKİNLİKLER", en: "TOOLS & PRACTICES" },
     icon: Wrench,
     techs: [
-      { name: "Git", note: "Versiyon kontrolü" },
-      { name: "UI Tasarım (kod ile)", note: "Ayrı tasarım aracı olmadan" },
-      { name: "Responsive Web Tasarım", note: "Her ekrana uyumlu arayüzler" },
-      { name: "Performans Optimizasyonu", note: "Hızlı, optimize sayfalar" },
+      { name: "Git", note: { tr: "Versiyon kontrolü", en: "Version control" } },
       {
-        name: "Güvenli Geliştirme (OWASP)",
-        note: "Kimlik doğrulama · API güvenliği",
+        name: { tr: "UI Tasarım (kod ile)", en: "UI Design (in code)" },
+        note: { tr: "Ayrı tasarım aracı olmadan", en: "Without a separate design tool" },
+      },
+      {
+        name: { tr: "Responsive Web Tasarım", en: "Responsive Web Design" },
+        note: { tr: "Her ekrana uyumlu arayüzler", en: "Interfaces for every screen" },
+      },
+      {
+        name: { tr: "Performans Optimizasyonu", en: "Performance Optimization" },
+        note: { tr: "Hızlı, optimize sayfalar", en: "Fast, optimized pages" },
+      },
+      {
+        name: { tr: "Güvenli Geliştirme (OWASP)", en: "Secure Development (OWASP)" },
+        note: {
+          tr: "Kimlik doğrulama · API güvenliği",
+          en: "Authentication · API security",
+        },
       },
     ],
   },
@@ -187,6 +211,7 @@ export default function CollectedSkillsPanel({
   compact = false,
 }: Props) {
   const list = categories ?? DEFAULT_CATEGORIES;
+  const { t, lang } = useLang();
 
   const [localKey, setLocalKey] = useState(activeKey ?? list[0]?.key ?? "");
   const current = activeKey ?? localKey;
@@ -306,7 +331,7 @@ export default function CollectedSkillsPanel({
         tabIndex={0}
         role="tablist"
         aria-orientation="vertical"
-        aria-label="Yetenekler"
+        aria-label={t("skills.aria")}
         /* tekerlek panelde kategori değiştirir; ilk / son kategoride
            sayfa geçişine bırakılır (SiteFlow) */
         data-own-wheel=""
@@ -334,7 +359,7 @@ export default function CollectedSkillsPanel({
             strokeWidth={1.6}
             style={{ filter: `drop-shadow(0 0 4px rgba(${EDGE},.7))`, flexShrink: 0 }}
           />
-          [YETENEKLER / SKILLS]
+          {t("skills.header")}
         </div>
 
         {/* Sağ tarafta, topuzun hizasını takip eden yumuşak ışık */}
@@ -591,7 +616,7 @@ export default function CollectedSkillsPanel({
                 textShadow: on ? `0 0 10px rgba(${EDGE},0.6)` : "none",
               }}
             >
-              {s.label}
+              {txt(s.label, lang)}
             </button>
           );
         })}
@@ -618,7 +643,7 @@ export default function CollectedSkillsPanel({
           />
           <button
             type="button"
-            aria-label="Önceki kategori"
+            aria-label={t("skills.prev")}
             onClick={() => select(activeIndex - 1)}
             className="absolute flex cursor-pointer items-center justify-center rounded-full outline-hidden focus-visible:ring-2 focus-visible:ring-[#cfe6ff]/60"
             style={{
@@ -686,7 +711,7 @@ export default function CollectedSkillsPanel({
               className="font-mono tracking-[.06em]"
               style={{ color: `rgb(${ICE})`, fontSize: 17 * S }}
             >
-              {active.label}
+              {txt(active.label, lang)}
             </span>
             <BadgeCheck
               size={18}
@@ -723,11 +748,12 @@ function bulgePath(x: number, b: number, h: number) {
    TEKNOLOJİ LİSTESİ — cam kartlar, sırayla belirir
 ========================================================= */
 function TechList({ techs }: { techs: Tech[] }) {
+  const { lang } = useLang();
   return (
     <div className="flex flex-col gap-1.75 font-mono">
       {techs.map((t, i) => (
         <div
-          key={t.name}
+          key={txtMax(t.name)}
           className="flex min-h-11 items-center rounded-[10px] px-3"
           style={{
             background: glassSurface("8,26,52", 0.45),
@@ -741,14 +767,14 @@ function TechList({ techs }: { techs: Tech[] }) {
               className="truncate text-[13px]"
               style={{ color: `rgb(${ICE})` }}
             >
-              {t.name}
+              {txt(t.name, lang)}
             </div>
             {t.note && (
               <div
                 className="truncate text-[10px]"
                 style={{ color: `rgba(${ICE_DIM},0.75)` }}
               >
-                {t.note}
+                {txt(t.note, lang)}
               </div>
             )}
           </div>

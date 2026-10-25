@@ -6,6 +6,8 @@ import { FaHome, FaPalette, FaFolderOpen, FaFileAlt } from "react-icons/fa";
 import MenuSlot from "@/components/ui/MenuSlot";
 import GlowConnector, { CONNECTOR_HEIGHT } from "@/components/ui/GlowConnector";
 import { intro, T } from "@/components/ui/Intro";
+import { useLang } from "@/i18n/lang";
+import LangSwitch from "@/components/ui/LangSwitch";
 
 /* Konnektör sütunu: 2 × konnektör boyu + 8px boşluk. Menü bu yüksekliğe
    yayılır; MENU_INSET_Y kadar üstten ve alttan içeride durur */
@@ -54,6 +56,7 @@ export default function Header({
 }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLang();
 
   /* menüdeki sayfaları arka planda önceden indir: tıklayınca sayfa
      hazır olsun, bekleme olmasın */
@@ -90,7 +93,7 @@ export default function Header({
           >
             <MenuSlot
               compact
-              label={item.label}
+              label={t(`nav.${item.key}`)}
               icon={item.icon}
               active={current === item.key}
               litFromLeft={powered}
@@ -103,7 +106,17 @@ export default function Header({
     );
 
   return (
-    <div className="flex items-start gap-2" style={{ height: COLUMN_H }}>
+    <div
+      className="relative flex items-start gap-2"
+      style={{ height: COLUMN_H }}
+    >
+      {/* dil anahtarı (TR / EN): menünün hemen altında */}
+      <div
+        className="absolute left-0 top-full mt-3"
+        style={animateIn ? intro("introUp", T.menu + 0.4, 0.7) : undefined}
+      >
+        <LangSwitch />
+      </div>
       {/* Sol: iki konnektör, alt alta */}
       <div
         className="flex flex-col"
@@ -145,7 +158,7 @@ export default function Header({
               }
             >
               <MenuSlot
-                label={item.label}
+                label={t(`nav.${item.key}`)}
                 icon={item.icon}
                 active={current === item.key}
                 litFromLeft={powered}

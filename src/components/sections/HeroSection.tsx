@@ -46,6 +46,7 @@ import {
 import { IntroStyles, intro, T } from "@/components/ui/Intro";
 import SciFiBackground from "../ui/ScifiBackground";
 import { WAVE_VIDEO_SRC } from "@/components/ui/assets";
+import { useLang } from "@/i18n/lang";
 
 type HeroSectionProps = {
   contentOpacity?: number;
@@ -82,14 +83,15 @@ const NAME_FONT: CSSProperties = {
    METİNLER — isim ve unvanlar tek yerden değişir
 ========================================================= */
 const NAME = "ZEYNEP DELİ";
-const ROLE = "FULL STACK DEVELOPER";
+/* unvan dile göre (i18n/dict → hero.role); yazı hesapları bileşende */
 /** Teknolojiler: istediğin gibi ekle / çıkar */
 const STACK = ["REACT", "REACT NATIVE", "NEXT.JS", "NODE.JS", "TYPESCRIPT"];
 
 /** Dar yerde alt alta yazılan satırlar */
-const SUBTITLE_LINES = [ROLE, STACK.join(" · ")];
+const subtitleLines = (role: string) => [role, STACK.join(" · ")];
 /** Geniş yerde tek satır */
-const SUBTITLE_ONE_LINE = `${ROLE} | ${STACK.join(" | ")}`;
+const subtitleOneLine = (role: string) =>
+  `${role} | ${STACK.join(" | ")}`;
 /** terminal istemi (footer'daki commit satırıyla aynı): "~/zeynep $" */
 const PROMPT_PATH = "~/zeynep";
 
@@ -158,9 +160,9 @@ const nameTypeMs = (text: string) =>
     ? 150
     : TYPE_NAME_DELAY + (text.length * 1000) / TYPE_CPS_NAME + 80;
 /** mobilde teknolojiler unvandan sonra sırayla yazılır */
-const stackDelay = (i: number) =>
+const stackDelay = (role: string, i: number) =>
   nameTypeMs(NAME) +
-  ((ROLE.length + STACK.slice(0, i).join("").length) * 1000) /
+  ((role.length + STACK.slice(0, i).join("").length) * 1000) /
     TYPE_CPS_TEXT;
 
 /* =========================================================
@@ -433,6 +435,10 @@ export default function HeroSection({
   plugged: pluggedProp = false,
 }: HeroSectionProps) {
   const { w: vw, h: vh } = useViewport();
+  const { t } = useLang();
+  const ROLE = t("hero.role");
+  const SUBTITLE_LINES_ = subtitleLines(ROLE);
+  const SUBTITLE_ONE_LINE_ = subtitleOneLine(ROLE);
 
   const urlFinal = useSyncExternalStore(
     subscribeNoop,
@@ -895,6 +901,7 @@ export default function HeroSection({
                     <TerminalText
                       color="rgb(var(--c-7fe3ef,127,227,239))"
                       text={ROLE}
+                      key={ROLE}
                       instant={final}
                       active={nameReady}
                       delay={nameTypeMs(NAME)}
@@ -913,7 +920,7 @@ export default function HeroSection({
                         text={item}
                         instant={final}
                         active={nameReady}
-                        delay={stackDelay(i)}
+                        delay={stackDelay(ROLE, i)}
                         keepCursor={i === STACK.length - 1}
                       />
                     </span>
@@ -966,7 +973,7 @@ export default function HeroSection({
                     alt alta (her satır kendi decode efektiyle) yazılır */}
                 {/* tek satır sığıyorsa tek satır (mono font: karakter ≈ 0.62em) */}
                 {textWidth >=
-                (PROMPT_PATH.length + 3 + SUBTITLE_ONE_LINE.length) *
+                (PROMPT_PATH.length + 3 + SUBTITLE_ONE_LINE_.length) *
                   14 *
                   0.62 *
                   textScale ? (
@@ -977,7 +984,7 @@ export default function HeroSection({
                   >
                     <TerminalText
                       color="rgb(var(--c-7fe3ef,127,227,239))"
-                      text={SUBTITLE_ONE_LINE}
+                      text={SUBTITLE_ONE_LINE_}
                       instant={final}
                       active={nameReady}
                       delay={nameTypeMs(`>>> ${NAME}`)}
@@ -991,7 +998,7 @@ export default function HeroSection({
                     className="flex flex-col items-center gap-1 font-mono text-accent/80"
                     style={{ fontSize: 14 * textScale }}
                   >
-                    {SUBTITLE_LINES.map((line, i) => (
+                    {SUBTITLE_LINES_.map((line, i) => (
                       <TerminalText
                         key={line}
                         color="rgb(var(--c-7fe3ef,127,227,239))"
@@ -1000,10 +1007,10 @@ export default function HeroSection({
                         active={nameReady}
                         delay={
                           nameTypeMs(`>>> ${NAME}`) +
-                          SUBTITLE_LINES.slice(0, i).join("").length *
+                          SUBTITLE_LINES_.slice(0, i).join("").length *
                             (1000 / TYPE_CPS_TEXT)
                         }
-                        keepCursor={i === SUBTITLE_LINES.length - 1}
+                        keepCursor={i === SUBTITLE_LINES_.length - 1}
                         prompt={i === 0}
                       />
                     ))}
@@ -1161,7 +1168,7 @@ export default function HeroSection({
                   instant={final}
                   introless
                   src={waveShowEnd ? WAVE_END : WAVE_START}
-                  alt="Profil fotoğrafı"
+                  alt={t("hero.photo")}
                   width={pw}
                   height={ph}
                   ring={{

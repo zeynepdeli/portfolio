@@ -13,6 +13,7 @@ import {
   metalShadow,
 } from "./Glass";
 import { intro } from "./Intro";
+import { useLang } from "@/i18n/lang";
 
 type SocialChipProps = {
   icon: IconType;
@@ -62,10 +63,11 @@ export default function SocialChip({
   shown,
 }: SocialChipProps) {
   const [hovered, setHovered] = useState(false);
+  const { lang } = useLang();
 
   return (
     <a
-      {...linkProps(href)}
+      {...linkProps(href, lang)}
       aria-label={label}
       style={
         shown === false

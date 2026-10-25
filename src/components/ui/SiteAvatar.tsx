@@ -8,8 +8,8 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import AlphaVideo from "./AlphaVideo";
-import { IMG } from "./assets";
+import SpriteVideo from "./SpriteVideo";
+import { CLIMB_SPRITE, IMG, RUN_SPRITE } from "./assets";
 
 /* =========================================================
    SİTE AVATARI — senin videolarınla
@@ -59,14 +59,10 @@ const SLOT_H = 8;
 /* Fişi taktıktan sonra eskisi gibi sol alta iner */
 const DESCEND_TARGET = { left: 5, top: 95 };
 
-/* Videolar — public/videos altında. Bunlar senin videolarından üretilen
-   "saydam" sürümler: kareli arka plan silindi, kişiye göre kırpıldı,
-   yürüme videosu tek adım döngüsüne indirildi (AlphaVideo ile oynar). */
-const CLIMB_VIDEO = "/videos/zeynep-tirmanma.mp4";
-/* Yürüme yerine koşma (kosma.mp4'ten üretildi, 27 karelik döngü).
-   Eski yürüme videosuna dönmek istersen: "/videos/zeynep-yurume.mp4"
-   + aşağıda MOVE_ASPECT = 240 ve HAND_PATH'i eski değerlerle değiştir. */
-const WALK_VIDEO = "/videos/zeynep-kosma.mp4";
+/* Hareketler — kare dizisi görselleri (assets.ts → RUN_SPRITE /
+   CLIMB_SPRITE; SpriteVideo ile oynar). Senin tırmanma ve koşma
+   videolarından üretildi: kareli arka plan silindi, kişiye göre
+   kırpıldı; koşma 27 karelik tek adım döngüsü. */
 
 /* Tırmanma videosu kutusu (px). Oran videoyla aynı: 486 × 420 */
 const CLIMB_H = 62;
@@ -561,8 +557,6 @@ type SiteAvatarProps = {
   exitMs?: number;
   onExitLand?: () => void;
   hidden?: boolean;
-  climbSrc?: string;
-  walkSrc?: string;
   /** true: animasyon oynamaz, doğrudan bitmiş hal (fiş sokette takılı,
    *  avatar yok). Menüden ana sayfaya gelince kullanılır. */
   startDone?: boolean;
@@ -577,15 +571,12 @@ export default function SiteAvatar({
   exitMs = 900,
   onExitLand,
   hidden = false,
-  climbSrc = CLIMB_VIDEO,
-  walkSrc = WALK_VIDEO,
   startDone = false,
 }: SiteAvatarProps) {
   const [stage, setStage] = useState<Stage>(startDone ? "done" : "climbing");
   const [run, setRun] = useState(0);
   /* Yürüme videosundaki o anki kareye göre elin yeri */
   const [hand, setHand] = useState(() => handAt(0));
-  const [videoStatus, setVideoStatus] = useState("bekleniyor");
   const [spots, setSpots] = useState<NameSpots | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const dentImgRef = useRef<SVGFEImageElement>(null);
@@ -636,12 +627,9 @@ export default function SiteAvatar({
       console.info(
         "[SiteAvatar] sayfada, hidden =",
         hidden,
-        "videolar:",
-        climbSrc,
-        walkSrc,
       );
     }
-  }, [hidden, climbSrc, walkSrc]);
+  }, [hidden]);
 
   /* Fiş takılınca isim yazısının yerini ölç (HeroSection'daki
      data-avatar-name işaretli başlık). Bulunamazsa ekranın ortası. */
@@ -1063,10 +1051,8 @@ export default function SiteAvatar({
       <div>
         AVATAR · aşama: <b>{hidden ? "GİZLİ (hidden=true)" : stage}</b>
       </div>
-      <div>video: {videoStatus}</div>
       <button
         onClick={() => {
-          setVideoStatus("bekleniyor");
           setStage("climbing");
           setRun((r) => r + 1);
         }}
@@ -1485,13 +1471,9 @@ export default function SiteAvatar({
                 filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.95)) drop-shadow(0 0 5px rgba(${PLUG_CYAN},.75))`,
               }}
             >
-              <AlphaVideo
+              <SpriteVideo
                 key={`c${run}`}
-                onStatus={
-                  IS_DEV ? (st) => setVideoStatus("tırmanma → " + st) : undefined
-                }
-                src={climbSrc}
-                fallbackSrc="/images/zeynep-tirmanma-kare.webp"
+                {...CLIMB_SPRITE}
                 onEnded={handleClimbEnded}
                 playing={isActive}
                 playbackRate={CLIMB_RATE}
@@ -1716,8 +1698,9 @@ export default function SiteAvatar({
                   />
                 )}
                 {/* Fiş takarken yürüme durur (adım ortasında bekler) */}
-                <AlphaVideo
+                <SpriteVideo
                   key={`w${run}`}
+                  {...RUN_SPRITE}
                   /* el konumu yalnızca kablo taşınırken gerekir: koşu
                      boyunca her video karesinde avatar yeniden çizilmesin */
                   onFrame={
@@ -1730,11 +1713,6 @@ export default function SiteAvatar({
                         }
                       : undefined
                   }
-                  onStatus={
-                    IS_DEV ? (st) => setVideoStatus("yürüme → " + st) : undefined
-                  }
-                  src={walkSrc}
-                  fallbackSrc="/images/zeynep-kosma-kare.webp"
                   loop
                   playing={walking}
                   playbackRate={RUN_RATE}
