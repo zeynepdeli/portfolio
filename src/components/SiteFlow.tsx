@@ -80,6 +80,8 @@ const FOOTER_MS = 1400;
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
 const ARRIVE_PAUSE_MS = 140;
+/** hikâyede roadmap'e varınca menünün gelmesi (ms) */
+const MENU_AFTER_LAND_MS = 1400;
 /** projelerde kişi, geçişin bu oranında akmaya başlar */
 const PROJECTS_ENTER_AT = 0.5;
 /** sahne kurulmadan önce yazı tipi / görsel için en fazla bekleme (ms) */
@@ -585,6 +587,14 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
     return { x: r.left, y: r.top };
   }, []);
   const onHeroLand = useCallback(() => setRoadmapEntering(true), []);
+  /* hikâyede roadmap'e ilk varışta menü düğmesi (telefonda sol üstte)
+     kişi nehrin başından kayıp uzaklaşınca gelir: üst üste binmesin */
+  const [menuReady, setMenuReady] = useState(!story);
+  useEffect(() => {
+    if (menuReady || index < 1) return;
+    const t = window.setTimeout(() => setMenuReady(true), MENU_AFTER_LAND_MS);
+    return () => window.clearTimeout(t);
+  }, [menuReady, index]);
   /* hero'nun o anki dikey kayması (perde yukarı kalkarken eksi) */
   const heroLift = useCallback(
     () => heroRef.current?.getBoundingClientRect().top ?? 0,
@@ -903,9 +913,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         {footer}
       </section>
 
-      {/* MENÜ — hero'nun kendi menüsü var; diğer bölümlerde sağ üstte
-          (bilgisayarda butonlar, telefonda çekmeceli menü) */}
-      {index > 0 && index < 3 && (
+      {/* MENÜ — hero'nun kendi menüsü var; diğer bölümlerde (bilgisayarda
+          üst ortada butonlar, telefonda sol üstte çekmeceli menü) */}
+      {index > 0 && index < 3 && menuReady && (
         <SiteMenu
           current={MENU_OF[index]}
           onNavigate={onMenu}

@@ -2,7 +2,7 @@ import DocumentsSection from "@/components/sections/DocumentSection";
 import SiteMenu from "@/components/layout/SiteMenu";
 
 /* /documents — indirilebilir özgeçmişler (Header / menü / footer'daki
-   DOCUMENTS buraya gelir). Sağ üstte diğer sayfalara giden menü. */
+   DOCUMENTS buraya gelir). Diğer sayfalara giden menü (SiteMenu). */
 export const metadata = {
   title: "Documents | Zeynep DELİ",
 };
