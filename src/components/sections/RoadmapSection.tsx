@@ -9,6 +9,7 @@ import {
   useState,
   type CSSProperties,
   type Ref,
+  useSyncExternalStore,
 } from "react";
 
 import { MapPin } from "lucide-react";
@@ -363,6 +364,15 @@ const BINARY = BINARY_LANES.map((_, i) => seededBinary(1200, i + 3));
 /* ================================================================
    ROADMAP
 ================================================================ */
+
+/** nehir katmanının düz olduğu ekranlar (RIVER_CSS ile aynı koşul) */
+const FLAT_QUERY = "(max-width: 1023px), (hover: none)";
+const subFlat = (cb: () => void) => {
+  const mq = window.matchMedia(FLAT_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const readFlat = () => window.matchMedia(FLAT_QUERY).matches;
 
 /* Nehir boyunca YETENEKLER — soldaki yetenekler panelindeki listenin
    TAMAMI, tek tek (CollectedSkillsPanel > DEFAULT_CATEGORIES). Nehrin iki
@@ -1034,6 +1044,8 @@ export default function RoadmapSection({
      ekranın üstünden nehrin başına (data-rm-entry) düşer. İndiği an buradaki kişi
      devralır: çöküp yaylanarak oturur, sonra kaymaya başlar. */
   const landed = entering;
+  /* telefon / tablet: nehir katmanı düz (eğim yok, RIVER_CSS) */
+  const flat = useSyncExternalStore(subFlat, readFlat, () => false);
   const rideGo = active && (!staged || landed);
 
   /* PERFORMANS: kişinin nehirdeki yeri ve dikey ekrandaki kamera kayması
@@ -1296,8 +1308,15 @@ export default function RoadmapSection({
     const f = frameOf(size.w, size.h, portrait);
     /* panelin sol üst köşesine olabildiğince yakın: oturan kişi (boyu
        AV_H) panelin üst kenarına değmeden sığsın — her ekranda aynı */
-    const minX = size.w * PANEL_L + 16;
-    const minY = size.h * PANEL_T + AV_H * 0.98 + 2;
+    /* telefonda kişi kesimsiz katmanda: panelin köşesindeki nehrin
+       başına olabildiğince yakın oturur (gövdesi panelin kenarına
+       taşabilir) */
+    /* telefonda: kişi ekranın içinde tamamen görünsün (başı üst kenardan,
+       gövdesi sol kenardan taşmasın) — panel kenarı önemli değil */
+    const minX = flat
+      ? 18 + (0.5 - SEAT_X) * AV_W
+      : size.w * PANEL_L + 16;
+    const minY = flat ? AV_H * 0.92 + 2 : size.h * PANEL_T + AV_H * 0.98 + 2;
     let k = 0;
     while (k < G.middle.length - 1) {
       const q = G.middle[k];
@@ -1305,7 +1324,7 @@ export default function RoadmapSection({
       k++;
     }
     return k;
-  }, [size.w, size.h, portrait, G]);
+  }, [size.w, size.h, portrait, G, flat]);
 
   /* her çizimden sonra (kişi yeni belirince, ekran boyu değişince)
      kişiyi ve kamerayı son konuma yeniden yerleştir */
@@ -1807,6 +1826,26 @@ export default function RoadmapSection({
     [panelH, compactPanel],
   );
 
+  /* nehirdeki kişi (geniş ekranda eğik nehir katmanının içinde, telefonda
+     kesimsiz üst katmanda — aşağıda) */
+  const walker = size.w > 0 &&
+    /* sayfa yükselirken de girişte görünür (staged) */
+    (arrived >= 0 || (staged && landed)) &&
+    !finished &&
+    /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
+    !panelOn &&
+    !(allCollected && !moving) && (
+      <WalkingAvatar
+        elRef={avatarElRef}
+        moving={moving}
+        facingLeft={facingLeft}
+        facingScreen={facingScreen}
+        collecting={moving && arrived >= 1 && arrived <= NODES.length}
+        pickKey={arrived}
+        landing={landed && arrived < 0}
+      />
+    );
+
   return (
     <div
       ref={containerRef}
@@ -1944,26 +1983,15 @@ export default function RoadmapSection({
                 }}
               />
             )}
-            {size.w > 0 &&
-              /* sayfa yükselirken de girişte görünür (staged) */
-              (arrived >= 0 || (staged && landed)) &&
-              !finished &&
-              /* yolculuk bitince kişi görünmez (ekranın altında beklemesin) */
-              !panelOn &&
-              !(allCollected && !moving) && (
-                <WalkingAvatar
-                  elRef={avatarElRef}
-                  moving={moving}
-                  facingLeft={facingLeft}
-                  facingScreen={facingScreen}
-                  collecting={moving && arrived >= 1 && arrived <= NODES.length}
-                  pickKey={arrived}
-                  landing={landed && arrived < 0}
-                />
-              )}
+            {!flat && walker}
           </div>
         </div>
       </div>
+      {/* TELEFON / TABLET (katman düz): kişi cam panelin kesiminin DIŞINDA
+          çizilir — nehrin başı panelin tam köşesinde, oraya oturabilsin */}
+      {flat && (
+        <div className="pointer-events-none absolute inset-0">{walker}</div>
+      )}
 
       {/* ========================================================
           ÖN KATMAN: SKILLS PANEL + ROADMAP NODE'LARI

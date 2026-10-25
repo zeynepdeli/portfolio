@@ -7,7 +7,8 @@ import MobileMenu, { type MenuKey } from "@/components/layout/MobileMenu";
 
 /* =========================================================
    SAYFA MENÜSÜ — hero dışındaki her sayfada (roadmap, projeler,
-   footer, belgeler) sağ üstte.
+   footer, belgeler). Geniş ekranda üst ortada (fiş soketinin altında),
+   telefonda sağ üstte.
    - Geniş ekran (fareli bilgisayar): küçük yuvarlak soket düğmeler
      (ikon; üstüne gelince adı görünür) — mobil düğme DEĞİL.
    - Telefon / tablet: sol üstteki gibi açılan çekmeceli mobil menü.
@@ -72,9 +73,11 @@ export default function SiteMenu({ current, onNavigate }: Props) {
       aria-label="Menü"
       className="fixed z-90 flex items-center gap-1.5 rounded-full px-2 py-1.5"
       style={{
-        /* üst ortadaki fiş soketinin hizasında, sağ köşede */
-        top: "calc(1.5% + 14px)",
-        right: "calc(1% + 18px)",
+        /* ORTADA: üst ortadaki fiş soketinin hemen altında, ona kısa bir
+           kabloyla bağlı */
+        top: "calc(1.5% + 40px)",
+        left: "50%",
+        transform: "translateX(-50%)",
         background:
           "linear-gradient(180deg, rgb(var(--c-0b2a4a,11,42,74)), rgb(var(--c-04142a,4,20,42)))",
         border: "1px solid rgba(var(--c-78dcff,120,220,255),.3)",
@@ -88,6 +91,19 @@ export default function SiteMenu({ current, onNavigate }: Props) {
         .sm-tip { opacity: 0; transform: translate(-50%, -4px); transition: opacity .2s ease, transform .2s ease; }
         .sm-btn:hover .sm-tip, .sm-btn:focus-visible .sm-tip { opacity: 1; transform: translate(-50%, 0); }
       `}</style>
+      {/* sokete bağlayan kısa kablo */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2"
+        style={{
+          width: 3,
+          height: 12,
+          borderRadius: 2,
+          background:
+            "linear-gradient(180deg, rgba(var(--c-78dcff,120,220,255),.15), rgba(var(--c-78dcff,120,220,255),.7))",
+          boxShadow: "0 0 6px rgba(var(--c-78dcff,120,220,255),.5)",
+        }}
+      />
       {ITEMS.map((item) => {
         const on = active === item.key;
         const Icon = item.icon;

@@ -173,10 +173,6 @@ const CROUCH_LEDGE = 0.954;
 const CROUCH_ABOVE = 34; // yüzeyin üstünde kalan boy (px)
 const CROUCH_H = Math.round(CROUCH_ABOVE / CROUCH_LEDGE);
 const CROUCH_W = Math.round((CROUCH_H * 242) / 240);
-/* DURMA POZU — ayakta bekleme (sonraki sayfaya atlamadan önce) */
-const STAND_IMG = IMG.stand;
-const STAND_H = 60;
-const STAND_W = Math.round((STAND_H * 234) / 720);
 /* İNME POZU — aşağı inişlerde: isimden yetenek satırına, satırdan ilk
    ikona, son ikondan yere. Görselin altı = en alttaki ayak. */
 const DROP_IMG = IMG.drop;
@@ -990,7 +986,8 @@ export default function SiteAvatar({
 
   /* SONRAKİ SAYFAYA GEÇİŞ — KAMERA AŞAĞI İNER (her ekranda aynı):
      sayfalar alt alta; kişi hero'nun zemininden küçük bir sıçrayışla
-     atlar ve "dünyada" yerçekimiyle aşağı, roadmap'in nehir başına düşer.
+     atlar (burnunu tutmuş) ve "dünyada" yerçekimiyle aşağı, roadmap'in
+     nehir başına düşer.
      Kamera (sayfaların kayması, exitRide) onu takip eder: ekrandaki yeri
      = dünyadaki yeri − kamera. Düşüş sayfa geçişiyle aynı anda biter;
      değdiği an roadmap'in avatarı devralır (suya girer, kayar). */
@@ -1205,15 +1202,8 @@ export default function SiteAvatar({
   /* aşağı inişlerde (isimden satıra, satırdan ilk ikona, son ikondan
      yere) koşu karesi değil, toplu çömelme pozu: havada koşuyor gibi
      görünmesin */
-  /* sonraki sayfaya geçişte (exitTarget): atlamadan önce ayakta durur,
-     sonra inme pozuyla düşer — burun tutma yok */
-  const standing = !!exitTarget && hops.length > 0 && stage === "pinch";
-  /* kamera aşağı inerken düşüş: inme pozu */
-  const fallingOut = !!exitTarget && stage === "descending" && !!chaseFrom;
   const dropping =
-    (stage === "social" && hopIdx === 0 && !squat) ||
-    stage === "toFloor" ||
-    fallingOut;
+    (stage === "social" && hopIdx === 0 && !squat) || stage === "toFloor";
   /* ileri sıçrayışlar (porttan isme, ikondan ikona): zıplama pozu;
      aşağı inişler (dropping): inme pozu */
   const leaping =
@@ -1238,10 +1228,11 @@ export default function SiteAvatar({
     stage === "toLeft" ||
     (stage === "descending" && !hops.length && !chaseFrom);
   /* Burnunu tutup atlama (ayakta, ekrana dönük) */
+  /* burnunu tutup suya atlar gibi (roadmap'teki nehrin başına düşerken
+     de bu poz) */
   const pinching =
-    !exitTarget &&
-    hops.length > 0 &&
-    (stage === "pinch" || stage === "descending");
+    (hops.length > 0 && stage === "pinch") ||
+    (stage === "descending" && (hops.length > 0 || !!chaseFrom));
   /* yetenek satırına asılı (elleri satırda) */
   const hanging = stage === "hang" || (stage === "toHang" && !!spots?.hang);
   /* Konma anları: ayak altında ışık halkası */
@@ -1440,8 +1431,6 @@ export default function SiteAvatar({
         <img src={JUMP_IMG} alt="" aria-hidden style={{ display: "none" }} />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={DROP_IMG} alt="" aria-hidden style={{ display: "none" }} />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={STAND_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
@@ -1594,23 +1583,6 @@ export default function SiteAvatar({
                       : "none",
                 }}
               >
-                {/* Ayakta bekleme (durma pozu): ayaklar kutunun altında */}
-                {standing && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={STAND_IMG}
-                    alt=""
-                    draggable={false}
-                    className="absolute max-w-none"
-                    style={{
-                      width: STAND_W,
-                      height: STAND_H,
-                      left: (W - STAND_W) / 2,
-                      top: H - STAND_H,
-                      filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
-                    }}
-                  />
-                )}
                 {/* Aşağı inerken inme pozu: en alttaki ayak kutunun altında */}
                 {dropping && (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -1772,7 +1744,6 @@ export default function SiteAvatar({
                       crouching ||
                       dropping ||
                       leaping ||
-                      standing ||
                       pinching ||
                       hanging
                         ? 0
