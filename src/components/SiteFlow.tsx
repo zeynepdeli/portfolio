@@ -123,11 +123,14 @@ const outTransform = (t: number) =>
 const IN_TILT = 9;
 const inTransform = (t: number) =>
   `perspective(1600px) translate3d(0, ${((1 - t) * 100).toFixed(3)}%, 0) rotateX(${(IN_TILT * (1 - t)).toFixed(3)}deg) scale(${(IN_SCALE + (1 - IN_SCALE) * t).toFixed(4)})`;
-/** HERO → ROADMAP: hero bir perde gibi yukarı kalkar, altında roadmap
- *  YERİNDE bekler; avatar ekranda kalır, sayfa oturunca nehrin başına
- *  atlar (SiteAvatar exitRide / exitTarget) */
+/** HERO → ROADMAP: KAMERA AŞAĞI İNER — sayfalar alt alta durur, hero
+ *  yukarı, roadmap alttan aynı hızda kayar (tek sürekli kaydırma). Avatar
+ *  hero'nun zemininden atlar ve "dünyada" aşağı düşerek roadmap'in nehir
+ *  başına iner; kamera onu takip eder (SiteAvatar exitRide / exitTarget) */
 const liftTransform = (t: number) =>
   `translate3d(0, ${(-100 * t).toFixed(3)}%, 0)`;
+const scrollInTransform = (t: number) =>
+  `translate3d(0, ${(100 * (1 - t)).toFixed(3)}%, 0)`;
 const riseShadowOpacity = (t: number) =>
   t > 0 && t < 1 ? Math.sin(Math.PI * t) : 0;
 const dimOpacity = (t: number) => (t > 0 && t < 1 ? OUT_DIM * t : 0);
@@ -184,8 +187,10 @@ function layerStyles(
 ): Record<Layer, LayerStyle> {
   return {
     hero: { transform: h > 0 ? liftTransform(h) : REST },
-    heroDim: { opacity: dimOpacity(h) },
-    road: { transform: p > 0 ? outTransform(p) : REST },
+    heroDim: { opacity: 0 },
+    road: {
+      transform: p > 0 ? outTransform(p) : h < 1 ? scrollInTransform(h) : REST,
+    },
     roadShadow: { opacity: riseShadowOpacity(h) },
     roadDim: { opacity: dimOpacity(p) },
     proj: { transform: p < 1 ? inTransform(p) : REST },
@@ -499,9 +504,9 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
 
       /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
-         - roadmap: hero perde gibi kalkar, kişi sol altta ayakta bekler;
-           roadmap oturunca nehrin başına atlar (SiteAvatar exitTarget /
-           exitRide); indiği an roadmapEntering. Zamanlayıcı yalnızca yedek.
+         - roadmap: kamera aşağı iner; kişi hero'nun zemininden atlayıp
+           roadmap'in nehir başına düşer (SiteAvatar exitTarget / exitRide);
+           indiği an roadmapEntering. Zamanlayıcı yalnızca yedek.
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
         window.setTimeout(() => setRoadmapEntering(true), dur + 2500);
@@ -847,7 +852,11 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         className="flow-sec absolute inset-0 z-10"
         style={{
           transform:
-            startIndex > 1 ? outTransform(1) : REST,
+            startIndex === 1
+              ? REST
+              : startIndex > 1
+                ? outTransform(1)
+                : scrollInTransform(0),
           visibility: startIndex === 1 ? "visible" : "hidden",
         }}
       >
