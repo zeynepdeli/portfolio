@@ -968,6 +968,35 @@ const ROADMAP_CSS = `
       animation: none;
     }
   }
+  /* Safari / Firefox masaüstünde de aynı hafif görünüm (html.engine-lite:
+     perfTier). Bu tarayıcılar canlı bulanıklığı ve eğik, maskeli
+     katmanları Chrome kadar hızlı çizemiyor. */
+  html.engine-lite .rm-river-layer,
+  html.engine-lite .rm-front-layer {
+        transform: none;
+        will-change: auto;
+      }
+  html.engine-lite .rm-river-layer {
+        -webkit-mask-image: none;
+        mask-image: none;
+      }
+  html.engine-lite .rm-fine,
+  html.engine-lite .rm-hl {
+        display: none;
+      }
+  html.engine-lite .rm-svg {
+        transform: translateZ(0);
+        will-change: transform;
+      }
+  html.engine-lite .rm-panel.is-on {
+        animation: rmPanelOnLite 1s cubic-bezier(.22,1,.36,1) both;
+      }
+  html.engine-lite .rm-dark {
+        filter: none;
+      }
+  html.engine-lite .rm-flow {
+        animation: none;
+      }
 
   @media (prefers-reduced-motion: reduce) {
     .rm-flow,

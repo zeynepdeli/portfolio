@@ -804,6 +804,14 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
             backdrop-filter: none !important;
           }
         }
+        /* Safari / Firefox masaüstünde de aynı hafif görünüm (html.engine-lite:
+           perfTier). Bu tarayıcılar canlı bulanıklığı ve eğik, maskeli
+           katmanları Chrome kadar hızlı çizemiyor. */
+        html.engine-lite main,
+        html.engine-lite main * {
+                    -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+                  }
         .scroll-hint { animation: scrollHint 1.6s ease-in-out infinite; }
         /* kısa ekranda (yatay telefon, küçük telefon) ipucu içeriğin
            üstüne biniyordu: gösterilmez */
