@@ -20,12 +20,21 @@ export const IMG = {
   pinch: "/images/zeynep-burun.webp",
   hang: `/images/zeynep-asilma.webp${V}`,
   crouch: "/images/zeynep-comelme.webp",
-  climbStill: "/images/zeynep-tirmanma-kare.webp",
-  runStill: "/images/zeynep-kosma-kare.webp",
   waveStart: "/images/zeynep-wave-start.webp",
   waveEnd: "/images/zeynep-wave-end.webp",
   jump: `/images/zeynep-ziplama.webp${V}`,
   drop: `/images/zeynep-inme.webp${V}`,
+  /* koşma ve tırmanma: kare dizisi görselleri (SpriteVideo) */
+  runSprite: `/images/zeynep-kosma-sprite.webp${V}`,
+  climbSprite: `/images/zeynep-tirmanma-sprite.webp${V}`,
+} as const;
+
+/** kare dizilerinin ölçüleri (SpriteVideo) */
+export const RUN_SPRITE = { src: IMG.runSprite, frames: 27, cols: 27 } as const;
+export const CLIMB_SPRITE = {
+  src: IMG.climbSprite,
+  frames: 120,
+  cols: 12,
 } as const;
 
 /** el sallama videosu (sürümlü: yeniden sıkıştırıldı) */

@@ -32,7 +32,8 @@ import {
   WHATSAPP,
   linkProps,
 } from "@/components/ui/SocialLinks";
-import AlphaVideo from "@/components/ui/AlphaVideo";
+import SpriteVideo from "@/components/ui/SpriteVideo";
+import { CLIMB_SPRITE } from "@/components/ui/assets";
 import SciFiBackground from "@/components/ui/ScifiBackground";
 
 /* =========================================================
@@ -128,7 +129,6 @@ const SEAT_X = 0.84;
 /* ---- zamanlama (ms) ---- */
 /* TIRMANMA — ana sayfadaki gibi: footer'ın ÜST kenarının arkasından
    tırmanıp çıkar, ayakta doğrudan fanın önündeki nehre düşer, oturur */
-const CLIMB_VIDEO = "/videos/zeynep-tirmanma.mp4"; // SiteAvatar ile aynı
 const CLIMB_ASPECT = 486 / 420; // video oranı
 const CLIMB_LEDGE = 0.86; // videoda kenar çizgisi (sonda, diz çökünce)
 const CLIMB_GRIP = 0.74; // başta ellerin tutunduğu kenar
@@ -702,9 +702,8 @@ export default function FooterSection({
               filter: `drop-shadow(0 0 10px rgba(${EDGE},.35))`,
             }}
           >
-            <AlphaVideo
-              src={CLIMB_VIDEO}
-              fallbackSrc="/images/zeynep-tirmanma-kare.webp"
+            <SpriteVideo
+              {...CLIMB_SPRITE}
               playbackRate={CLIMB_RATE}
               playing={phase === "climb"}
               onEnded={() => {

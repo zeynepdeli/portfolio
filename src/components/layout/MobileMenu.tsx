@@ -58,12 +58,12 @@ const ITEMS = [
 ] as const;
 
 /** menü düğmesi (panele vidalı braket) ölçüleri */
-export const MENU_BTN_W = 62;
-export const MENU_BTN_H = 34;
+export const MENU_BTN_W = 76;
+export const MENU_BTN_H = 42;
 const BTN_W = MENU_BTN_W;
 const BTN_H = MENU_BTN_H;
 /** braketin içindeki küçük soket */
-const SOCK = 24;
+const SOCK = 30;
 /** kapanış animasyonu (ms) */
 const CLOSE_MS = 320;
 
@@ -207,7 +207,7 @@ export default function MobileMenu({
         }}
       >
         {/* braket vidaları */}
-        {[9, BTN_W - 9].map((x) => (
+        {[11, BTN_W - 11].map((x) => (
           <span
             key={x}
             aria-hidden
@@ -243,9 +243,9 @@ export default function MobileMenu({
         >
           {/* ortadaki yuva + menü çizgileri */}
           <span
-            className="absolute flex flex-col justify-center gap-0.5 rounded-[2px] px-0.75"
+            className="absolute flex flex-col justify-center gap-0.75 rounded-[2px] px-1"
             style={{
-              inset: 5,
+              inset: 6,
               background: "rgb(var(--c-0b2b55,11,43,85))",
               boxShadow: powered
                 ? "0 0 7px rgba(var(--c-6ef5e8,110,245,232),.65)"
@@ -256,7 +256,7 @@ export default function MobileMenu({
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="mm-line block h-[1.6px] rounded-full"
+                className="mm-line block h-[2px] rounded-full"
                 style={{
                   background: powered
                     ? "rgb(var(--c-a8eef6,168,238,246))"

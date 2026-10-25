@@ -90,7 +90,7 @@ const READY_MAX_MS = 700;
 const FONT_WAIT_MS = 300;
 /** her bölümün açılışta HAZIR olması gereken görselleri */
 const CRITICAL_IMAGES: Record<FlowStart, string[]> = {
-  story: [IMG.waveStart, IMG.climbStill],
+  story: [IMG.waveStart],
   hero: [IMG.waveEnd],
   roadmap: [IMG.sit, IMG.ride, IMG.rideFront],
   projects: [IMG.sit, IMG.ride],
