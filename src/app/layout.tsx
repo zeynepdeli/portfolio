@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Chakra_Petch } from "next/font/google";
 import { ThemeStyles } from "@/components/ui/Theme";
 import "./globals.css";
 import { LangProvider } from "@/i18n/lang";
+import { ENGINE_SCRIPT } from "@/components/ui/perfTier";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,8 +33,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="tr"
+      /* sınıflar (engine-lite / perf-lite) ve dil, çizimden önce / sonra
+         tarayıcıda eklenir */
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
     >
+      <head>
+        {/* Safari / Firefox: hafif görünüm, ilk çizimden önce (perfTier) */}
+        <script dangerouslySetInnerHTML={{ __html: ENGINE_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {/* RENK PALETİ (Theme.tsx → PALETTE): layout'ta olduğu için
             "/", "/home", "/projects", "/roadmap" — tüm sayfalarda geçerli */}

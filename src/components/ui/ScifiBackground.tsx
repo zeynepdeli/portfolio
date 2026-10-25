@@ -1315,6 +1315,15 @@ export default function SciFiBackground({
           }
           .sfb-root .po-tw { animation: none !important; will-change: auto !important; }
         }
+        /* Safari / Firefox masaüstünde de aynı hafif görünüm (html.engine-lite:
+           perfTier). Bu tarayıcılar canlı bulanıklığı ve eğik, maskeli
+           katmanları Chrome kadar hızlı çizemiyor. */
+        html.engine-lite .sfb-root,
+        html.engine-lite .sfb-root * {
+                    -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+                  }
+        html.engine-lite .sfb-root .po-tw { animation: none !important; will-change: auto !important; }
       `}</style>
       <Background />
 
