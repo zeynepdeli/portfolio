@@ -2,6 +2,7 @@
 
 import { useId, type CSSProperties } from "react";
 import { IMG } from "@/components/ui/assets";
+import { useLang } from "@/i18n/lang";
 
 /* ================================================================
    ROADMAP — NEHRİN SAĞINDA OTURAN KİŞİ
@@ -37,7 +38,6 @@ const CARD = {
   header: "ACCESS CARD",
   level: "LVL · FULL STACK",
   name: "ZEYNEP DELİ",
-  role: "FULL STACK DEVELOPER",
   stack: "React · Next.js · React Native · Node.js",
   id: "ID · ZD-2026",
   status: "ACCESS GRANTED",
@@ -154,6 +154,7 @@ export default function RoadmapPerch({
   top,
   instant = false,
 }: Props) {
+  const { t } = useLang();
   const uid = useId().replace(/:/g, "");
   const id = (n: string) => `${uid}-${n}`;
   const url = (n: string) => `url(#${id(n)})`;
@@ -346,7 +347,7 @@ export default function RoadmapPerch({
                 letterSpacing="2.2"
                 fill={EDGE}
               >
-                {CARD.role}
+                {t("card.role")}
               </text>
               <text
                 x={26}

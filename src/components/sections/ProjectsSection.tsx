@@ -14,6 +14,8 @@ import {
 import SciFiBackground from "@/components/ui/ScifiBackground";
 import { useViewport } from "@/components/ui/ChipLayout";
 import { IMG } from "@/components/ui/assets";
+import { useLang } from "@/i18n/lang";
+import { txt, type Txt } from "@/components/sections/CollectedSkillsPanel";
 
 /** CSS özel değişkenleri (--d gibi) için tip */
 type CSSVars = CSSProperties & Record<`--${string}`, string | number>;
@@ -23,10 +25,11 @@ const GOLD_LIGHT = "#ffe4aa";
 
 export type Project = {
   id: number;
-  title: string;
+  /** başlık (iki dilli olabilir: { tr, en }) */
+  title: Txt;
   images: string[];
   /** resmin üstünde, başlığın altında görünen kısa açıklama */
-  description?: string;
+  description?: Txt;
   /** kullanılan teknolojiler (küçük etiketler) */
   tags?: string[];
 };
@@ -74,9 +77,11 @@ type FanProps = {
 
 export const PROJECTS: Project[] = Array.from({ length: 10 }, (_, i) => ({
   id: i + 1,
-  title: `Proje ${i + 1}`,
-  description:
-    "Proje açıklaması burada yer alacak — ne yaptığı, senin rolün ve öne çıkan özellikleri.",
+  title: { tr: `Proje ${i + 1}`, en: `Project ${i + 1}` },
+  description: {
+    tr: "Proje açıklaması burada yer alacak — ne yaptığı, rolüm ve öne çıkan özellikleri.",
+    en: "The project description will go here — what it does, my role and its key features.",
+  },
   tags: ["Next.js", "TypeScript", "Tailwind CSS"],
   // 1. görsel büyük panelde, 2. ve 3. görsel küçük panellerde
   images: [
@@ -969,6 +974,7 @@ function ProjectFan({
   entryExtra = 0,
   rightR = CORNER_R_RIGHT,
 }: FanProps) {
+  const { lang } = useLang();
   /* ekranın sağ üst köşesi fan koordinatında: nehir tam oradan girer.
      Sayfanın geçiş dönüşümü (transform) ölçüm anında kaldırılır —
      sayfa yerindeyken köşe nerede olacaksa orası. */
@@ -1891,7 +1897,7 @@ function ProjectFan({
                         style={{ outline: "none" }}
                         role="button"
                         tabIndex={done ? 0 : -1}
-                        aria-label={project.title}
+                        aria-label={txt(project.title, lang)}
                         aria-pressed={isActive}
                         onClick={() => {
                           if (done) onSelect(i);
@@ -2470,6 +2476,7 @@ function ProjectScreen({
 }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const [main] = project.images;
+  const { t, lang } = useLang();
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -2494,7 +2501,7 @@ function ProjectScreen({
             className="ps-line font-mono text-xs tracking-[.14em] text-[#a8eef6]"
             style={{ "--i": 0 } as CSSVars}
           >
-            [ PROJE {pad(index + 1)} / {pad(total)} ]
+            [ {t("proj.counter")} {pad(index + 1)} / {pad(total)} ]
           </div>
           <h2
             className={`ps-line mt-1 font-semibold text-[#c4f7fb] ${portrait ? "text-xl" : "text-[28px] leading-tight"}`}
@@ -2505,14 +2512,14 @@ function ProjectScreen({
               } as CSSVars
             }
           >
-            {project.title}
+            {txt(project.title, lang)}
           </h2>
           {project.description && (
             <p
               className={`ps-line mt-1 line-clamp-2 text-[#a8eef6]/75 ${portrait ? "text-xs" : "text-sm"}`}
               style={{ "--i": 2 } as CSSVars}
             >
-              {project.description}
+              {txt(project.description, lang)}
             </p>
           )}
           {project.tags && project.tags.length > 0 && (
@@ -2558,7 +2565,7 @@ function ProjectScreen({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={main}
-                alt={project.title}
+                alt={txt(project.title, lang)}
                 className="size-full object-cover"
               />
             )}

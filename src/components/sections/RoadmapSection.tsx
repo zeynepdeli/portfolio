@@ -16,9 +16,12 @@ import { MapPin } from "lucide-react";
 
 import CollectedSkillsPanel, {
   DEFAULT_CATEGORIES,
+  txt,
+  txtMax,
 } from "@/components/sections/CollectedSkillsPanel";
 import RoadmapPerch, { PERCH_ASPECT } from "@/components/sections/RoadmapPerch";
 import SciFiBackground from "../ui/ScifiBackground";
+import { useLang } from "@/i18n/lang";
 
 /* ================================================================
    AYARLAR
@@ -712,13 +715,13 @@ function layoutChips(
     const p = toPx(at);
     /* telefonda etiket en fazla CHIP_MAX_PHONE genişliğinde; uzun
        olan iki satıra iner */
-    const est = 36 + NODES[i].name.length * chipFont * 0.63;
+    const est = 36 + txtMax(NODES[i].name).length * chipFont * 0.63;
     const w = portrait ? Math.min(est, CHIP_MAX_PHONE) : est;
     /* telefonda satır sayısı: yazı alanı (ikon + boşluk hariç) kelime
        kaydırma payıyla */
     const lines = portrait
       ? Math.ceil(
-          (NODES[i].name.length * chipFont * 0.62 * 1.15) /
+          (txtMax(NODES[i].name).length * chipFont * 0.62 * 1.15) /
             (CHIP_MAX_PHONE - 34),
         )
       : 1;
@@ -1044,6 +1047,7 @@ export default function RoadmapSection({
      ekranın üstünden nehrin başına (data-rm-entry) düşer. İndiği an buradaki kişi
      devralır: çöküp yaylanarak oturur, sonra kaymaya başlar. */
   const landed = entering;
+  const { lang } = useLang();
   /* telefon / tablet: nehir katmanı düz (eğim yok, RIVER_CSS) */
   const flat = useSyncExternalStore(subFlat, readFlat, () => false);
   const rideGo = active && (!staged || landed);
@@ -1941,7 +1945,7 @@ export default function RoadmapSection({
                           : "none",
                       }}
                     >
-                      {node.name}
+                      {txt(node.name, lang)}
                     </div>
                     {/* yol haritası: her yetenek bir durak — harita iğnesi
                         etiketin ALTINDA */}

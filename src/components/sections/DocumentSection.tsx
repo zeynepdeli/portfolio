@@ -5,6 +5,7 @@ import Image from "next/image";
 import { FaDownload, FaEye, FaArrowLeft, FaFilePdf } from "react-icons/fa";
 
 import SciFiBackground from "@/components/ui/ScifiBackground";
+import { useLang } from "@/i18n/lang";
 
 /* =========================================================
    DOCUMENTS — indirilebilir özgeçmişler
@@ -157,6 +158,7 @@ const CSS = `
 `;
 
 export default function DocumentsSection() {
+  const { t } = useLang();
   return (
     <div className="relative size-full overflow-hidden">
       <style>{CSS}</style>
@@ -170,27 +172,26 @@ export default function DocumentsSection() {
                 className="inline-flex items-center gap-2 self-start font-mono text-[11px] tracking-[.2em] transition hover:text-white"
                 style={{ color: `rgba(${T},.7)` }}
               >
-                <FaArrowLeft className="size-3" /> HOME
+                <FaArrowLeft className="size-3" /> {t("nav.home")}
               </a>
               <span
                 className="font-mono text-[10px] tracking-[.3em]"
                 style={{ color: `rgba(${T},.6)` }}
               >
-                [ DOCUMENTS · DOWNLOADS ]
+                {t("docs.tag")}
               </span>
               <h1
                 className="font-mono text-[clamp(24px,2.8vw,42px)] font-bold leading-[1.1] text-[#c4f7fb]"
                 style={{ textShadow: `0 0 22px rgba(${EDGE},.35)` }}
               >
-                Özgeçmiş{" "}
-                <span style={{ color: "#6ef5e8" }}>/ Curriculum Vitae</span>
+                {t("docs.title")}{" "}
+                <span style={{ color: "#6ef5e8" }}>{t("docs.title2")}</span>
               </h1>
               <p
                 className="max-w-150 font-mono text-[clamp(11px,0.85vw,13px)] leading-relaxed"
                 style={{ color: `rgba(${T},.8)` }}
               >
-                Türkçe ve İngilizce özgeçmişimi görüntüleyebilir ya da PDF
-                olarak indirebilirsiniz.
+                {t("docs.desc")}
               </p>
             </div>
 

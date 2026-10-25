@@ -25,6 +25,7 @@ import {
   fontsReady,
   preloadImages,
 } from "@/components/ui/assets";
+import { useLang } from "@/i18n/lang";
 
 /* =========================================================
    SİTE AKIŞI — Hero → Roadmap → Projects → Footer
@@ -259,6 +260,7 @@ function RiseShadow({ ref }: { ref: Ref<HTMLDivElement> }) {
 export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const story = start === "story";
   const startIndex = START_INDEX[start];
+  const { t } = useLang();
 
   const [powered, setPowered] = useState(!story);
 
@@ -926,7 +928,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       <button
         type="button"
         onClick={() => runStep(indexRef.current, 1)}
-        aria-label="Sonraki bölüm"
+        aria-label={t("nav.next")}
         className="flow-hint absolute left-1/2 z-40 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
         style={{
           bottom: 22,
@@ -936,7 +938,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           textShadow: "0 0 8px rgba(79,216,255,.8)",
         }}
       >
-        AŞAĞI KAYDIR
+        {t("nav.scroll")}
         <span className="scroll-hint block h-3 w-3 rotate-45 border-r border-b border-[#a8eef6]" />
       </button>
 

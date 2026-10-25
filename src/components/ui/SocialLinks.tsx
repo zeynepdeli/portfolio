@@ -15,13 +15,20 @@ export const EMAIL = "zzeynepdelii@gmail.com";
    Tıklayınca WhatsApp (telefonda uygulama, bilgisayarda WhatsApp Web)
    bu numaraya, aşağıdaki mesaj yazılı olarak açılır. */
 export const WHATSAPP_NUMBER = "905370221616";
-export const WHATSAPP_MESSAGE =
-  "Merhaba Zeynep, portfolyonu inceledim ve seninle iletişime geçmek istiyorum.";
-export const WHATSAPP = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+/** hazır mesaj, sitenin diline göre */
+export const WHATSAPP_MESSAGES = {
+  tr: "Merhaba Zeynep, portfolyonu inceledim ve seninle iletişime geçmek istiyorum.",
+  en: "Hi Zeynep, I've looked through your portfolio and would like to get in touch.",
+} as const;
+const waLink = (msg: string) =>
+  `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+export const WHATSAPP = waLink(WHATSAPP_MESSAGES.tr);
 
 /** <a> için ortak özellikler: dış bağlantı yeni sekmede açılır,
  *  mailto aynı sekmede, boş adres ("") tıklanınca hiçbir şey yapmaz. */
-export function linkProps(href: string) {
+export function linkProps(href: string, lang: "tr" | "en" = "tr") {
+  /* WhatsApp: hazır mesaj sitenin dilinde */
+  if (href === WHATSAPP) href = waLink(WHATSAPP_MESSAGES[lang]);
   if (!href)
     return {
       href: "#",

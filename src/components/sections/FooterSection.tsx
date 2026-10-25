@@ -35,6 +35,9 @@ import {
 import SpriteVideo from "@/components/ui/SpriteVideo";
 import { CLIMB_SPRITE } from "@/components/ui/assets";
 import SciFiBackground from "@/components/ui/ScifiBackground";
+import { useLang } from "@/i18n/lang";
+import type { DictKey } from "@/i18n/dict";
+import LangSwitch from "@/components/ui/LangSwitch";
 
 /* =========================================================
    FOOTER — sade "kasanın arkası"
@@ -48,11 +51,10 @@ import SciFiBackground from "@/components/ui/ScifiBackground";
 
 /* ---- içerik ---- */
 const NAME = "ZEYNEP DELİ";
-const ROLE = "Full-Stack Software Developer";
 /* e-posta ve sosyal adresler: components/ui/socialLinks.ts */
 const YEAR = new Date().getFullYear();
 /** sözün altındaki terminal satırı */
-const COMMIT_LINE = 'git commit -m "birlikte başlayalım"';
+/* commit satırı dile göre: i18n/dict → footer.commit */
 
 type PortKind = "usb" | "hdmi" | "dp" | "usbc" | "rj45";
 type PortItem = {
@@ -102,11 +104,11 @@ const PORTS: PortItem[] = [
   },
 ];
 
-const SLOTS: { label: string; href: string | null }[] = [
-  { label: "HOME", href: "/home" },
-  { label: "SKILLS", href: "/roadmap" },
-  { label: "PROJECTS", href: "/projects" },
-  { label: "DOCUMENTS", href: "/documents" }, // özgeçmişler (PDF)
+const SLOTS: { label: DictKey; href: string | null }[] = [
+  { label: "nav.home", href: "/home" },
+  { label: "nav.skills", href: "/roadmap" },
+  { label: "nav.projects", href: "/projects" },
+  { label: "nav.documents", href: "/documents" }, // özgeçmişler (PDF)
 ];
 
 /* ---- renkler ---- */
@@ -229,6 +231,8 @@ export default function FooterSection({
   reveal,
   prepare = true,
 }: Props) {
+  const { t } = useLang();
+  const commitLine = t("footer.commit");
   const rootRef = useRef<HTMLElement>(null);
   const riverRef = useRef<HTMLDivElement>(null);
   /** geniş ekranda avatarın oturduğu boş sütun (en sağ) */
@@ -437,7 +441,7 @@ export default function FooterSection({
       style={{ overflow: "visible" }}
     >
       <style>{`
-        @keyframes ftType { from { width: 0; } to { width: ${COMMIT_LINE.length + 0.6}ch; } }
+        @keyframes ftType { from { width: 0; } to { width: ${commitLine.length + 0.6}ch; } }
         .ft-root { --ft-t: var(--c-a8eef6, 168, 238, 246); }
         .ft-root a, .ft-root button, .ft-root [role="button"] { cursor: pointer; }
         @keyframes ftSpinUp { from { transform: rotate(0); } to { transform: rotate(540deg); } }
@@ -573,14 +577,14 @@ export default function FooterSection({
                 className={`font-mono font-bold leading-[1.1] text-[#c4f7fb] ${short ? "text-[19px]" : "text-[clamp(22px,2.4vw,38px)]"}`}
                 style={{ textShadow: `0 0 22px rgba(${EDGE},.35)` }}
               >
-                Hayalindeki proje <br className="sm:hidden" />
+                {t("footer.line1")} <br className="sm:hidden" />
                 <span
                   style={{
                     color: "#6ef5e8",
                     textShadow: `0 0 26px rgba(110,245,232,.45)`,
                   }}
                 >
-                  bir commit uzağında.
+                  {t("footer.line2")}
                 </span>
               </h2>
               {/* terminalde yazılıyormuş gibi: sistem enerjilenince yazılır */}
@@ -590,16 +594,16 @@ export default function FooterSection({
                   $
                 </span>
                 <span
-                  key={powered ? "typed" : "idle"}
+                  key={`${powered ? "typed" : "idle"}-${commitLine}`}
                   className="inline-block shrink-0 overflow-hidden whitespace-nowrap"
                   style={{
-                    width: powered ? `${COMMIT_LINE.length + 0.6}ch` : 0,
+                    width: powered ? `${commitLine.length + 0.6}ch` : 0,
                     animation: powered
-                      ? `ftType ${COMMIT_LINE.length * 55}ms steps(${COMMIT_LINE.length}) 400ms both`
+                      ? `ftType ${commitLine.length * 55}ms steps(${commitLine.length}) 400ms both`
                       : "none",
                   }}
                 >
-                  {COMMIT_LINE}
+                  {commitLine}
                 </span>
                 <span
                   aria-hidden
@@ -614,7 +618,10 @@ export default function FooterSection({
               </p>
               {/* HİKÂYEYİ BAŞTAN İZLE: terminal komutu gibi; tıklayınca
                   açılış animasyonu baştan oynar */}
-              <ReplayIntro />
+              <div className="flex flex-wrap items-center gap-2.5">
+                <ReplayIntro />
+                <LangSwitch />
+              </div>
             </div>
             <div data-ft-in style={ftI(1)}>
               <EmailCopy />
@@ -655,9 +662,9 @@ export default function FooterSection({
             style={{ borderColor: `rgba(${ICE},.1)`, ...ftI(5) }}
           >
             <span>
-              © {YEAR} {NAME} · ALL SIGNALS RESERVED
+              © {YEAR} {NAME} · {t("footer.rights")}
             </span>
-            <span className="hidden sm:inline">{ROLE.toUpperCase()}</span>
+            <span className="hidden sm:inline">{t("footer.role")}</span>
           </div>
         </div>
 
@@ -1177,6 +1184,7 @@ function PhoneDeck({
   /** kısa ekran: daha sık yerleşim */
   compact?: boolean;
 }) {
+  const { t } = useLang();
   return (
     <div className="relative flex flex-col">
       <div className="mb-1.5 flex h-4 items-center justify-between font-mono text-[9px] tracking-[.22em] text-[rgba(var(--ft-t),.6)]">
@@ -1206,7 +1214,7 @@ function PhoneDeck({
           </div>
           <a
             href="/home"
-            aria-label="Başa dön"
+            aria-label={t("footer.topAria")}
             className="flex flex-col items-center gap-0.5 outline-hidden"
           >
             <span
@@ -1235,7 +1243,7 @@ function PhoneDeck({
               </span>
             </span>
             <span className="font-mono text-[7px] tracking-[.12em] text-[rgba(var(--ft-t),.6)]">
-              BAŞA DÖN
+              {t("footer.top")}
             </span>
           </a>
           <div
@@ -1298,7 +1306,7 @@ function PhoneDeck({
                   delay={powered ? 250 + (PORTS.length + i) * POWER_STEP_MS : 0}
                 />
                 <span className="flex-1 text-right font-mono text-[9.5px] tracking-[.16em]">
-                  {sl.label}
+                  {t(sl.label)}
                 </span>
                 <span
                   aria-hidden
@@ -1319,7 +1327,7 @@ function PhoneDeck({
                 key={sl.label}
                 className={cls}
                 style={style}
-                title="Yakında"
+                title={t("footer.soon")}
               >
                 {inner}
               </span>
@@ -1503,6 +1511,7 @@ function PortShape({ kind }: { kind: PortKind }) {
    GENİŞLEME YUVALARI — menü. DOCUMENTS şimdilik boş (kapalı) yuva.
 ========================================================= */
 function ExpansionSlots({ powered }: { powered: boolean }) {
+  const { t } = useLang();
   return (
     <nav className="flex flex-col" aria-label="Footer">
       <span className="mb-2 flex h-4 items-center font-mono text-[10px] tracking-[.26em] text-[rgba(var(--ft-t),.6)]">
@@ -1524,7 +1533,7 @@ function ExpansionSlots({ powered }: { powered: boolean }) {
                 }}
               />
               <span className="w-23 text-right font-mono text-[11px] tracking-[.18em]">
-                {s.label}
+                {t(s.label)}
               </span>
               <Led
                 on={powered && !!s.href}
@@ -1553,7 +1562,7 @@ function ExpansionSlots({ powered }: { powered: boolean }) {
               {inner}
             </a>
           ) : (
-            <span key={s.label} className={cls} style={style} title="Yakında">
+            <span key={s.label} className={cls} style={style} title={t("footer.soon")}>
               {inner}
             </span>
           );
@@ -1574,6 +1583,7 @@ function PSU({
   /** fanın yeri: avatar bunun önüne oturur */
   fanRef?: Ref<HTMLDivElement>;
 }) {
+  const { t } = useLang();
   return (
     <div className="relative flex flex-col">
       <span className="mb-2 flex h-4 items-center font-mono text-[10px] tracking-[.26em] text-[rgba(var(--ft-t),.6)] justify-end">
@@ -1629,7 +1639,7 @@ function PSU({
             {/* I/O anahtarı = BAŞA DÖN */}
             <a
               href="/home"
-              aria-label="Başa dön"
+              aria-label={t("footer.topAria")}
               className="group flex flex-col items-center gap-1 outline-hidden"
             >
               <span
@@ -1659,7 +1669,7 @@ function PSU({
                 </span>
               </span>
               <span className="font-mono text-[8px] tracking-[.16em] text-[rgba(var(--ft-t),.6)] transition group-hover:text-[#ffffff]">
-                BAŞA DÖN
+                {t("footer.top")}
               </span>
             </a>
           </div>
@@ -1751,6 +1761,7 @@ function Fan({ powered }: { powered: boolean }) {
 
 /** PSU üzerindeki küçük ekran: İstanbul saati */
 function LcdClock({ powered }: { powered: boolean }) {
+  const { t } = useLang();
   const [now, setNow] = useState<string | null>(null);
   useEffect(() => {
     const fmt = new Intl.DateTimeFormat("tr-TR", {
@@ -1783,7 +1794,7 @@ function LcdClock({ powered }: { powered: boolean }) {
       }}
     >
       <div className="flex items-center justify-between text-[9px] font-bold tracking-[.2em]">
-        <span>İSTANBUL · GMT+3</span>
+        <span>{t("footer.city")}</span>
         <Led on={powered} color="#5df2a6" />
       </div>
       <div
@@ -1835,6 +1846,7 @@ function Screw({
 
 /** Açılış hikâyesini baştan oynatır (ana sayfayı yeniden yükler). */
 function ReplayIntro() {
+  const { t } = useLang();
   return (
     <button
       type="button"
@@ -1846,7 +1858,7 @@ function ReplayIntro() {
         else window.location.href = "/";
       }}
       className="group flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-[rgba(70,190,255,.28)] bg-[rgba(6,22,46,.55)] px-2.5 py-1 font-mono text-[11px] text-[#8fdcea] transition-colors hover:border-[#6ef5e8] hover:text-[#c4f7fb] focus-visible:outline-2 focus-visible:outline-[#6ef5e8] sm:text-[12px]"
-      aria-label="Açılış animasyonunu baştan izle"
+      aria-label={t("footer.replayAria")}
     >
       <span
         aria-hidden
@@ -1855,13 +1867,14 @@ function ReplayIntro() {
       >
         ↻
       </span>
-      <span style={{ color: "#5df2a6" }}>./hikaye</span>
-      <span>--bastan-izle</span>
+      <span style={{ color: "#5df2a6" }}>{t("footer.replayCmd")}</span>
+      <span>{t("footer.replayArg")}</span>
     </button>
   );
 }
 
 function EmailCopy() {
+  const { t } = useLang();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -1892,7 +1905,7 @@ function EmailCopy() {
         }}
       >
         {copied ? <FaCheck /> : <FaRegCopy />}
-        {copied ? "KOPYALANDI" : "KOPYALA"}
+        {copied ? t("footer.copied") : t("footer.copy")}
       </button>
     </div>
   );

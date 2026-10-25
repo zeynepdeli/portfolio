@@ -8,6 +8,8 @@ import MobileMenu, {
   MENU_BTN_W,
   type MenuKey,
 } from "@/components/layout/MobileMenu";
+import { useLang } from "@/i18n/lang";
+import LangSwitch from "@/components/ui/LangSwitch";
 
 /* =========================================================
    SAYFA MENÜSÜ — hero dışındaki her sayfada (roadmap, projeler,
@@ -41,6 +43,7 @@ type Props = {
 };
 
 export default function SiteMenu({ current, onNavigate }: Props) {
+  const { t } = useLang();
   const wide = useSyncExternalStore(subscribe, readWide, () => false);
   const router = useRouter();
   const pathname = usePathname();
@@ -76,7 +79,7 @@ export default function SiteMenu({ current, onNavigate }: Props) {
      bölüm turkuaz yanar. */
   return (
     <nav
-      aria-label="Menü"
+      aria-label={t("nav.menu")}
       className="fixed z-90 flex items-center gap-1.5 rounded-full px-2 py-1.5"
       style={{
         /* ORTADA: üst ortadaki fiş soketinin hemen altında, ona kısa bir
@@ -117,7 +120,7 @@ export default function SiteMenu({ current, onNavigate }: Props) {
           <button
             key={item.key}
             type="button"
-            aria-label={item.label}
+            aria-label={t(`nav.${item.key}`)}
             aria-current={on ? "page" : undefined}
             onClick={() => {
               if (onNavigate?.(item.key)) return;
@@ -147,11 +150,18 @@ export default function SiteMenu({ current, onNavigate }: Props) {
                 border: "1px solid rgba(var(--c-78dcff,120,220,255),.3)",
               }}
             >
-              {item.label}
+              {t(`nav.${item.key}`)}
             </span>
           </button>
         );
       })}
+      {/* dil anahtarı (TR / EN) */}
+      <span
+        aria-hidden
+        className="mx-1 h-6 w-px"
+        style={{ background: "rgba(var(--c-78dcff,120,220,255),.3)" }}
+      />
+      <LangSwitch />
     </nav>
   );
 }

@@ -29,6 +29,8 @@ import {
 import MenuSlot from "@/components/ui/MenuSlot";
 import GlowConnector, { CONNECTOR_HEIGHT } from "@/components/ui/GlowConnector";
 import { intro, T } from "@/components/ui/Intro";
+import { useLang } from "@/i18n/lang";
+import LangSwitch from "@/components/ui/LangSwitch";
 
 /* =========================================================
    MOBİL MENÜ — telefon / dikey tablet
@@ -116,6 +118,7 @@ export default function MobileMenu({
     };
   }, [open]);
   const router = useRouter();
+  const { t, lang } = useLang();
 
   /* menüdeki sayfaları arka planda önceden indir: tıklayınca bekleme olmasın */
   useEffect(() => {
@@ -188,7 +191,7 @@ export default function MobileMenu({
           parçası gibi durur. */}
       <button
         type="button"
-        aria-label="Menüyü aç"
+        aria-label={t("nav.open")}
         aria-expanded={open}
         onClick={() => setOpen(true)}
         className="mm-btn absolute z-60 cursor-pointer outline-hidden transition active:translate-y-px focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))]"
@@ -296,7 +299,7 @@ export default function MobileMenu({
           style={{ zIndex: 100000 }}
           role="dialog"
           aria-modal="true"
-          aria-label="Menü"
+          aria-label={t("nav.menu")}
         >
           <div
             className="absolute inset-0 bg-[rgba(var(--c-010612,1,6,18),.35)]"
@@ -327,10 +330,11 @@ export default function MobileMenu({
           >
             {/* üst şerit: başlık + kapat */}
             <div className="relative flex h-14.5 shrink-0 items-center justify-between px-5">
-              <span aria-hidden />
+              {/* dil anahtarı (TR / EN) */}
+              <LangSwitch />
               <button
                 type="button"
-                aria-label="Menüyü kapat"
+                aria-label={t("nav.close")}
                 onClick={close}
                 className="flex size-9 cursor-pointer items-center justify-center rounded-[10px] text-[rgb(var(--c-a8eef6,168,238,246))] outline-hidden transition-colors hover:text-[rgb(var(--c-78d2ff,255,198,120))] focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:scale-95"
                 style={{
@@ -377,7 +381,7 @@ export default function MobileMenu({
                 >
                   <MenuSlot
                     compact
-                    label={item.label}
+                    label={t(`nav.${item.key}`)}
                     icon={item.icon}
                     active={current === item.key}
                     litFromTop
@@ -396,13 +400,13 @@ export default function MobileMenu({
             {/* sosyal bağlantılar */}
             <div className="relative z-1 shrink-0 px-4 py-5">
               <div className="mb-2 text-center font-mono text-[9px] tracking-[.26em] text-[rgb(var(--c-5fb8d0,95,184,208))]">
-                CONNECT
+                {t("nav.connect")}
               </div>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {SOCIALS.map(({ icon: Icon, label, href }) => (
                   <a
                     key={label}
-                    {...linkProps(href)}
+                    {...linkProps(href, lang)}
                     aria-label={label}
                     className="flex size-9 items-center justify-center rounded-[9px] text-[rgb(var(--c-c4f7fb,196,247,251))] outline-hidden transition hover:text-[rgb(var(--c-78d2ff,255,198,120))] focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:scale-95"
                     style={{
