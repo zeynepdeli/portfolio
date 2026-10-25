@@ -24,7 +24,7 @@ import { intro, T } from "@/components/ui/Intro";
 
 /* =========================================================
    MOBİL MENÜ — telefon / dikey tablet
-   Sol üstte DIP swiç bloğu düğmesi. Basınca SOLDAN metal bir çekmece
+   Sağ üstte işlemci (CPU) çipi düğmesi. Basınca SOLDAN metal bir çekmece
    kayarak açılır; içinde masaüstündeki menünün AYNISI (ışıklı
    konnektörler + faderlı butonlar) ekrana sığacak kadar ölçekli
    durur. Altında sosyal bağlantılar. Arkası kararır; dışına,
@@ -95,94 +95,109 @@ export default function MobileMenu({
         @keyframes mmSlide { from { transform: translateX(-24px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
         @keyframes mmItem { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
         @keyframes mmFade { from { opacity: 0; } to { opacity: 1; } }
+        .mm-cpu:hover .mm-cpu-line { box-shadow: 0 0 7px rgba(var(--c-46beff,70,190,255),1); }
       `}</style>
 
-      {/* ---------- DÜĞME — DIP SWİÇ BLOĞU ----------
-          Anakartlardaki ayar anahtarı gibi: vidalı kırmızı-değil
-          lacivert gövde, üç sürgülü anahtar (= menü çizgileri), sağda
-          LED'ler ve "ON" yazısı. Sistem açılınca anahtarlar sağa (ON)
-          kayar ve LED'ler yanar; basınca bloğun tamamı içeri çöker. */}
+      {/* ---------- DÜĞME — İŞLEMCİ (CPU) ÇİPİ ----------
+          Anakartın kalbi: dört kenarında altın pinler, sol üst köşede
+          1. pin işareti, ortasında metal kapak; kapağın üstünde menünün
+          üç çizgisi. Sistem açılınca pinler ve çizgiler turkuaz yanar,
+          çekirdekten hafif bir ışık yayılır; basınca çip içeri çöker. */}
       <button
         type="button"
         aria-label="Menüyü aç"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="absolute z-60 cursor-pointer rounded-[9px] p-1.25 transition outline-hidden focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:translate-y-px active:scale-97"
+        className="mm-cpu absolute z-60 cursor-pointer transition outline-hidden focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:translate-y-px active:scale-95"
         style={{
           ...style,
-          width: 58,
+          marginLeft: 4,
+          width: 50,
           height: 50,
-          background: metal,
-          border: `1px solid rgba(var(--c-78dcff,120,220,255),${powered ? 0.55 : 0.3})`,
-          boxShadow: `inset 0 1px 0 rgba(${ICE},.35), inset 0 -2px 0 rgba(0,0,0,.45), 0 6px 16px rgba(0,0,0,.45)${
-            powered ? `, 0 0 14px rgba(${EDGE},.3)` : ""
-          }`,
+          borderRadius: 6,
           ...intro("introDown", T.menu, 0.6, "back"),
         }}
       >
-        {/* üst etiket */}
-        <span className="absolute top-0.5 left-1.75 font-mono text-[5.5px] tracking-[.18em] text-[rgba(var(--c-a8eef6,168,238,246),0.7)]">
-          SW1
-        </span>
-        <span
-          className="absolute top-0.5 right-1.75 font-mono text-[5.5px] tracking-[.18em]"
-          style={{
-            color: powered
-              ? "rgb(var(--c-6ef5e8,110,245,232))"
-              : "rgba(var(--c-a8eef6,168,238,246),.4)",
-          }}
-        >
-          ON
-        </span>
-        {/* anahtar yuvası */}
-        <span
-          className="absolute inset-x-1.75 top-2.75 bottom-1.5 flex flex-col justify-between rounded-[3px] p-0.75"
-          style={{
-            background: "rgb(var(--c-020b17,2,11,23))",
-            boxShadow: "inset 0 2px 3px rgba(0,0,0,.8)",
-          }}
-        >
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="relative flex h-1.75 items-center gap-0.75"
-            >
-              {/* ray */}
+        {/* pinler: her kenarda 5 tane */}
+        {(["top", "bottom", "left", "right"] as const).map((side) =>
+          [0, 1, 2, 3, 4].map((k) => {
+            const along = 10.5 + k * 6.5; // px, kenar boyunca (ortalı)
+            const horiz = side === "top" || side === "bottom";
+            return (
               <span
-                className="relative block h-full flex-1 rounded-[1.5px]"
+                key={`${side}${k}`}
+                aria-hidden
+                className="absolute block rounded-[1px]"
                 style={{
-                  background: "rgba(var(--c-0a2c52,10,44,82),.9)",
-                  border: "1px solid rgba(var(--c-78dcff,120,220,255),.18)",
-                }}
-              >
-                {/* sürgü */}
-                <span
-                  className="absolute -top-px block h-1.75 w-2.75 rounded-[1.5px]"
-                  style={{
-                    left: powered ? "calc(100% - 10px)" : "-1px",
-                    background: powered
-                      ? "linear-gradient(180deg, rgb(var(--c-e1f8ff,225,248,255)), rgb(var(--c-6ef5e8,110,245,232)))"
-                      : "linear-gradient(180deg, rgb(var(--c-8fb3d6,143,179,214)), rgb(var(--c-4a6b90,74,107,144)))",
-                    boxShadow: powered
-                      ? `0 0 6px rgba(${EDGE},.9)`
-                      : "0 1px 1px rgba(0,0,0,.6)",
-                    transition: `left 380ms cubic-bezier(.3,1.4,.5,1) ${i * 90}ms, background 300ms ${i * 90}ms`,
-                  }}
-                />
-              </span>
-              {/* LED */}
-              <span
-                className="block size-1 shrink-0 rounded-full"
-                style={{
+                  width: horiz ? 3 : 5,
+                  height: horiz ? 5 : 3,
+                  ...(horiz ? { left: along } : { top: along }),
+                  ...(side === "top"
+                    ? { top: 0 }
+                    : side === "bottom"
+                      ? { bottom: 0 }
+                      : side === "left"
+                        ? { left: 0 }
+                        : { right: 0 }),
                   background: powered
-                    ? "#5df2a6"
-                    : "rgba(var(--c-7fb6e8,127,182,232),.25)",
-                  boxShadow: powered ? "0 0 5px #5df2a6" : "none",
-                  transition: `background 300ms ${200 + i * 90}ms`,
+                    ? "linear-gradient(180deg, #ffe7a3, #d9a441)"
+                    : "linear-gradient(180deg, #b89a5a, #7d6533)",
+                  boxShadow: powered ? "0 0 3px rgba(255,214,120,.6)" : "none",
+                  transition: `background 300ms ${k * 40}ms`,
                 }}
               />
-            </span>
-          ))}
+            );
+          }),
+        )}
+        {/* çip gövdesi */}
+        <span
+          aria-hidden
+          className="absolute rounded-[5px]"
+          style={{
+            inset: 4,
+            background: metal,
+            border: `1px solid rgba(var(--c-78dcff,120,220,255),${powered ? 0.6 : 0.3})`,
+            boxShadow: `inset 0 1px 0 rgba(${ICE},.35), inset 0 -2px 0 rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.5)${
+              powered ? `, 0 0 14px rgba(${EDGE},.35)` : ""
+            }`,
+          }}
+        >
+          {/* 1. pin işareti */}
+          <span
+            className="absolute top-1 left-1 block size-1.5"
+            style={{
+              clipPath: "polygon(0 0, 100% 0, 0 100%)",
+              background: powered
+                ? "rgb(var(--c-6ef5e8,110,245,232))"
+                : "rgba(var(--c-a8eef6,168,238,246),.45)",
+            }}
+          />
+          {/* metal kapak + menü çizgileri */}
+          <span
+            className="absolute flex flex-col items-center justify-center gap-0.75 rounded-[3px]"
+            style={{
+              inset: 7,
+              background:
+                "linear-gradient(145deg, rgb(var(--c-1d4f86,29,79,134)), rgb(var(--c-0a2546,10,37,70)))",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 2px rgba(0,0,0,.6)",
+            }}
+          >
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="mm-cpu-line block h-0.5 rounded-full"
+                style={{
+                  width: 14,
+                  background: powered
+                    ? "rgb(var(--c-a8eef6,168,238,246))"
+                    : "rgba(var(--c-a8eef6,168,238,246),.4)",
+                  boxShadow: powered ? `0 0 5px rgba(${EDGE},.9)` : "none",
+                  transition: `background 300ms ${150 + i * 90}ms, box-shadow 300ms ${150 + i * 90}ms`,
+                }}
+              />
+            ))}
+          </span>
         </span>
       </button>
 
