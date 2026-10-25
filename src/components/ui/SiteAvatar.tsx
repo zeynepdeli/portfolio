@@ -173,13 +173,18 @@ const CROUCH_LEDGE = 0.954;
 const CROUCH_ABOVE = 34; // yüzeyin üstünde kalan boy (px)
 const CROUCH_H = Math.round(CROUCH_ABOVE / CROUCH_LEDGE);
 const CROUCH_W = Math.round((CROUCH_H * 242) / 240);
-/* ZIPLAMA POZU — bütün sıçrayışlarda: porttan isme, isimden yetenek
-   satırına, satırdan ikonlara, ikondan ikona, son ikondan yere. Görselin altı = en alttaki ayak; gövde x'in %40.5'inde. */
+/* İNME POZU — aşağı inişlerde: isimden yetenek satırına, satırdan ilk
+   ikona, son ikondan yere. Görselin altı = en alttaki ayak. */
+const DROP_IMG = IMG.drop;
+const DROP_H = 62;
+const DROP_W = Math.round((DROP_H * 564) / 720);
+const DROP_BODY_X = 0.496;
+/* ZIPLAMA POZU — ileri sıçrayışlarda: porttan isme, ikondan ikona. Görselin altı = en alttaki ayak; gövde x'in %40.5'inde. */
 const JUMP_IMG = IMG.jump;
 const JUMP_H = 62;
 const JUMP_W = Math.round((JUMP_H * 582) / 720);
 const JUMP_BODY_X = 0.405;
-/** satıra düşerken zıplama pozunun üst kenarı (asılma kutusunda): başı,
+/** satıra düşerken inme pozunun üst kenarı (asılma kutusunda): başı,
  *  yakalayınca asılan pozun başıyla aynı yerde → poz değişimi sıçramaz */
 const HANG_DROP_TOP = Math.round(
   HANG_BOX - HANG_H * HANG_GRIP_Y + HANG_H * 0.12,
@@ -1215,9 +1220,10 @@ export default function SiteAvatar({
      görünmesin */
   const dropping =
     (stage === "social" && hopIdx === 0 && !squat) || stage === "toFloor";
-  /* bütün sıçrayışlar (ileri ve aşağı): zıplama pozu */
+  /* ileri sıçrayışlar (porttan isme, ikondan ikona): zıplama pozu;
+     aşağı inişler (dropping): inme pozu */
   const leaping =
-    stage === "jump" || (stage === "social" && !squat) || stage === "toFloor";
+    stage === "jump" || (stage === "social" && hopIdx > 0 && !squat);
   const plugged = stage === "plugged";
   const airborne =
     stage === "jump" ||
@@ -1436,6 +1442,8 @@ export default function SiteAvatar({
         <img src={HANG_IMG} alt="" aria-hidden style={{ display: "none" }} />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={JUMP_IMG} alt="" aria-hidden style={{ display: "none" }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={DROP_IMG} alt="" aria-hidden style={{ display: "none" }} />
 
         {/* ======== TIRMANMA ======== */}
         {stage === "climbing" && !UNDER_EDGE && (
@@ -1588,6 +1596,23 @@ export default function SiteAvatar({
                       : "none",
                 }}
               >
+                {/* Aşağı inerken inme pozu: en alttaki ayak kutunun altında */}
+                {dropping && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={DROP_IMG}
+                    alt=""
+                    draggable={false}
+                    className="absolute max-w-none"
+                    style={{
+                      width: DROP_W,
+                      height: DROP_H,
+                      left: W / 2 - DROP_W * DROP_BODY_X,
+                      top: H - DROP_H,
+                      filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
+                    }}
+                  />
+                )}
                 {/* Sıçrarken zıplama pozu: en alttaki ayak kutunun altında */}
                 {leaping && (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -1642,23 +1667,23 @@ export default function SiteAvatar({
                     }}
                   >
                     {stage === "toHang" ? (
-                      /* DÜŞÜŞ: zıplama pozuyla isimden aşağı atlar, satırın
+                      /* DÜŞÜŞ: inme pozuyla isimden aşağı iner, satırın
                          arkasından geçer; yakalayınca asılır */
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={JUMP_IMG}
+                        src={DROP_IMG}
                         alt=""
                         draggable={false}
                         className="av-anim absolute max-w-none"
                         style={{
-                          width: JUMP_W,
-                          height: JUMP_H,
-                          left: HANG_BOX / 2 - JUMP_W * JUMP_BODY_X,
+                          width: DROP_W,
+                          height: DROP_H,
+                          left: HANG_BOX / 2 - DROP_W * DROP_BODY_X,
                           top: HANG_DROP_TOP,
                           animation: `avFall ${TO_HANG_MS}ms cubic-bezier(.55,0,.9,.6) both`,
                           /* başlangıç: ayakları isimde, düştüğü yerin üstünde */
                           ["--fx" as string]: `${((spots.end.x - spots.hang.x) / AV_SCALE).toFixed(1)}px`,
-                          ["--fy" as string]: `${((spots.end.y - spots.hang.y) / AV_SCALE + HANG_BOX - HANG_DROP_TOP - JUMP_H).toFixed(1)}px`,
+                          ["--fy" as string]: `${((spots.end.y - spots.hang.y) / AV_SCALE + HANG_BOX - HANG_DROP_TOP - DROP_H).toFixed(1)}px`,
                           filter: `drop-shadow(0 0 1.5px rgba(${GOLD_LIGHT},.8))`,
                         }}
                       />

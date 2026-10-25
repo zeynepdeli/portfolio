@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -121,7 +122,7 @@ const CHIP_BACK_OPACITY = 0.55;
 
 /** Avatar bir sebeple gelmezse (video yüklenmedi vb.) giriş yine de
  *  tamamlansın diye en geç bu süre sonra her şey açılır (ms) */
-const AVATAR_FALLBACK_MS = 16000;
+const AVATAR_FALLBACK_MS = 18000;
 const SOCIAL_COUNT = 4;
 const SOCIAL_W = 710; // 4 çip (WhatsApp eklendi)
 const CAMERA_OUT_MS = 2200;
@@ -140,6 +141,8 @@ const CINEMATIC_INTRO = true;
 const QUICK_INTRO_MS = 700;
 /** terminal yazma hızı (harf / sn) */
 const TYPE_CPS_NAME = 38;
+/** açılış oturduktan sonra avatarın tırmanmaya başlaması (ms) */
+const AVATAR_START_MS = 2000;
 /* alt yazı terminalde elle yazılıyormuş gibi (footer'daki commit
    satırına yakın hız) */
 const TYPE_CPS_TEXT = 32;
@@ -493,6 +496,18 @@ export default function HeroSection({
       window.clearTimeout(fallback);
     };
   }, []);
+
+  /* AVATARI BAŞLAT (bir kez, AVATAR_START_MS gecikmeyle): tırmanır, porta
+     yürür, fişi takar */
+  const avatarTimer = useRef(0);
+  const startAvatar = useCallback(() => {
+    if (avatarTimer.current) return;
+    avatarTimer.current = window.setTimeout(() => {
+      window.dispatchEvent(new Event("hero:built"));
+      window.dispatchEvent(new Event("hero:plug"));
+    }, AVATAR_START_MS);
+  }, []);
+  useEffect(() => () => window.clearTimeout(avatarTimer.current), []);
 
   /* final: sahne hazır sinyali. Değilse: çipler görünür, sinematik giriş başlar. */
   useEffect(() => {
@@ -1373,18 +1388,16 @@ export default function HeroSection({
           onCoreLanded={() => setPortraitLanded(true)}
           onSettle={() => {
             setDim(true);
-            /* karanlıkta uzun bekleme olmasın: sahne kararınca avatar
-               HEMEN tırmanmaya başlar ve fişi takar (ışıklar yanar) */
-            window.dispatchEvent(new Event("hero:built"));
-            window.dispatchEvent(new Event("hero:plug"));
+            /* sahne oturduktan AVATAR_START_MS sonra avatar tırmanıp fişi
+               takar (izleyici önce portreyi ve el sallamayı görsün) */
+            startAvatar();
           }}
           /* avatar açılış animasyonu BİTENE kadar görünmez; bitince
              tırmanır, porta yürür ve fişi takar */
           onAvatarGo={() => {}}
           onDone={() => {
             setIntroDone(true);
-            window.dispatchEvent(new Event("hero:built"));
-            window.dispatchEvent(new Event("hero:plug"));
+            startAvatar();
           }}
         />
       )}
