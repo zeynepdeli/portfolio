@@ -26,6 +26,7 @@ export const IMG = {
   waveEnd: "/images/zeynep-wave-end.webp",
   jump: `/images/zeynep-ziplama.webp${V}`,
   drop: `/images/zeynep-inme.webp${V}`,
+  stand: `/images/zeynep-durma.webp${V}`,
 } as const;
 
 /** el sallama videosu (sürümlü: yeniden sıkıştırıldı) */

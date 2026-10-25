@@ -124,8 +124,8 @@ const IN_TILT = 9;
 const inTransform = (t: number) =>
   `perspective(1600px) translate3d(0, ${((1 - t) * 100).toFixed(3)}%, 0) rotateX(${(IN_TILT * (1 - t)).toFixed(3)}deg) scale(${(IN_SCALE + (1 - IN_SCALE) * t).toFixed(4)})`;
 /** HERO → ROADMAP: hero bir perde gibi yukarı kalkar, altında roadmap
- *  YERİNDE bekler (avatar hero'nun zemininde durur, kalkan sayfanın alt
- *  kenarından nehrin başına düşer — SiteAvatar exitRide/exitTarget) */
+ *  YERİNDE bekler; avatar ekranda kalır, sayfa oturunca nehrin başına
+ *  atlar (SiteAvatar exitRide / exitTarget) */
 const liftTransform = (t: number) =>
   `translate3d(0, ${(-100 * t).toFixed(3)}%, 0)`;
 const riseShadowOpacity = (t: number) =>
@@ -499,12 +499,12 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       };
 
       /* AVATAR BİR ÖNCEKİ SAYFADAN GELİR:
-         - roadmap: hero perde gibi kalkar; kişi onun zemininde taşınır,
-           alt kenarından nehrin başına düşer (SiteAvatar exitTarget /
+         - roadmap: hero perde gibi kalkar, kişi sol altta ayakta bekler;
+           roadmap oturunca nehrin başına atlar (SiteAvatar exitTarget /
            exitRide); indiği an roadmapEntering. Zamanlayıcı yalnızca yedek.
          - projects: kişi suyla birlikte ekranın üstünden akarak girer */
       if (dir > 0 && key === "hero")
-        window.setTimeout(() => setRoadmapEntering(true), dur + 1500);
+        window.setTimeout(() => setRoadmapEntering(true), dur + 2500);
       if (dir > 0 && key === "projects")
         window.setTimeout(() => setProjectsArrived(true), dur * PROJECTS_ENTER_AT);
 
