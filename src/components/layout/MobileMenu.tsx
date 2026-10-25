@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FaHome,
@@ -25,7 +32,7 @@ import { intro, T } from "@/components/ui/Intro";
 
 /* =========================================================
    MOBİL MENÜ — telefon / dikey tablet
-   Sol üstte işlemci soketi (LGA) düğmesi. Basınca SOLDAN metal bir çekmece
+   Sol üstte panele vidalı braket düğmesi. Basınca SOL ÜSTTEN metal bir çekmece
    kayarak açılır; içinde masaüstündeki menünün AYNISI (ışıklı
    konnektörler + faderlı butonlar) ekrana sığacak kadar ölçekli
    durur. Altında sosyal bağlantılar. Arkası kararır; dışına,
@@ -49,6 +56,16 @@ const ITEMS = [
   { key: "projects", label: "PROJECTS", icon: FaFolderOpen, href: "/projects" },
   { key: "documents", label: "DOCUMENTS", icon: FaFileAlt, href: "/documents" },
 ] as const;
+
+/** menü düğmesi (panele vidalı braket) ölçüleri */
+export const MENU_BTN_W = 62;
+export const MENU_BTN_H = 34;
+const BTN_W = MENU_BTN_W;
+const BTN_H = MENU_BTN_H;
+/** braketin içindeki küçük soket */
+const SOCK = 24;
+/** kapanış animasyonu (ms) */
+const CLOSE_MS = 320;
 
 /** GlowConnector'ın ölçeksiz kalınlığı (yatay çevrilince yüksekliği olur) */
 const CONN_T = 42;
@@ -74,7 +91,30 @@ export default function MobileMenu({
   style,
   onNavigate,
 }: Props) {
+  /* açık / kapanıyor: kapanırken çekmece animasyonla düğmeye geri
+     toplanır, sonra kaldırılır */
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef(0);
+  const close = useCallback(() => {
+    setClosing(true);
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, CLOSE_MS);
+  }, []);
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  /* konnektörün pinleri çekmece açıldıktan sonra yanar */
+  const [lit, setLit] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const t = window.setTimeout(() => setLit(true), 260);
+    return () => {
+      window.clearTimeout(t);
+      setLit(false);
+    };
+  }, [open]);
   const router = useRouter();
 
   /* menüdeki sayfaları arka planda önceden indir: tıklayınca bekleme olmasın */
@@ -101,93 +141,144 @@ export default function MobileMenu({
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, close]);
 
   return (
     <>
       <style>{`
-        @keyframes mmSlide { from { transform: translateX(-24px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
-        @keyframes mmItem { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+        /* AÇILIŞ: çekmece düğmenin olduğu köşeden açılır (perde gibi
+           açılan kesim + hafif büyüme), içerik sırayla ışıkla gelir */
+        @keyframes mmOpen {
+          0%   { clip-path: inset(0 92% 94% 0 round 22px); transform: translateY(-6px) scale(.94); opacity: .4; }
+          55%  { opacity: 1; }
+          100% { clip-path: inset(0 0 0 0 round 22px); transform: none; opacity: 1; }
+        }
+        @keyframes mmClose {
+          0%   { clip-path: inset(0 0 0 0 round 22px); transform: none; opacity: 1; }
+          100% { clip-path: inset(0 92% 94% 0 round 22px); transform: translateY(-6px) scale(.94); opacity: 0; }
+        }
+        @keyframes mmItem {
+          0%   { opacity: 0; transform: translateX(-18px); filter: brightness(2.2); }
+          60%  { opacity: 1; filter: brightness(1.35); }
+          100% { opacity: 1; transform: none; filter: none; }
+        }
+        @keyframes mmItemOut { to { opacity: 0; transform: translateX(-12px); } }
         @keyframes mmFade { from { opacity: 0; } to { opacity: 1; } }
-        .mm-sock:hover .mm-sock-line { box-shadow: 0 0 7px rgba(var(--c-46beff,70,190,255),1); }
+        @keyframes mmFadeOut { to { opacity: 0; } }
+        /* açılırken çekmecenin kenarında bir ışık süpürmesi */
+        @keyframes mmSweep {
+          0%   { transform: translateY(-100%); opacity: 0; }
+          20%  { opacity: 1; }
+          100% { transform: translateY(100%); opacity: 0; }
+        }
+        .mm-btn:hover .mm-line { box-shadow: 0 0 7px rgba(var(--c-46beff,70,190,255),1); }
+        @media (prefers-reduced-motion: reduce) {
+          .mm-drawer, .mm-drawer * { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+        }
       `}</style>
 
-      {/* ---------- DÜĞME — İŞLEMCİ SOKETİ (LGA) ----------
-          Anakarttaki işlemci yuvası: metal çerçevede sıra sıra altın
-          temas noktaları, yanında kilit kolu; ortadaki boş yuvada
-          menünün üç çizgisi yanar. Basınca soket içeri çöker. */}
+      {/* ---------- DÜĞME — PANELE VİDALI BRAKET ----------
+          Üst ortadaki güç soketinin braketiyle AYNI parça: cam panelin üst
+          kenarından sarkan, iki vidalı fırçalanmış metal braket. İçinde
+          küçük bir işlemci soketi (altın temas noktaları) ve onun
+          ortasında menünün üç çizgisi yanar. Panelin donanımının bir
+          parçası gibi durur. */}
       <button
         type="button"
         aria-label="Menüyü aç"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="mm-sock absolute z-60 cursor-pointer transition outline-hidden focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:translate-y-px active:scale-95"
+        className="mm-btn absolute z-60 cursor-pointer outline-hidden transition active:translate-y-px focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))]"
         style={{
           ...style,
-          width: 50,
-          height: 50,
-          borderRadius: 7,
-          background: metal,
-          border: `1px solid rgba(var(--c-78dcff,120,220,255),${powered ? 0.55 : 0.3})`,
-          boxShadow: `inset 0 1px 0 rgba(${ICE},.35), inset 0 -2px 0 rgba(0,0,0,.45), 0 6px 16px rgba(0,0,0,.45)${
-            powered ? `, 0 0 14px rgba(${EDGE},.3)` : ""
-          }`,
+          width: BTN_W,
+          height: BTN_H,
+          borderRadius: "0 0 11px 11px",
+          background: `
+            repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px),
+            linear-gradient(180deg, rgb(var(--c-154476,21,68,118)) 0%, rgb(var(--c-0b2b55,11,43,85)) 55%, rgb(var(--c-071c3b,7,28,59)) 100%)`,
+          border: "1px solid rgba(var(--c-78dcff,120,220,255),.35)",
+          borderTop: "none",
+          boxShadow: `inset 0 -1px 0 rgba(${ICE},.25), inset 0 2px 4px rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.5)`,
           ...intro("introDown", T.menu, 0.6, "back"),
         }}
       >
-        {/* temas noktaları (altın pin dizisi) */}
+        {/* braket vidaları */}
+        {[9, BTN_W - 9].map((x) => (
+          <span
+            key={x}
+            aria-hidden
+            className="absolute block rounded-full"
+            style={{
+              left: x - 4,
+              top: BTN_H / 2 - 4,
+              width: 8,
+              height: 8,
+              background:
+                "radial-gradient(circle at 35% 30%, rgba(var(--c-cfe6ff,207,230,255),.95), rgba(var(--c-46beff,70,190,255),.5) 45%, rgba(var(--c-061f3a,6,31,58),1) 100%)",
+              boxShadow: "0 1px 1px rgba(0,0,0,.6)",
+            }}
+          >
+            <span
+              className="absolute top-1/2 left-1/2 block h-[1.2px] w-[70%] -translate-x-1/2 -translate-y-1/2 rotate-45"
+              style={{ background: "rgba(var(--c-061f3a,6,31,58),.95)" }}
+            />
+          </span>
+        ))}
+        {/* küçük işlemci soketi */}
         <span
           aria-hidden
-          className="absolute rounded-[3px]"
+          className="absolute left-1/2 -translate-x-1/2 rounded-[4px]"
           style={{
-            inset: 6,
-            background: `radial-gradient(circle, ${powered ? "#f0cd78" : "#9c8550"} 0.9px, transparent 1.3px) 0 0 / 4.4px 4.4px, rgb(var(--c-0a1a2c,10,26,44))`,
-            boxShadow: "inset 0 0 0 2px rgba(var(--c-2b4c72,43,76,114),1)",
-            transition: "background 400ms",
-          }}
-        />
-        {/* ortadaki boş yuva + menü çizgileri */}
-        <span
-          aria-hidden
-          className="absolute flex flex-col justify-center gap-0.75 rounded-[2px] px-1"
-          style={{
-            inset: 15,
-            background: "rgb(var(--c-0b2b55,11,43,85))",
-            boxShadow: powered
-              ? "0 0 8px rgba(var(--c-6ef5e8,110,245,232),.6)"
-              : "inset 0 1px 2px rgba(0,0,0,.6)",
-            transition: "box-shadow 400ms",
+            top: (BTN_H - SOCK) / 2 - 1,
+            width: SOCK,
+            height: SOCK,
+            background: `radial-gradient(circle, ${powered ? "#f0cd78" : "#9c8550"} 0.8px, transparent 1.2px) 0 0 / 3.6px 3.6px, rgb(var(--c-0a1a2c,10,26,44))`,
+            boxShadow:
+              "inset 0 0 0 1.5px rgba(var(--c-2b4c72,43,76,114),1), inset 0 2px 3px rgba(0,0,0,.6)",
           }}
         >
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="mm-sock-line block h-0.5 rounded-full"
-              style={{
-                background: powered
-                  ? "rgb(var(--c-a8eef6,168,238,246))"
-                  : "rgba(var(--c-a8eef6,168,238,246),.4)",
-                boxShadow: powered ? `0 0 5px rgba(${EDGE},.95)` : "none",
-                transition: `background 300ms ${150 + i * 90}ms, box-shadow 300ms ${150 + i * 90}ms`,
-              }}
-            />
-          ))}
+          {/* ortadaki yuva + menü çizgileri */}
+          <span
+            className="absolute flex flex-col justify-center gap-0.5 rounded-[2px] px-0.75"
+            style={{
+              inset: 5,
+              background: "rgb(var(--c-0b2b55,11,43,85))",
+              boxShadow: powered
+                ? "0 0 7px rgba(var(--c-6ef5e8,110,245,232),.65)"
+                : "inset 0 1px 2px rgba(0,0,0,.6)",
+              transition: "box-shadow 400ms",
+            }}
+          >
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="mm-line block h-[1.6px] rounded-full"
+                style={{
+                  background: powered
+                    ? "rgb(var(--c-a8eef6,168,238,246))"
+                    : "rgba(var(--c-a8eef6,168,238,246),.4)",
+                  boxShadow: powered ? `0 0 4px rgba(${EDGE},.95)` : "none",
+                  transition: `background 300ms ${150 + i * 90}ms, box-shadow 300ms ${150 + i * 90}ms`,
+                }}
+              />
+            ))}
+          </span>
         </span>
-        {/* kilit kolu */}
+        {/* durum LED'i */}
         <span
           aria-hidden
-          className="absolute rounded-full"
+          className="absolute block rounded-full"
           style={{
-            right: -4,
-            top: 6,
-            bottom: 6,
-            width: 3,
-            background:
-              "linear-gradient(90deg, rgb(var(--c-dfe9f5,223,233,245)), rgb(var(--c-7b8da3,123,141,163)))",
-            boxShadow: "0 1px 2px rgba(0,0,0,.5)",
+            left: BTN_W / 2 - 2,
+            bottom: 3,
+            width: 4,
+            height: 2,
+            background: powered ? "#5df2a6" : "rgba(93,242,166,.3)",
+            boxShadow: powered ? "0 0 5px #5df2a6" : "none",
           }}
         />
       </button>
@@ -196,17 +287,25 @@ export default function MobileMenu({
           Tepede YATAY konnektör: pinleri yanar, ışığı AŞAĞI, menü
           butonlarının üstüne düşer. Butonlar tam genişlikte alt alta,
           en altta sosyal bağlantılar. */}
-      {open && (
+      {open &&
+        createPortal(
         <div
-          className="fixed inset-0 z-10000"
+          className="mm-drawer fixed inset-0"
+          /* sayfanın EN ÜSTÜNDE: hero'daki spot ışıkları ve avatar
+             (kendi katmanlarında) menünün üzerine çıkmasın */
+          style={{ zIndex: 100000 }}
           role="dialog"
           aria-modal="true"
           aria-label="Menü"
         >
           <div
             className="absolute inset-0 bg-[rgba(var(--c-010612,1,6,18),.35)]"
-            style={{ animation: "mmFade 450ms ease-out both" }}
-            onClick={() => setOpen(false)}
+            style={{
+              animation: closing
+                ? `mmFadeOut ${CLOSE_MS}ms ease-in both`
+                : "mmFade 420ms ease-out both",
+            }}
+            onClick={close}
           />
 
           <div
@@ -220,7 +319,10 @@ export default function MobileMenu({
               `,
               border: "1.5px solid rgba(var(--c-78dcff,120,220,255),.35)",
               boxShadow: `0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(${ICE},.3)`,
-              animation: "mmSlide 560ms cubic-bezier(.22,1,.36,1) both",
+              transformOrigin: "0 0",
+              animation: closing
+                ? `mmClose ${CLOSE_MS}ms cubic-bezier(.55,0,.75,.2) both`
+                : "mmOpen 620ms cubic-bezier(.22,1,.36,1) both",
             }}
           >
             {/* üst şerit: başlık + kapat */}
@@ -229,7 +331,7 @@ export default function MobileMenu({
               <button
                 type="button"
                 aria-label="Menüyü kapat"
-                onClick={() => setOpen(false)}
+                onClick={close}
                 className="flex size-9 cursor-pointer items-center justify-center rounded-[10px] text-[rgb(var(--c-a8eef6,168,238,246))] outline-hidden transition-colors hover:text-[rgb(var(--c-78d2ff,255,198,120))] focus-visible:ring-2 focus-visible:ring-[rgb(var(--c-78d2ff,255,180,84))] active:scale-95"
                 style={{
                   background: metal,
@@ -258,7 +360,7 @@ export default function MobileMenu({
                   transform: `translateX(${CONNECTOR_HEIGHT * connScale}px) scale(${connScale}) rotate(90deg)`,
                 }}
               >
-                <GlowConnector lit />
+                <GlowConnector lit={lit && !closing} />
               </div>
             </div>
 
@@ -268,7 +370,9 @@ export default function MobileMenu({
                 <div
                   key={item.key}
                   style={{
-                    animation: `mmItem 620ms cubic-bezier(.22,1,.36,1) ${260 + i * 90}ms both`,
+                    animation: closing
+                      ? `mmItemOut 180ms ease-in ${(ITEMS.length - 1 - i) * 30}ms both`
+                      : `mmItem 640ms cubic-bezier(.22,1,.36,1) ${300 + i * 90}ms both`,
                   }}
                 >
                   <MenuSlot
@@ -280,7 +384,7 @@ export default function MobileMenu({
                     height={58}
                     onClick={() => {
                       if (!item.href) return;
-                      setOpen(false);
+                      close();
                       if (onNavigate?.(item.key)) return;
                       if (item.href !== pathname) router.push(item.href);
                     }}
@@ -332,9 +436,21 @@ export default function MobileMenu({
                 />
               ),
             )}
+            {/* açılırken kenardan inen ışık süpürmesi */}
+            {!closing && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 h-full"
+                style={{
+                  background: `linear-gradient(180deg, transparent, rgba(${EDGE},.18) 45%, rgba(${ICE},.25) 50%, transparent 56%)`,
+                  animation: "mmSweep 900ms cubic-bezier(.4,0,.2,1) 120ms both",
+                }}
+              />
+            )}
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }

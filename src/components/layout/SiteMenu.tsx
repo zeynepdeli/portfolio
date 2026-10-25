@@ -3,7 +3,11 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { FaHome, FaPalette, FaFolderOpen, FaFileAlt } from "react-icons/fa";
-import MobileMenu, { type MenuKey } from "@/components/layout/MobileMenu";
+import MobileMenu, {
+  MENU_BTN_H,
+  MENU_BTN_W,
+  type MenuKey,
+} from "@/components/layout/MobileMenu";
 
 /* =========================================================
    SAYFA MENÜSÜ — hero dışındaki her sayfada (roadmap, projeler,
@@ -55,11 +59,12 @@ export default function SiteMenu({ current, onNavigate }: Props) {
       <div
         className="fixed z-90"
         style={{
-          /* telefonda SOL üstte (hero'daki menü düğmesiyle aynı yer) */
-          top: "calc(1.5% + 12px)",
-          left: "calc(1% + 12px)",
-          width: 58,
-          height: 50,
+          /* telefonda SOL üstte: cam panelin üst kenarına vidalı braket
+             (üst ortadaki güç soketinin braketi gibi) */
+          top: "1.5%",
+          left: "calc(1% + 18px)",
+          width: MENU_BTN_W,
+          height: MENU_BTN_H,
         }}
       >
         <MobileMenu powered style={{ left: 0, top: 0 }} onNavigate={onNavigate} />

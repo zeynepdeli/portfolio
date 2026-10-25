@@ -1314,7 +1314,7 @@ export default function RoadmapSection({
     /* telefonda: kişi ekranın içinde tamamen görünsün (başı üst kenardan,
        gövdesi sol kenardan taşmasın) — panel kenarı önemli değil */
     const minX = flat
-      ? 18 + (0.5 - SEAT_X) * AV_W
+      ? 6 + (0.5 - SEAT_X) * AV_W
       : size.w * PANEL_L + 16;
     const minY = flat ? AV_H * 0.92 + 2 : size.h * PANEL_T + AV_H * 0.98 + 2;
     let k = 0;

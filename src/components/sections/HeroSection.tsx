@@ -12,7 +12,10 @@ import {
 
 import FinalState from "@/components/ui/FinalState";
 import Header from "@/components/layout/Header";
-import MobileMenu from "@/components/layout/MobileMenu";
+import MobileMenu, {
+  MENU_BTN_H,
+  MENU_BTN_W,
+} from "@/components/layout/MobileMenu";
 import SocialStrip from "@/components/ui/SocialStrip";
 import SocialChip from "@/components/ui/SocialChip";
 import SidePort from "@/components/ui/SidePort";
@@ -792,10 +795,11 @@ export default function HeroSection({
               data-build-shape="frame"
               className="absolute z-5"
               style={{
+                /* cam panelin üst kenarına vidalı braket */
                 left: STACK_PAD_X - 4,
-                top: PANEL_TOP_STACK + (phone ? 24 : 38),
-                width: 58,
-                height: 50,
+                top: PANEL_TOP_STACK,
+                width: MENU_BTN_W,
+                height: MENU_BTN_H,
               }}
             >
               <MobileMenu powered={powered} style={{ left: 0, top: 0 }} />
