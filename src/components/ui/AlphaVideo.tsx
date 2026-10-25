@@ -25,7 +25,7 @@ import {
  * diye `fallbackSrc` görseli gösterilir; tek seferlik videoda (loop yok)
  * onEnded yine çağrılır ki animasyon akışı takılmasın.
  *
- *  - Aynı adlı .webm varsa önce onu dener, yoksa .mp4.
+ *  - Önce .mp4 (H.264), oynatamazsa aynı adlı .webm.
  *  - Geliştirme modunda hata olursa kutunun içinde KIRMIZI yazıyla
  *    nedenini gösterir.
  */
@@ -380,7 +380,7 @@ export default function AlphaVideo({
         }
         /* video oynuyor ama tuval hep boş: bu cihazda çizilemiyor →
            yedek görsel (kişi görünmez kalmasın) */
-        if (!visible && video.currentTime > 0 && ++blank > 60) {
+        if (!visible && video.currentTime > 0 && ++blank > 20) {
           failed = true;
           goFallback();
           return;
@@ -502,10 +502,13 @@ export default function AlphaVideo({
         onEnded={() => onEndedRef.current?.()}
         style={HIDDEN_VIDEO_STYLE}
       >
-        <source src={webm} type="video/webm" />
+        {/* ÖNCE MP4 (H.264): iPhone Safari WebM'i "oynatabilirim" deyip
+            WebGL'e BOŞ kare veriyordu → telefonda yürüyen / tırmanan avatar
+            görünmüyordu. WebM yalnızca MP4 oynatamayan tarayıcı için. */}
+        <source src={src} type="video/mp4" />
         <source
-          src={src}
-          type="video/mp4"
+          src={webm}
+          type="video/webm"
           onError={() => {
             const msg = `Video bulunamadı: ${src} (public${src} yolunda olmalı)`;
             setError(msg);

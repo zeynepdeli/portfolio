@@ -319,8 +319,7 @@ export default function CollectedSkillsPanel({
         <div
           className="pointer-events-none absolute flex items-center font-mono tracking-[.14em]"
           style={{
-            /* telefonda sol üstteki menü düğmesine çarpmasın */
-            left: compact ? 54 : CONTENT_X,
+            left: compact ? 8 : CONTENT_X,
             top: compact ? 10 : 34,
             gap: 8 * S,
             fontSize: 15 * S,

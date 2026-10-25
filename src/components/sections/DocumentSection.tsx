@@ -167,8 +167,7 @@ export default function DocumentsSection() {
             <div className="flex flex-col gap-3">
               <a
                 href="/home"
-                /* telefonda sol üstteki menü düğmesinin yanında */
-                className="inline-flex items-center gap-2 self-start font-mono text-[11px] tracking-[.2em] transition hover:text-white max-lg:ml-14"
+                className="inline-flex items-center gap-2 self-start font-mono text-[11px] tracking-[.2em] transition hover:text-white"
                 style={{ color: `rgba(${T},.7)` }}
               >
                 <FaArrowLeft className="size-3" /> HOME
