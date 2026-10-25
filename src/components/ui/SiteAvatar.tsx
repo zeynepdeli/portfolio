@@ -988,30 +988,21 @@ export default function SiteAvatar({
     floorRunMs,
   ]);
 
-  /* SONRAKİ SAYFAYA GEÇİŞ (her ekranda aynı):
-     1) hero perde gibi kalkarken kişi ekranda, sol altta AYAKTA bekler
-        (durma pozu); altında roadmap yerine oturur,
-     2) sayfa oturunca zıplama pozuyla yay çizerek sol üst köşedeki
-        nehrin başına atlar (tepe noktası hedefin biraz üstünde),
-     3) değdiği an roadmap'in avatarı devralır (suya girer, kayar).
-     Hedef her karede canlı okunur. */
-  const [leapPhase, setLeapPhase] = useState<"wait" | "leap">("wait");
+  /* SONRAKİ SAYFAYA GEÇİŞ — KAMERA AŞAĞI İNER (her ekranda aynı):
+     sayfalar alt alta; kişi hero'nun zemininden küçük bir sıçrayışla
+     atlar ve "dünyada" yerçekimiyle aşağı, roadmap'in nehir başına düşer.
+     Kamera (sayfaların kayması, exitRide) onu takip eder: ekrandaki yeri
+     = dünyadaki yeri − kamera. Düşüş sayfa geçişiyle aynı anda biter;
+     değdiği an roadmap'in avatarı devralır (suya girer, kayar). */
   useEffect(() => {
     if (stage !== "descending" || !chaseFrom) return;
     const el = rootRef.current;
     if (!el) return;
     const start = performance.now();
-    const vh = window.innerHeight;
-    /* atlayış süresi ve hedefin üstünde kalan tepe yüksekliği */
-    const LEAP_MS = 950;
-    const APEX_ABOVE = 70;
-    let leapAt = -1;
-    let to: Pt = chaseFrom;
-    let c = 0;
+    const HOP = 36; // kalkıştaki küçük sıçrayış (px)
+    const dur = exitMs * 0.96;
+    let worldTo: Pt | null = null;
     let raf = 0;
-    const set = (x: number, y: number) => {
-      el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
-    };
     const finish = () => {
       cbs.current.onExitLand?.();
       setStage("done");
@@ -1020,36 +1011,26 @@ export default function SiteAvatar({
     const tick = (now: number) => {
       const t = cbs.current.exitTarget?.();
       if (!t) return finish();
-      if (leapAt < 0) {
-        /* 1) sayfa yerine oturana kadar bekler */
-        const lift = cbs.current.exitRide?.() ?? -vh;
-        if (lift <= -vh + 1 || now - start > exitMs + 300) {
-          leapAt = now;
-          to = t;
-          /* ikinci derece yay: en tepesi hedefin APEX_ABOVE üstünde */
-          const apex = Math.min(chaseFrom.y, to.y) - APEX_ABOVE;
-          c = apex - Math.sqrt((chaseFrom.y - apex) * (to.y - apex));
-          setLeapPhase("leap");
-        }
-        raf = requestAnimationFrame(tick);
-        return;
-      }
-      /* 2) atlayış: yatay sabit hız, dikey yerçekimi (parabol) */
-      const u = Math.min(1, (now - leapAt) / LEAP_MS);
-      const x = chaseFrom.x + (to.x - chaseFrom.x) * u;
-      const y =
-        (1 - u) * (1 - u) * chaseFrom.y + 2 * u * (1 - u) * c + u * u * to.y;
-      set(x, y);
+      /* kamera: hero'nun kayması (0 → −ekran boyu) */
+      const cam = -(cbs.current.exitRide?.() ?? 0);
+      /* hedefin DÜNYA konumu (kamera hesaba katılınca sabit) */
+      if (!worldTo) worldTo = { x: t.x, y: t.y + cam };
+      const u = Math.min(1, (now - start) / dur);
+      /* dikey: sabit ivme (u²) + başta küçük sıçrayış; yatay: yumuşak */
+      const wy =
+        chaseFrom.y + (worldTo.y - chaseFrom.y) * u * u - HOP * 4 * u * (1 - u);
+      const k = u * u * (3 - 2 * u);
+      const x = chaseFrom.x + (t.x - chaseFrom.x) * k;
+      const y = u < 1 ? wy - cam : t.y;
+      el.style.translate = `${(x - chaseFrom.x).toFixed(1)}px ${(y - chaseFrom.y).toFixed(1)}px`;
       el.style.scale = String(1 - 0.12 * u);
       if (u < 1) {
         raf = requestAnimationFrame(tick);
         return;
       }
-      /* 3) iniş */
       finish();
     };
     raf = requestAnimationFrame(tick);
-    /* güvenlik: bir şey ters giderse en geç geçiş + 3 sn sonra biter */
     const guard = window.setTimeout(finish, exitMs + 3000);
     return () => {
       cancelAnimationFrame(raf);
@@ -1224,22 +1205,20 @@ export default function SiteAvatar({
   /* aşağı inişlerde (isimden satıra, satırdan ilk ikona, son ikondan
      yere) koşu karesi değil, toplu çömelme pozu: havada koşuyor gibi
      görünmesin */
-  /* sonraki sayfaya atlayışta (exitTarget): önce ayakta bekler, sonra
-     zıplama pozuyla atlar — burun tutma yok */
-  const standing =
-    !!exitTarget &&
-    ((hops.length > 0 && stage === "pinch") ||
-      (stage === "descending" && leapPhase === "wait"));
-  const jumpingOut =
-    !!exitTarget && stage === "descending" && leapPhase === "leap";
+  /* sonraki sayfaya geçişte (exitTarget): atlamadan önce ayakta durur,
+     sonra inme pozuyla düşer — burun tutma yok */
+  const standing = !!exitTarget && hops.length > 0 && stage === "pinch";
+  /* kamera aşağı inerken düşüş: inme pozu */
+  const fallingOut = !!exitTarget && stage === "descending" && !!chaseFrom;
   const dropping =
-    (stage === "social" && hopIdx === 0 && !squat) || stage === "toFloor";
+    (stage === "social" && hopIdx === 0 && !squat) ||
+    stage === "toFloor" ||
+    fallingOut;
   /* ileri sıçrayışlar (porttan isme, ikondan ikona): zıplama pozu;
      aşağı inişler (dropping): inme pozu */
   const leaping =
     stage === "jump" ||
-    (stage === "social" && hopIdx > 0 && !squat) ||
-    jumpingOut;
+    (stage === "social" && hopIdx > 0 && !squat);
   const plugged = stage === "plugged";
   const airborne =
     stage === "jump" ||

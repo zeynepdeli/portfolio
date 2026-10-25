@@ -122,7 +122,7 @@ const CHIP_BACK_OPACITY = 0.55;
 
 /** Avatar bir sebeple gelmezse (video yüklenmedi vb.) giriş yine de
  *  tamamlansın diye en geç bu süre sonra her şey açılır (ms) */
-const AVATAR_FALLBACK_MS = 18000;
+const AVATAR_FALLBACK_MS = 19500;
 const SOCIAL_COUNT = 4;
 const SOCIAL_W = 710; // 4 çip (WhatsApp eklendi)
 const CAMERA_OUT_MS = 2200;
@@ -142,7 +142,7 @@ const QUICK_INTRO_MS = 700;
 /** terminal yazma hızı (harf / sn) */
 const TYPE_CPS_NAME = 38;
 /** açılış oturduktan sonra avatarın tırmanmaya başlaması (ms) */
-const AVATAR_START_MS = 2000;
+const AVATAR_START_MS = 3500;
 /* alt yazı terminalde elle yazılıyormuş gibi (footer'daki commit
    satırına yakın hız) */
 const TYPE_CPS_TEXT = 32;
