@@ -2492,7 +2492,8 @@ function ProjectScreen({
         >
           <div
             className="ps-line font-mono text-xs tracking-[.14em] text-[#a8eef6]"
-            style={{ "--i": 0 } as CSSVars}
+            /* telefonda sol üstteki menü düğmesinin yanından başlar */
+            style={{ "--i": 0, paddingLeft: portrait ? 56 : 0 } as CSSVars}
           >
             [ PROJE {pad(index + 1)} / {pad(total)} ]
           </div>

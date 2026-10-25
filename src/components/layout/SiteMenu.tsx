@@ -8,7 +8,7 @@ import MobileMenu, { type MenuKey } from "@/components/layout/MobileMenu";
 /* =========================================================
    SAYFA MENÜSÜ — hero dışındaki her sayfada (roadmap, projeler,
    footer, belgeler). Geniş ekranda üst ortada (fiş soketinin altında),
-   telefonda sağ üstte.
+   telefonda sol üstte.
    - Geniş ekran (fareli bilgisayar): küçük yuvarlak soket düğmeler
      (ikon; üstüne gelince adı görünür) — mobil düğme DEĞİL.
    - Telefon / tablet: sol üstteki gibi açılan çekmeceli mobil menü.
@@ -55,8 +55,9 @@ export default function SiteMenu({ current, onNavigate }: Props) {
       <div
         className="fixed z-90"
         style={{
+          /* telefonda SOL üstte (hero'daki menü düğmesiyle aynı yer) */
           top: "calc(1.5% + 12px)",
-          right: "calc(1% + 12px)",
+          left: "calc(1% + 12px)",
           width: 58,
           height: 50,
         }}
