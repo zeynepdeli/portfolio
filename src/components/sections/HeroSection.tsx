@@ -44,7 +44,7 @@ import {
   WHATSAPP,
 } from "@/components/ui/SocialLinks";
 import { IntroStyles, intro, T } from "@/components/ui/Intro";
-import SciFiBackground from "../ui/ScifiBackground";
+import SciFiBackground, { SocketBeacon } from "../ui/ScifiBackground";
 import { WAVE_VIDEO_SRC } from "@/components/ui/assets";
 import { useLang } from "@/i18n/lang";
 
@@ -1359,6 +1359,22 @@ export default function HeroSection({
                 : "opacity 1.3s ease",
             }}
           />
+        )}
+
+        {/* SOKETİ GÖSTEREN IŞIK: sahne karardıktan (avatar yola çıkınca)
+            fiş takılana kadar, üst ortadaki soketi aşağıdan bir ışık
+            hüzmesi gösterir; ilk kez gören biri avatarın nereye gittiğini
+            anlasın. Karanlık katmanın üstünde: karanlıkta parlak kalır. */}
+        {!final && (
+          <div
+            className="pointer-events-none absolute z-60"
+            style={{
+              left: panel.left + (vw - panel.left - panel.right) / 2,
+              top: panel.top,
+            }}
+          >
+            <SocketBeacon on={dim && !avatarPowered} />
+          </div>
         )}
 
         {/* =================================================
