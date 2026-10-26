@@ -16,6 +16,9 @@ type SidePortProps = {
   beamLength?: number;
   /** Işık hüzmesinin hedefteki genişliği (px) */
   beamWidth?: number;
+  /** Hüzme hedefe kadar sönmeden uzansın (uzak hedef: ör. alttaki
+   *  lambanın üstteki sokete tuttuğu ışık) */
+  reach?: boolean;
 };
 
 const metalGrad =
@@ -40,6 +43,7 @@ export default function SidePort({
   beamAngle = 0,
   beamLength = 650,
   beamWidth = 420,
+  reach = false,
 }: SidePortProps) {
   if (type === "usb-c") {
     return (
@@ -226,8 +230,9 @@ export default function SidePort({
                 marginLeft: -beamWidth / 2,
                 transformOrigin: "50% 0%",
                 transform: `rotate(${beamAngle}deg)`,
-                background:
-                  "linear-gradient(180deg, rgba(var(--c-d7eeff,215,238,255),0.3) 0%, rgba(var(--c-bee1fa,190,225,250),0.13) 22%, rgba(var(--c-b4dcfa,180,220,250),0.04) 62%, transparent 100%)",
+                background: reach
+                  ? "linear-gradient(180deg, rgba(var(--c-d7eeff,215,238,255),0.34) 0%, rgba(var(--c-bee1fa,190,225,250),0.2) 35%, rgba(var(--c-b4dcfa,180,220,250),0.15) 85%, rgba(var(--c-b4dcfa,180,220,250),0.06) 100%)"
+                  : "linear-gradient(180deg, rgba(var(--c-d7eeff,215,238,255),0.3) 0%, rgba(var(--c-bee1fa,190,225,250),0.13) 22%, rgba(var(--c-b4dcfa,180,220,250),0.04) 62%, transparent 100%)",
                 /* ışık gövdenin alt kenarının ORTA NOKTASINDAN çıkar (tek nokta);
                    hangi açıya dönerse dönsün başlangıç aynı noktada kalır */
                 clipPath: `polygon(${50 - (6 / beamWidth) * 100}% 0, ${50 + (6 / beamWidth) * 100}% 0, 100% 100%, 0 100%)`,
