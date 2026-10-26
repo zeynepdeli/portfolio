@@ -17,6 +17,8 @@ const tr = {
   "lang.label": "Dil",
 
   "hero.role": "FULL STACK GELİŞTİRİCİ",
+  "hero.online": "SİSTEM HAZIR",
+  "hero.booting": "BAŞLATILIYOR…",
   "hero.photo": "Profil fotoğrafı",
 
   "skills.header": "[YETENEKLER]",
@@ -71,6 +73,8 @@ const en: Record<DictKey, string> = {
   "lang.label": "Language",
 
   "hero.role": "FULL STACK DEVELOPER",
+  "hero.online": "SYSTEM ONLINE",
+  "hero.booting": "BOOTING…",
   "hero.photo": "Profile photo",
 
   "skills.header": "[SKILLS]",

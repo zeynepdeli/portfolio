@@ -264,6 +264,22 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
 
   const [powered, setPowered] = useState(!story);
 
+  /* DİL ANAHTARI: açılış hikâyesinde site yanınca (fiş takılınca) iner
+     (html.ls-wait — perfTier ENGINE_SCRIPT ekler). Bir aksilikte
+     anahtar kaybolmasın diye en geç 30 sn'de yine iner. */
+  useEffect(() => {
+    const html = document.documentElement;
+    if (powered) {
+      html.classList.remove("ls-wait");
+      return;
+    }
+    const id = window.setTimeout(() => html.classList.remove("ls-wait"), 30000);
+    return () => {
+      window.clearTimeout(id);
+      html.classList.remove("ls-wait");
+    };
+  }, [powered]);
+
   /* HAZIRLIK: yazı tipleri + bu bölümün avatar görselleri (en fazla
      READY_MAX_MS). Sonra sahne kurulur; kalan görseller arkadan iner. */
   const [ready, setReady] = useState(false);

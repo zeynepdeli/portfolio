@@ -37,7 +37,6 @@ import { CLIMB_SPRITE } from "@/components/ui/assets";
 import SciFiBackground from "@/components/ui/ScifiBackground";
 import { useLang } from "@/i18n/lang";
 import type { DictKey } from "@/i18n/dict";
-import LangSwitch from "@/components/ui/LangSwitch";
 
 /* =========================================================
    FOOTER — sade "kasanın arkası"
@@ -620,7 +619,6 @@ export default function FooterSection({
                   açılış animasyonu baştan oynar */}
               <div className="flex flex-wrap items-center gap-2.5">
                 <ReplayIntro />
-                <LangSwitch />
               </div>
             </div>
             <div data-ft-in style={ftI(1)}>
