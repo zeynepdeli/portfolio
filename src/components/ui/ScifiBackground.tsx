@@ -938,6 +938,85 @@ function TopConnector({ plugged = false }: { plugged?: boolean }) {
   );
 }
 
+/* =========================================================
+   SOKETİ GÖSTEREN IŞIK (açılış hikâyesi)
+   Siteyi ilk kez gören biri avatarın neden yukarı tırmandığını
+   anlasın diye: panelin içinden yukarı doğru, soketin ağzına vuran
+   soluk turkuaz bir ışık hüzmesi + ağızda nabız gibi atan parıltı +
+   hüzme boyunca yukarı akan ışık. Fiş takılınca yavaşça söner.
+   Yalnızca küçük bir alanda saydamlık / konum animasyonu: hafif.
+========================================================= */
+const BEACON_CSS = `
+@keyframes sbPulse { 0%,100% { opacity: .55; transform: translateX(-50%) scale(.92); } 50% { opacity: 1; transform: translateX(-50%) scale(1.08); } }
+@keyframes sbRise { 0% { transform: translate(-50%, 0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(-50%, calc(-1 * var(--sb-h))); opacity: 0; } }
+@keyframes sbBreath { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+.sb-root { --sb-h: clamp(56px, 9vh, 110px); transition: opacity .9s ease; }
+/* telefonda isim sokete yakın: hüzme kısa; geniş ekranda daha uzun */
+@media (min-width: 1024px) { .sb-root { --sb-h: clamp(110px, 17vh, 190px); } }
+.sb-beam { animation: sbBreath 2.4s ease-in-out infinite; }
+.sb-ring { animation: sbPulse 1.6s ease-in-out infinite; }
+.sb-spark { animation: sbRise 1.8s cubic-bezier(.4,0,.6,1) infinite; }
+.sb-spark.b { animation-delay: .9s; }
+@media (prefers-reduced-motion: reduce) {
+  .sb-beam, .sb-ring, .sb-spark { animation: none; }
+  .sb-spark { display: none; }
+}
+`;
+
+/** Soketin ağzına (üst kenarın ortası) konur. HeroSection, sahneyi
+ *  karartan katmanın ÜSTÜNE çizer: karanlıkta da parlak görünsün. */
+export function SocketBeacon({ on }: { on: boolean }) {
+  const C = "var(--c-6ef5e8,110,245,232)";
+  return (
+    <div
+      aria-hidden
+      className="sb-root pointer-events-none absolute left-1/2"
+      style={{ top: 0, width: 0, height: 0, opacity: on ? 1 : 0 }}
+    >
+      <style>{BEACON_CSS}</style>
+      {/* hüzme: aşağıda geniş ve sönük, soketin ağzında dar ve parlak */}
+      <div
+        className="sb-beam absolute"
+        style={{
+          left: -70,
+          width: 140,
+          top: 10,
+          height: "var(--sb-h)",
+          clipPath: "polygon(36% 0, 64% 0, 100% 100%, 0 100%)",
+          WebkitClipPath: "polygon(36% 0, 64% 0, 100% 100%, 0 100%)",
+          background: `linear-gradient(0deg, rgba(${C},0) 0%, rgba(${C},.18) 45%, rgba(${C},.55) 100%)`,
+        }}
+      />
+      {/* yukarı akan iki ışık damlası (hüzmenin dibinden sokete) */}
+      {["a", "b"].map((k) => (
+        <span
+          key={k}
+          className={`sb-spark ${k} absolute block rounded-full`}
+          style={{
+            left: 0,
+            top: "calc(var(--sb-h) + 4px)",
+            width: 5,
+            height: 14,
+            background: `linear-gradient(0deg, rgba(${C},0), rgba(${C},.95))`,
+            boxShadow: `0 0 8px rgba(${C},.8)`,
+          }}
+        />
+      ))}
+      {/* soket ağzında nabız gibi atan parıltı */}
+      <span
+        className="sb-ring absolute block rounded-full"
+        style={{
+          left: 0,
+          top: 0,
+          width: 64,
+          height: 26,
+          background: `radial-gradient(ellipse at 50% 45%, rgba(${C},.95), rgba(${C},.35) 45%, rgba(${C},0) 72%)`,
+        }}
+      />
+    </div>
+  );
+}
+
 /** Sokete takılı fiş + kablo (soketin koordinatlarında; y=0 panelin üst kenarı).
  *  Ana sayfada avatarın taktığı fişin AYNISI (SiteAvatar > Connector /
  *  CableStroke, kenarda EDGE_SCALE = 0.5 ölçeğiyle): fiş sokete üstten
