@@ -44,7 +44,7 @@ import {
   WHATSAPP,
 } from "@/components/ui/SocialLinks";
 import { IntroStyles, intro, T } from "@/components/ui/Intro";
-import SciFiBackground, { SocketBeacon } from "../ui/ScifiBackground";
+import SciFiBackground from "../ui/ScifiBackground";
 import { WAVE_VIDEO_SRC } from "@/components/ui/assets";
 import { useLang } from "@/i18n/lang";
 
@@ -1361,21 +1361,70 @@ export default function HeroSection({
           />
         )}
 
-        {/* SOKETİ GÖSTEREN IŞIK: sahne karardıktan (avatar yola çıkınca)
-            fiş takılana kadar, üst ortadaki soketi aşağıdan bir ışık
-            hüzmesi gösterir; ilk kez gören biri avatarın nereye gittiğini
-            anlasın. Karanlık katmanın üstünde: karanlıkta parlak kalır. */}
-        {!final && (
-          <div
-            className="pointer-events-none absolute z-60"
-            style={{
-              left: panel.left + (vw - panel.left - panel.right) / 2,
-              top: panel.top,
-            }}
-          >
-            <SocketBeacon on={dim && !avatarPowered} />
-          </div>
-        )}
+        {/* SOKETİ GÖSTEREN LAMBA: panelin SOL ALT köşesinde, alt kenara
+            vidalı bir audio portu (üstteki fenerlerin aynısı, ters
+            takılmış). Sahne kararınca (avatar yola çıkınca) yanar ve
+            hüzmesini yukarıdaki güç soketine tutar: ilk kez gören biri
+            avatarın nereye gittiğini anlasın. Fiş takılınca söner.
+            Karanlık katmanın üstünde: karanlıkta da parlak görünür. */}
+        {(() => {
+          /* SidePort audio: genişlik 44, boy 59 (silindir + gövde) */
+          const SP_W = 44;
+          const SP_H = 59;
+          const left = panel.left + (phone ? 10 : 34);
+          const top = vh - panel.bottom - SP_H;
+          /* hüzmenin çıktığı nokta (ters takılı: kutunun üst ortası) */
+          const ox = left + SP_W / 2;
+          const oy = top;
+          /* hedef: üst ortadaki soketin ağzı */
+          const tx = panel.left + (vw - panel.left - panel.right) / 2;
+          const ty = panel.top + 6;
+          const dx = tx - ox;
+          const dy = ty - oy;
+          const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
+          const len = Math.hypot(dx, dy) + 10;
+          const on = !final && dim && !avatarPowered;
+          return (
+            <>
+              <div
+                className="pointer-events-none absolute z-60"
+                style={{
+                  left,
+                  top,
+                  width: SP_W,
+                  height: SP_H,
+                  ...intro("introUp", T.ports, 0.7, "back"),
+                }}
+              >
+                <div style={{ transform: "rotate(180deg)" }}>
+                  <SidePort
+                    type="audio"
+                    lit={on}
+                    beamAngle={angle}
+                    beamLength={len}
+                    beamWidth={phone ? 90 : 130}
+                    reach
+                  />
+                </div>
+              </div>
+              {/* hüzmenin sokette yaptığı aydınlık */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute z-60 rounded-full"
+                style={{
+                  left: tx - 45,
+                  top: ty - 16,
+                  width: 90,
+                  height: 32,
+                  background:
+                    "radial-gradient(ellipse at 50% 50%, rgba(var(--c-d7eeff,215,238,255),.55), rgba(var(--c-bee1fa,190,225,250),.18) 50%, transparent 72%)",
+                  opacity: on ? 1 : 0,
+                  transition: `opacity ${POWER_FADE_MS}ms ease ${on ? POWER_LIGHT_MS : 0}ms`,
+                }}
+              />
+            </>
+          );
+        })()}
 
         {/* =================================================
             AVATAR — panelin arkasından tırmanır, porta fiş takar.
