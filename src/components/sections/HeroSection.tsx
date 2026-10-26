@@ -19,6 +19,12 @@ import MobileMenu, {
 import SocialStrip from "@/components/ui/SocialStrip";
 import SocialChip from "@/components/ui/SocialChip";
 import SidePort from "@/components/ui/SidePort";
+import FiberModule, {
+  FIBER_W,
+  FIBER_H,
+  FIBER_TX_X,
+  FIBER_TX_Y,
+} from "@/components/ui/FiberModule";
 import { POWER_LIGHT_MS, POWER_FADE_MS } from "@/components/ui/GlowConnector";
 import ChipPlatform from "@/components/ui/ChipPlatform";
 import CircuitTraces from "@/components/ui/CircuitTraces";
@@ -1361,28 +1367,24 @@ export default function HeroSection({
           />
         )}
 
-        {/* SOKETİ GÖSTEREN LAMBA: panelin SOL ALT köşesinde, alt kenara
-            vidalı bir audio portu (üstteki fenerlerin aynısı, ters
-            takılmış). Sahne kararınca (avatar yola çıkınca) yanar ve
-            hüzmesini yukarıdaki güç soketine tutar: ilk kez gören biri
+        {/* SOKETİ GÖSTEREN LAZER: panelin SAĞ ALT köşesinde, alt kenardaki
+            kafese takılı bir fiber optik modül (SFP). Sahne kararınca
+            (avatar yola çıkınca) TX deliğinden ince bir lazer ışığı çıkar
+            ve üst ortadaki güç soketine uzanır: ilk kez gören biri
             avatarın nereye gittiğini anlasın. Fiş takılınca söner.
             Karanlık katmanın üstünde: karanlıkta da parlak görünür. */}
         {(() => {
-          /* SidePort audio: genişlik 44, boy 59 (silindir + gövde) */
-          const SP_W = 44;
-          const SP_H = 59;
-          const left = panel.left + (phone ? 10 : 34);
-          const top = vh - panel.bottom - SP_H;
-          /* hüzmenin çıktığı nokta (ters takılı: kutunun üst ortası) */
-          const ox = left + SP_W / 2;
-          const oy = top;
+          const left = vw - panel.right - (phone ? 12 : 40) - FIBER_W;
+          const top = vh - panel.bottom - FIBER_H;
+          /* lazerin çıktığı nokta: TX deliği */
+          const ox = left + FIBER_TX_X;
+          const oy = top + FIBER_TX_Y;
           /* hedef: üst ortadaki soketin ağzı */
           const tx = panel.left + (vw - panel.left - panel.right) / 2;
           const ty = panel.top + 6;
           const dx = tx - ox;
           const dy = ty - oy;
           const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
-          const len = Math.hypot(dx, dy) + 10;
           const on = !final && dim && !avatarPowered;
           return (
             <>
@@ -1391,33 +1393,27 @@ export default function HeroSection({
                 style={{
                   left,
                   top,
-                  width: SP_W,
-                  height: SP_H,
                   ...intro("introUp", T.ports, 0.7, "back"),
                 }}
               >
-                <div style={{ transform: "rotate(180deg)" }}>
-                  <SidePort
-                    type="audio"
-                    lit={on}
-                    beamAngle={angle}
-                    beamLength={len}
-                    beamWidth={phone ? 90 : 130}
-                    reach
-                  />
-                </div>
+                <FiberModule
+                  lit={on}
+                  angle={angle}
+                  length={Math.hypot(dx, dy)}
+                  spread={phone ? 44 : 64}
+                />
               </div>
-              {/* hüzmenin sokette yaptığı aydınlık */}
+              {/* lazerin sokette yaptığı aydınlık */}
               <div
                 aria-hidden
                 className="pointer-events-none absolute z-60 rounded-full"
                 style={{
-                  left: tx - 45,
-                  top: ty - 16,
-                  width: 90,
-                  height: 32,
+                  left: tx - 40,
+                  top: ty - 14,
+                  width: 80,
+                  height: 28,
                   background:
-                    "radial-gradient(ellipse at 50% 50%, rgba(var(--c-d7eeff,215,238,255),.55), rgba(var(--c-bee1fa,190,225,250),.18) 50%, transparent 72%)",
+                    "radial-gradient(ellipse at 50% 50%, rgba(var(--c-d7eeff,215,238,255),.6), rgba(var(--c-8ee6ff,142,230,255),.2) 50%, transparent 72%)",
                   opacity: on ? 1 : 0,
                   transition: `opacity ${POWER_FADE_MS}ms ease ${on ? POWER_LIGHT_MS : 0}ms`,
                 }}
