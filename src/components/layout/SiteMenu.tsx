@@ -9,7 +9,6 @@ import MobileMenu, {
   type MenuKey,
 } from "@/components/layout/MobileMenu";
 import { useLang } from "@/i18n/lang";
-import LangSwitch from "@/components/ui/LangSwitch";
 
 /* =========================================================
    SAYFA MENÜSÜ — hero dışındaki her sayfada (roadmap, projeler,
@@ -155,13 +154,6 @@ export default function SiteMenu({ current, onNavigate }: Props) {
           </button>
         );
       })}
-      {/* dil anahtarı (TR / EN) */}
-      <span
-        aria-hidden
-        className="mx-1 h-6 w-px"
-        style={{ background: "rgba(var(--c-78dcff,120,220,255),.3)" }}
-      />
-      <LangSwitch />
     </nav>
   );
 }

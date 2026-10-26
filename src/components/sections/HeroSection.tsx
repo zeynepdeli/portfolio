@@ -853,7 +853,7 @@ export default function HeroSection({
                       : "rgba(var(--c-5fb8d0,95,184,208),.55)",
                   }}
                 >
-                  {">>>"} {avatarPowered ? "SYSTEM ONLINE" : "BOOTING…"}
+                  {">>>"} {avatarPowered ? t("hero.online") : t("hero.booting")}
                 </span>
 
                 {/* data-avatar-name: avatar fişi taktıktan sonra bu yazının üstüne zıplar */}

@@ -1936,61 +1936,72 @@ function ProjectFan({
                           </g>
                         )}
 
-                        {/* BUZ: açık mavi kristal + çatlak çizgileri, kararınca söner */}
-                        {thawP < 1 && (
-                          <>
+                        {/* BUZ: açık mavi kristal + çatlak çizgileri, kararınca söner.
+                            Öğe silinmez, gizlenir (Safari silinen SVG öğesinin
+                            yerini yeniden çizmiyor: buz yaprakta kalıyordu) */}
+                        <g display={thawP < 1 ? undefined : "none"}>
+                          <path
+                            d={bladePath}
+                            fill={url("ice")}
+                            opacity={1 - thawP}
+                          />
+                          <g clipPath={url(`blade-${i}`)}>
                             <path
-                              d={bladePath}
-                              fill={url("ice")}
-                              opacity={1 - thawP}
-                            />
-                            <g clipPath={url(`blade-${i}`)}>
-                              <path
-                                d={FROST_PATH}
-                                fill="none"
-                                stroke="#ffffff"
-                                strokeWidth="1.6"
-                                strokeLinecap="round"
-                                strokeOpacity={0.75 * (1 - thawP)}
-                              />
-                            </g>
-                            <path
-                              d={bladePath}
+                              d={FROST_PATH}
                               fill="none"
-                              stroke="#eef5ff"
+                              stroke="#ffffff"
                               strokeWidth="1.6"
-                              strokeOpacity={0.8 * (1 - thawP)}
+                              strokeLinecap="round"
+                              strokeOpacity={0.75 * (1 - thawP)}
                             />
-                          </>
-                        )}
+                          </g>
+                          <path
+                            d={bladePath}
+                            fill="none"
+                            stroke="#eef5ff"
+                            strokeWidth="1.6"
+                            strokeOpacity={0.8 * (1 - thawP)}
+                          />
+                        </g>
 
                         <path
                           d={bladePath}
                           fill={url("glass")}
                           opacity={materialP * (isActive ? 0.05 : 0.42)}
                         />
-                        {/* pasif yapraklar karartılır → aktif olan öne çıkar */}
-                        {!isActive && (
-                          <path
-                            d={bladePath}
-                            fill="#020a18"
-                            opacity={materialP * (done ? 0.28 : 0)}
-                            style={{ transition: "opacity 400ms" }}
-                          />
-                        )}
+                        {/* pasif yapraklar karartılır → aktif olan öne çıkar.
+                            DİKKAT: aktif yaprak değişince öğe EKLENİP
+                            SİLİNMEZ, yalnızca saydamlığı değişir. Safari
+                            (WebKit) SVG'den silinen öğenin yerini yeniden
+                            çizmiyor; seçilen yaprak simsiyah kalıyordu. */}
+                        <path
+                          d={bladePath}
+                          fill="#020a18"
+                          opacity={isActive ? 0 : materialP * (done ? 0.28 : 0)}
+                          style={{ transition: "opacity 400ms" }}
+                        />
 
-                        {/* aktif yaprak: altın parıltılı kalın kenar */}
-                        {isActive && (
+                        {/* aktif yaprak: altın parıltılı kalın kenar.
+                            Parıltı SVG bulanıklık süzgeciyle DEĞİL, üst üste
+                            genişleyen soluk çizgilerle: Safari (WebKit) bu
+                            yaprakta süzgeç görünce yaprağın içini (proje
+                            fotoğrafını) simsiyah çiziyordu. Çizgiler hep
+                            yerinde, yalnızca aktif yaprakta görünür. */}
+                        {[
+                          [34, 0.06],
+                          [24, 0.1],
+                          [14, 0.16],
+                        ].map(([w, o]) => (
                           <path
+                            key={w}
                             d={bladePath}
                             fill="none"
                             stroke={GOLD_LIGHT}
-                            strokeWidth="14"
-                            strokeOpacity=".35"
+                            strokeWidth={w}
+                            strokeOpacity={isActive ? o : 0}
                             strokeLinejoin="round"
-                            filter={url("soft")}
                           />
-                        )}
+                        ))}
                         <path
                           d={bladePath}
                           fill="none"

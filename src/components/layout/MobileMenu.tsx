@@ -30,7 +30,6 @@ import MenuSlot from "@/components/ui/MenuSlot";
 import GlowConnector, { CONNECTOR_HEIGHT } from "@/components/ui/GlowConnector";
 import { intro, T } from "@/components/ui/Intro";
 import { useLang } from "@/i18n/lang";
-import LangSwitch from "@/components/ui/LangSwitch";
 
 /* =========================================================
    MOBİL MENÜ — telefon / dikey tablet
@@ -330,8 +329,7 @@ export default function MobileMenu({
           >
             {/* üst şerit: başlık + kapat */}
             <div className="relative flex h-14.5 shrink-0 items-center justify-between px-5">
-              {/* dil anahtarı (TR / EN) */}
-              <LangSwitch />
+              <span aria-hidden />
               <button
                 type="button"
                 aria-label={t("nav.close")}

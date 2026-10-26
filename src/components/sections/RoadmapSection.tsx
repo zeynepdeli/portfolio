@@ -557,7 +557,10 @@ function buildTall(th: number) {
     const t = i / N;
     /* köşeden köşeye; ortada hafif S kavisi (kaydırak) */
     const bend = Math.sin(t * Math.PI * 2) * SLIDE_BEND;
-    return [-70 + (TW + 140) * t + bend * 0.6, -70 + (th + 140) * t - bend];
+    /* giriş ucu daha solda (-120): kişi nehre panelin tam SOL ÜST
+       köşesinde biner — kısa telefonlarda da (iPhone SE, Safari'nin
+       adres çubuğu açıkken) */
+    return [-120 + (TW + 190) * t + bend * 0.6, -70 + (th + 140) * t - bend];
   });
   const sections: [P, P][] = middle.map(([x, y], i) => {
     const [px, py] = middle[Math.max(0, i - 1)];
