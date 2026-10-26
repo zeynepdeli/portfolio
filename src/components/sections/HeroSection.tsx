@@ -845,17 +845,6 @@ export default function HeroSection({
                 className="flex flex-col items-center"
                 style={intro("introUp", 0.2, 0.5)}
               >
-                <span
-                  className={`mb-2 font-mono tracking-[.24em] transition-colors duration-700 ${phone ? "text-[10px]" : "text-xs"}`}
-                  style={{
-                    color: avatarPowered
-                      ? "rgb(var(--c-6ef5e8,110,245,232))"
-                      : "rgba(var(--c-5fb8d0,95,184,208),.55)",
-                  }}
-                >
-                  {">>>"} {avatarPowered ? t("hero.online") : t("hero.booting")}
-                </span>
-
                 {/* data-avatar-name: avatar fişi taktıktan sonra bu yazının üstüne zıplar */}
                 <h1
                   data-avatar-name
