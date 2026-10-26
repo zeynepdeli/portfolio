@@ -515,9 +515,13 @@ export default function HeroSection({
   /* AVATARI BAŞLAT (bir kez, AVATAR_START_MS gecikmeyle): tırmanır, porta
      yürür, fişi takar */
   const avatarTimer = useRef(0);
+  /* avatar yola çıktı mı: soketi gösteren lazer ANCAK o zaman yanar
+     (açılış animasyonu bitip her şey yerine oturduktan sonra) */
+  const [avatarGoing, setAvatarGoing] = useState(false);
   const startAvatar = useCallback(() => {
     if (avatarTimer.current) return;
     avatarTimer.current = window.setTimeout(() => {
+      setAvatarGoing(true);
       window.dispatchEvent(new Event("hero:built"));
       window.dispatchEvent(new Event("hero:plug"));
     }, AVATAR_START_MS);
@@ -541,6 +545,7 @@ export default function HeroSection({
     if (!CINEMATIC_INTRO) {
       const t = window.setTimeout(() => {
         setIntroDone(true);
+        setAvatarGoing(true);
         window.dispatchEvent(new Event("hero:built"));
         window.dispatchEvent(new Event("hero:plug"));
       }, QUICK_INTRO_MS);
@@ -1368,8 +1373,8 @@ export default function HeroSection({
         )}
 
         {/* SOKETİ GÖSTEREN LAZER: panelin SAĞ ALT köşesinde, alt kenardaki
-            kafese takılı bir fiber optik modül (SFP). Sahne kararınca
-            (avatar yola çıkınca) TX deliğinden ince bir lazer ışığı çıkar
+            kafese takılı bir fiber optik modül (SFP). Açılış animasyonu
+            bitip avatar yola çıkınca TX deliğinden ince bir lazer ışığı çıkar
             ve üst ortadaki güç soketine uzanır: ilk kez gören biri
             avatarın nereye gittiğini anlasın. Fiş takılınca söner.
             Karanlık katmanın üstünde: karanlıkta da parlak görünür. */}
@@ -1385,7 +1390,7 @@ export default function HeroSection({
           const dx = tx - ox;
           const dy = ty - oy;
           const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
-          const on = !final && dim && !avatarPowered;
+          const on = !final && avatarGoing && !avatarPowered;
           return (
             <>
               <div
