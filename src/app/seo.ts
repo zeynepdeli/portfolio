@@ -1,12 +1,12 @@
 /* =========================================================
    SEO — arama motorları ve sosyal paylaşım için TEK yer
-   Alan adı değişirse (ör. zeynepdeli.com) yalnızca SITE_URL'i
+   Alan adı değişirse yalnızca SITE_URL'i
    değiştir ya da Vercel'de NEXT_PUBLIC_SITE_URL ortam değişkenini ver.
 ========================================================= */
 import { EMAIL, GITHUB, LINKEDIN } from "@/components/ui/SocialLinks";
 
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://portfolio-seven-vert.vercel.app"
+  process.env.NEXT_PUBLIC_SITE_URL || "https://zeynepdeli.com"
 ).replace(/\/$/, "");
 
 export const NAME = "Zeynep Deli";
