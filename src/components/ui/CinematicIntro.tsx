@@ -29,7 +29,7 @@ import { isPerfLite } from "./perfTier";
 /** TÜM AÇILIŞIN HIZI: 1 = aşağıdaki süreler aynen, 1.35 = %35 daha hızlı.
  *  Bütün adımlar (çip, yörünge, butonlar, isim) birlikte hızlanır,
  *  geçişlerin birbirine göre zamanlaması bozulmaz. */
-const SPEED = 1.15; // eskiden 1.45: hikâye daha okunaklı
+const SPEED = 0.85; // eskiden 1.15: açılış ~%35 daha yavaş, anlaşılır
 
 /* alttaki çember (parçacık halkası → çip) DAHA ERKEN ve HIZLI oluşur */
 const T_CHIP_RING = 0.15; // parçacıklar halka olarak doğar

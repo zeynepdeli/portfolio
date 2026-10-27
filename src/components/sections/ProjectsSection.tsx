@@ -142,6 +142,8 @@ const PANEL_RADIUS = 14;
 const SPEED = 0.65; // nehir + avatar + fan oluşumu (küçük = hızlı; eskiden 0.5)
 /** animasyon saati bir karede en fazla bu kadar ilerler (ms) */
 const MAX_FRAME_MS = 100;
+/** fanın oluşum saatinin akış hızı (1 = eski hız; küçük = yavaş) */
+const FAN_RATE = 0.72;
 const ms = (v: number) => v * SPEED;
 
 /* ZAMAN ÇİZELGESİ (ms)
@@ -1212,7 +1214,7 @@ function ProjectFan({
     let landTarget = 0;
 
     const tick = (now: number) => {
-      clock += Math.min(MAX_FRAME_MS, Math.max(0, now - last));
+      clock += Math.min(MAX_FRAME_MS, Math.max(0, now - last)) * FAN_RATE;
       last = now;
       const elapsed = clock;
       setT(Math.min(elapsed, buildEnd));

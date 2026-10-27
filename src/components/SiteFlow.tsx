@@ -13,6 +13,7 @@ import HeroSection from "@/components/sections/HeroSection";
 import RoadmapSection from "@/components/sections/RoadmapSection";
 import ProjectsSection from "@/components/sections/ProjectsSection";
 import FooterSection from "@/components/sections/FooterSection";
+import { LangHotspots } from "@/components/ui/ScifiBackground";
 import SiteAvatar from "@/components/ui/SiteAvatar";
 import { type MenuKey } from "@/components/layout/MobileMenu";
 import SiteMenu from "@/components/layout/SiteMenu";
@@ -72,15 +73,15 @@ const STAGE_BEAM = {
 export type FlowStart = "story" | "hero" | "roadmap" | "projects" | "footer";
 
 /* ---------------- TEMPO (yavaş = hikâye daha belirgin) ---------------- */
-const TRANSITION_MS = 2200;
+const TRANSITION_MS = 3000; // eskiden 2200: geçişler daha yavaş
 /** telefonda / dar ekranda geçişler biraz daha kısa (ms) */
-const MOBILE_TRANSITION_MS = 1500;
+const MOBILE_TRANSITION_MS = 2100; // eskiden 1500
 /** footer'ın yükselme süresi (ms) */
-const FOOTER_MS = 1400;
+const FOOTER_MS = 1900; // eskiden 1400
 /** yeni bölümün animasyonu geçiş BİTİNCE ve kısa bir nefesten sonra
  *  başlar. Avatar gelen sayfada zaten görünür (girişte hazır bekler),
  *  bu yüzden bekleme kısa: sayfa oturur oturmaz yola çıkar */
-const ARRIVE_PAUSE_MS = 140;
+const ARRIVE_PAUSE_MS = 300; // eskiden 140
 /** hikâyede roadmap'e varınca menünün gelmesi (ms) */
 const MENU_AFTER_LAND_MS = 1400;
 /** projelerde kişi, geçişin bu oranında akmaya başlar */
@@ -104,7 +105,7 @@ const EASE_CSS = "cubic-bezier(.45,.05,.15,1)";
 /** kompozitör animasyonu için ara kare sayısı (gölge yayı için) */
 const SAMPLES = 8;
 /** hikâyede projeler bitince footer bu kadar sonra kendiliğinden açılır */
-const FOOTER_AUTO_MS = 3500;
+const FOOTER_AUTO_MS = 5000; // eskiden 3500: projeler daha uzun görünür
 /** bir geçiş bittikten sonra tekerlek bu süre yok sayılır (dokunmatik
  *  yüzeylerin kayma ataleti art arda iki sayfa geçirmesin) */
 const WHEEL_COOLDOWN_MS = 700;
@@ -263,22 +264,6 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
   const { t } = useLang();
 
   const [powered, setPowered] = useState(!story);
-
-  /* DİL ANAHTARI: açılış hikâyesinde site yanınca (fiş takılınca) iner
-     (html.ls-wait — perfTier ENGINE_SCRIPT ekler). Bir aksilikte
-     anahtar kaybolmasın diye en geç 30 sn'de yine iner. */
-  useEffect(() => {
-    const html = document.documentElement;
-    if (powered) {
-      html.classList.remove("ls-wait");
-      return;
-    }
-    const id = window.setTimeout(() => html.classList.remove("ls-wait"), 30000);
-    return () => {
-      window.clearTimeout(id);
-      html.classList.remove("ls-wait");
-    };
-  }, [powered]);
 
   /* HAZIRLIK: yazı tipleri + bu bölümün avatar görselleri (en fazla
      READY_MAX_MS). Sonra sahne kurulur; kalan görseller arkadan iner. */
@@ -938,6 +923,13 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
       >
         {footer}
       </section>
+
+      {/* DİL: soket braketindeki TR · EN'in dokunma alanı. Yazılar
+          bölümün cam panelinde; o katmanın üstünde başka katmanlar
+          (hero içeriği, proje kartı) tıklamayı yutuyordu. Bu yüzden
+          tıklama burada, en üstte ve her bölümde aynı yerde yakalanır. */}
+      {/* footer açıkken de: projelerin soketi footer'ın üstünde görünür */}
+      <LangHotspots />
 
       {/* MENÜ — hero'nun kendi menüsü var; diğer bölümlerde (bilgisayarda
           üst ortada butonlar, telefonda sol üstte çekmeceli menü) */}

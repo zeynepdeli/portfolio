@@ -4,7 +4,7 @@ import { useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { FaDownload, FaEye, FaArrowLeft, FaFilePdf } from "react-icons/fa";
 
-import SciFiBackground from "@/components/ui/ScifiBackground";
+import SciFiBackground, { LangHotspots } from "@/components/ui/ScifiBackground";
 import { useLang } from "@/i18n/lang";
 
 /* =========================================================
@@ -161,6 +161,8 @@ export default function DocumentsSection() {
   const { t } = useLang();
   return (
     <div className="relative size-full overflow-hidden">
+      {/* soket braketindeki TR · EN'in dokunma alanı */}
+      <LangHotspots />
       <style>{CSS}</style>
       <SciFiBackground>
         <div className="absolute inset-0 overflow-y-auto">

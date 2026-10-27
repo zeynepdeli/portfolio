@@ -20,11 +20,8 @@ const CLASS = "perf-lite";
  *  SVG çizgi animasyonları bu motorlarda Chrome'dan çok daha ağır. Bu
  *  tarayıcılarda telefondaki hafif görünüm kullanılır (html.engine-lite +
  *  perf-lite). Sayfa çizilmeden ÖNCE uygulanması için aynı kod layout'ta
- *  satır içi betik olarak da çalışır (ENGINE_SCRIPT).
- *  Ayrıca "/" (açılış hikâyesi) için html.ls-wait: dil anahtarı açılış
- *  animasyonunda görünmez, avatar fişi takıp site yanınca iner
- *  (SiteFlow kaldırır). */
-export const ENGINE_SCRIPT = `(function(){try{var u=navigator.userAgent,c=document.documentElement.classList;var ch=(u.indexOf("Chrome/")>-1||u.indexOf("Chromium/")>-1)&&u.indexOf("CriOS")<0&&u.indexOf("FxiOS")<0&&u.indexOf("EdgiOS")<0;if(!ch){c.add("engine-lite");c.add("perf-lite");}if(location.pathname==="/")c.add("ls-wait");}catch(e){}})();`;
+ *  satır içi betik olarak da çalışır (ENGINE_SCRIPT). */
+export const ENGINE_SCRIPT = `(function(){try{var u=navigator.userAgent,c=document.documentElement.classList;var ch=(u.indexOf("Chrome/")>-1||u.indexOf("Chromium/")>-1)&&u.indexOf("CriOS")<0&&u.indexOf("FxiOS")<0&&u.indexOf("EdgiOS")<0;if(!ch){c.add("engine-lite");c.add("perf-lite");}}catch(e){}})();`;
 let started = false;
 
 const WEAK_GPU =
