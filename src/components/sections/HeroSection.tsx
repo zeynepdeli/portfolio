@@ -19,12 +19,6 @@ import MobileMenu, {
 import SocialStrip from "@/components/ui/SocialStrip";
 import SocialChip from "@/components/ui/SocialChip";
 import SidePort from "@/components/ui/SidePort";
-import FiberModule, {
-  FIBER_W,
-  FIBER_H,
-  FIBER_TX_X,
-  FIBER_TX_Y,
-} from "@/components/ui/FiberModule";
 import { POWER_LIGHT_MS, POWER_FADE_MS } from "@/components/ui/GlowConnector";
 import ChipPlatform from "@/components/ui/ChipPlatform";
 import CircuitTraces from "@/components/ui/CircuitTraces";
@@ -71,7 +65,7 @@ type ChipLayoutResult = ReturnType<typeof computeChipLayout>;
    SABİTLER
 ========================================================= */
 const MENU_RIGHT = 322;
-const PANEL_TOP_STACK = 26;
+const PANEL_TOP_STACK = 34; // SiteAvatar PANEL_TOP_CSS ile aynı
 const PORT_MAX_ROT = 20;
 /** Yazı bloğunun menü–çip arası ortadan kayması (px, menü ölçeğiyle).
  *  Negatif → sola. */
@@ -126,7 +120,7 @@ const PORTRAIT_NUDGE = { x: -0.06, y: 0 };
 /** Portre boyu bu halka oranına göre hesaplanır (halka genişlese de
  *  portre aynı boyda kalsın diye orta daireden bağımsız) */
 const PORTRAIT_RING_RATIO = 0.215;
-const PORTRAIT_IN_RING = 2.1;
+const PORTRAIT_IN_RING = 2.35; // portre biraz daha büyük (eskiden 2.1)
 
 const STACK_CHIP_DROP = 0.02; // mobilde çip yazının hemen altından başlar → daha büyük
 const CHIP_BACK_OPACITY = 0.55;
@@ -663,7 +657,7 @@ export default function HeroSection({
   }, [vw, vh, powered]);
 
   const PORTS_LEFT = stacked
-    ? vw - 118
+    ? vw - (phone ? 104 : 118) // telefonda portlar daha küçük (compact)
     : Math.round((textCenter + layout.cx) / 2) + 130;
 
   /* ---------- Portre + kamera ---------- */
@@ -1231,6 +1225,7 @@ export default function HeroSection({
             <div ref={portRef0} data-avatar-port>
               <SidePort
                 type="audio"
+                compact={phone}
                 lit={powered}
                 swing={spots[0]?.swing ?? 0}
                 beamAngle={spots[0]?.beamAngle ?? 0}
@@ -1243,6 +1238,7 @@ export default function HeroSection({
                   avatar fişi takınca yanar */}
               <SidePort
                 type="audio"
+                compact={phone}
                 lit={powered || !CINEMATIC_INTRO}
                 swing={spots[1]?.swing ?? 0}
                 beamAngle={spots[1]?.beamAngle ?? 0}
@@ -1372,60 +1368,32 @@ export default function HeroSection({
           />
         )}
 
-        {/* SOKETİ GÖSTEREN LAZER: panelin SAĞ ALT köşesinde, alt kenardaki
-            kafese takılı bir fiber optik modül (SFP). Açılış animasyonu
-            bitip avatar yola çıkınca TX deliğinden ince bir lazer ışığı çıkar
-            ve üst ortadaki güç soketine uzanır: ilk kez gören biri
-            avatarın nereye gittiğini anlasın. Fiş takılınca söner.
-            Karanlık katmanın üstünde: karanlıkta da parlak görünür. */}
-        {(() => {
-          const left = vw - panel.right - (phone ? 12 : 40) - FIBER_W;
-          const top = vh - panel.bottom - FIBER_H;
-          /* lazerin çıktığı nokta: TX deliği */
-          const ox = left + FIBER_TX_X;
-          const oy = top + FIBER_TX_Y;
-          /* hedef: üst ortadaki soketin ağzı */
-          const tx = panel.left + (vw - panel.left - panel.right) / 2;
-          const ty = panel.top + 6;
-          const dx = tx - ox;
-          const dy = ty - oy;
-          const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
-          const on = !final && avatarGoing && !avatarPowered;
-          return (
-            <>
-              <div
-                className="pointer-events-none absolute z-60"
-                style={{
-                  left,
-                  top,
-                  ...intro("introUp", T.ports, 0.7, "back"),
-                }}
-              >
-                <FiberModule
-                  lit={on}
-                  angle={angle}
-                  length={Math.hypot(dx, dy)}
-                  spread={phone ? 44 : 64}
-                />
-              </div>
-              {/* lazerin sokette yaptığı aydınlık */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute z-60 rounded-full"
-                style={{
-                  left: tx - 40,
-                  top: ty - 14,
-                  width: 80,
-                  height: 28,
-                  background:
-                    "radial-gradient(ellipse at 50% 50%, rgba(var(--c-d7eeff,215,238,255),.6), rgba(var(--c-8ee6ff,142,230,255),.2) 50%, transparent 72%)",
-                  opacity: on ? 1 : 0,
-                  transition: `opacity ${POWER_FADE_MS}ms ease ${on ? POWER_LIGHT_MS : 0}ms`,
-                }}
-              />
-            </>
-          );
-        })()}
+        {/* TEPE AYDINLANIR: açılış bitip avatar yola çıkınca üst ortadaki
+            güç soketinin çevresine yukarıdan yumuşak bir ışık düşer
+            (sahnenin geri kalanı karanlıkken); ilk kez gören biri
+            avatarın tırmanıp fişi taktığını fark etsin. Fiş takılınca
+            söner (o an bütün sahne zaten aydınlanır). Karanlık katmanın
+            üstünde; yalnızca saydamlığı değişir (hafif). */}
+        {!final && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-60"
+            style={{
+              left: panel.left + (vw - panel.left - panel.right) / 2,
+              top: panel.top,
+              width: phone ? 340 : 520,
+              height: phone ? 190 : 260,
+              transform: "translate(-50%, -42%)",
+              background: `radial-gradient(ellipse 50% 50% at 50% 42%,
+                rgba(var(--c-e1f8ff,225,248,255),.6) 0%,
+                rgba(var(--c-a8eef6,168,238,246),.3) 30%,
+                rgba(var(--c-4fd8ff,79,216,255),.08) 60%,
+                transparent 100%)`,
+              opacity: avatarGoing && !avatarPowered ? 1 : 0,
+              transition: "opacity 900ms ease",
+            }}
+          />
+        )}
 
         {/* =================================================
             AVATAR — panelin arkasından tırmanır, porta fiş takar.

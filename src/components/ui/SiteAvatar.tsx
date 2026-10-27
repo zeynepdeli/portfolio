@@ -23,12 +23,16 @@ import { CLIMB_SPRITE, IMG, RUN_SPRITE } from "./assets";
 
 /* Cam panelin üst kenarı — chipLayout.ts'teki panelTop() ile AYNI olmalı.
    Avatar bu kenarın üstüne tırmanır ve kenarın üzerinde yürür. */
-export const PANEL_TOP_CSS = "26px"; // panel üstten 26px'de başlar (diğer sayfalara yakın)
+export const PANEL_TOP_CSS = "34px"; // panel üstten 34px'de başlar: kenardaki avatara yer (AV_EDGE_SCALE)
 
 /** Panelin üst kenarındayken (tırmanma, porta yürüme, fiş takma) avatar
  *  UZAKTA gibi küçük görünür; böylece dar üst boşluğa sığar. İsme
  *  zıplarken normal boyuna büyür (izleyiciye yaklaşıyormuş gibi). */
-const EDGE_SCALE = 0.5; // avatar ve fiş biraz daha büyük (eskiden 0.42)
+const EDGE_SCALE = 0.5; // FİŞ ve kablo bu ölçekte: soketin ağzına (32px) tam oturur
+/** Kenardayken AVATARIN kendi ölçeği (fişten bağımsız): ilk kez gören
+ *  biri tırmanıp fişi taktığını fark etsin diye daha büyük (eskiden
+ *  fişle aynı 0.5). Elindeki fiş Cable'da EDGE_SCALE'e geri küçültülür. */
+const AV_EDGE_SCALE = 0.6;
 /** Kenardan ayrılınca (isim, yetenek satırı, ikonlar, yer) avatarın
  *  büyütülmesi — ayak ortasından; 1 = eski boy */
 const AV_SCALE = 1.3;
@@ -265,7 +269,7 @@ const CONN_X = HAND_X + 12;
 const CONN_IN_Y = H - 6; // takılıyken gövde üstü (pimler kenarın 6px altında)
 /* Kenarda küçültülmüşken (ayak ortasından EDGE_SCALE ile) konnektör yine
    soketin tam ortasına gelsin diye kutunun sol kenarı */
-const PORT_ROOT_LEFT_EDGE = `calc(50% - ${(W / 2 + (CONN_X - W / 2) * EDGE_SCALE).toFixed(1)}px)`;
+const PORT_ROOT_LEFT_EDGE = `calc(50% - ${(W / 2 + (CONN_X - W / 2) * AV_EDGE_SCALE).toFixed(1)}px)`;
 
 /** Sokette takılı kalan fişin kablosu (fiş ölçeğinde; y=0 panel kenarı):
  *  kovandan yukarı kalkar, portun biraz soluna kıvrılıp panelin arkasına
@@ -1083,8 +1087,8 @@ export default function SiteAvatar({
       ? {
           /* UNDER_EDGE: tırmanmaz, soldan koşarak gelir */
           left: UNDER_EDGE
-            ? `calc(${PORT_ROOT_LEFT_EDGE} - ${RUN_IN_PX * EDGE_SCALE}px)`
-            : `calc(${PORT_ROOT_LEFT_EDGE} - ${CLIMB_GAP * EDGE_SCALE}px)`,
+            ? `calc(${PORT_ROOT_LEFT_EDGE} - ${RUN_IN_PX * AV_EDGE_SCALE}px)`
+            : `calc(${PORT_ROOT_LEFT_EDGE} - ${CLIMB_GAP * AV_EDGE_SCALE}px)`,
           top: edgeTop,
         }
       : stage === "toPort" ||
@@ -1389,7 +1393,7 @@ export default function SiteAvatar({
           height: H,
           /* kenardayken küçük (uzakta), isme zıplarken normal boy */
           transformOrigin: "50% 100%",
-          transform: `scale(${onEdge ? EDGE_SCALE : AV_SCALE})`,
+          transform: `scale(${onEdge ? AV_EDGE_SCALE : AV_SCALE})`,
           transition:
             stage === "jump"
               ? `${move}, transform ${JUMP_MS}ms cubic-bezier(.3,.6,.4,1)`
@@ -1907,7 +1911,11 @@ function Cable({
             : "transform 60ms linear",
         }}
       >
-        <Connector lit={plugged} />
+        {/* avatar kenarda AV_EDGE_SCALE ile büyük; fiş soketin ağzına
+            uysun diye EDGE_SCALE boyuna geri küçültülür */}
+        <g transform={`scale(${EDGE_SCALE / AV_EDGE_SCALE})`}>
+          <Connector lit={plugged} />
+        </g>
       </g>
     </svg>
   );

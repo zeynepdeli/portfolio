@@ -16,6 +16,8 @@ type SidePortProps = {
   beamLength?: number;
   /** Işık hüzmesinin hedefteki genişliği (px) */
   beamWidth?: number;
+  /** Telefonda biraz daha küçük gövde (audio) */
+  compact?: boolean;
 };
 
 const metalGrad =
@@ -40,6 +42,7 @@ export default function SidePort({
   beamAngle = 0,
   beamLength = 650,
   beamWidth = 420,
+  compact = false,
 }: SidePortProps) {
   if (type === "usb-c") {
     return (
@@ -130,7 +133,7 @@ export default function SidePort({
         <div className="relative z-10 flex flex-col items-center">
           {/* 1. Üst Mavi Silindir Parça — SABİT (panele bağlı kısım) */}
           <div
-            className="z-30 -mb-px h-3 w-6 rounded-t-xs transition-all duration-700"
+            className={`z-30 -mb-px rounded-t-xs transition-all duration-700 ${compact ? "h-2.5 w-5" : "h-3 w-6"}`}
             style={{
               background: lit
                 ? "linear-gradient(90deg, rgb(var(--c-1e3454,30,52,84)) 0%, rgb(var(--c-f4f8fd,244,248,253)) 50%, rgb(var(--c-1e3454,30,52,84)) 100%)"
@@ -154,7 +157,7 @@ export default function SidePort({
             }}
           >
             <div
-              className="relative flex h-12 w-11 items-center justify-center rounded-xs transition-all duration-700"
+              className={`relative flex items-center justify-center rounded-xs transition-all duration-700 ${compact ? "h-10 w-9" : "h-12 w-11"}`}
               style={{
                 background: lit
                   ? "linear-gradient(105deg, rgb(var(--c-3d6290,61,98,144)) 0%, rgb(var(--c-253f64,37,63,100)) 50%, rgb(var(--c-1b2f4c,27,47,76)) 100%)"
@@ -177,7 +180,7 @@ export default function SidePort({
             >
               {/* Ortadaki Dairesel Port Halkası */}
               <div
-                className="relative flex size-6 items-center justify-center rounded-full"
+                className={`relative flex items-center justify-center rounded-full ${compact ? "size-5" : "size-6"}`}
                 style={{
                   background: lit
                     ? "linear-gradient(135deg, rgb(var(--c-f4f8fd,244,248,253)) 0%, rgb(var(--c-33557e,51,85,126)) 100%)"
@@ -190,7 +193,7 @@ export default function SidePort({
               >
                 {/* Audio Port Deliği (Işığın Tam Çıkış Noktası) */}
                 <div
-                  className="relative flex size-3.5 items-center justify-center rounded-full"
+                  className={`relative flex items-center justify-center rounded-full ${compact ? "size-3" : "size-3.5"}`}
                   style={{
                     background: "rgb(var(--c-122034,18,32,52))",
                     boxShadow: "inset 0 0 4px #000",
@@ -219,7 +222,7 @@ export default function SidePort({
                 hedefe doğru döner.
                 GlowConnector ışığıyla AYNI değişkenler ve yoğunluk. */}
             <div
-              className="pointer-events-none absolute top-12 left-1/2"
+              className={`pointer-events-none absolute left-1/2 ${compact ? "top-10" : "top-12"}`}
               style={{
                 width: beamWidth,
                 height: beamLength,

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { isPerfLite } from "./perfTier";
+import { usePerfLite } from "./usePerfLite";
 import type { CSSProperties, ReactNode } from "react";
 
 type PanelInset = {
@@ -368,7 +370,10 @@ function drawDust(cv: HTMLCanvasElement, seed: number) {
   if (!ctx) return;
   const r = cv.getBoundingClientRect();
   if (!r.width || !r.height) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  /* hafif modda (telefon vb.) tozlar yumuşak noktalar: 1x çözünürlük
+     yeter. Her bölümde iki tam ekran tuval var; 2x'te ekran kartı
+     belleğini 4 kat dolduruyor, telefonda takılmaya yol açıyordu. */
+  const dpr = isPerfLite() ? 1 : Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(r.width * dpr);
   cv.height = Math.round(r.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -413,6 +418,8 @@ function drawDust(cv: HTMLCanvasElement, seed: number) {
 function ParticleOcean() {
   const refA = useRef<HTMLCanvasElement>(null);
   const refB = useRef<HTMLCanvasElement>(null);
+  /* hafif mod sonradan açılınca (SiteFlow ölçer) 1x çözünürlükle yeniden çiz */
+  const lite = usePerfLite();
 
   useEffect(() => {
     const a = refA.current;
@@ -433,7 +440,7 @@ function ParticleOcean() {
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, []);
+  }, [lite]);
 
   return (
     <>
