@@ -59,8 +59,8 @@ export const pinSpan = () => ({ from: PIN_FROM, to: PIN_TO });
 export const PANEL = { left: 0.01, top: 0, right: 0.01, bottom: 0.015 };
 /** Panelin üst kenarı en az bu kadar aşağıda (px) — avatar bu kenarın
  *  üstüne tırmanıp üzerinde yürüyor, sığması için yer gerekiyor.
- *  SiteAvatar.tsx'teki PANEL_TOP_CSS = "26px" ile aynı olmalı. */
-export const PANEL_TOP_MIN_PX = 26; // avatar kenarda küçültülmüş (EDGE_SCALE) olarak sığıyor
+ *  SiteAvatar.tsx'teki PANEL_TOP_CSS = "34px" ile aynı olmalı. */
+export const PANEL_TOP_MIN_PX = 34; // avatar kenarda küçültülmüş (EDGE_SCALE) olarak sığıyor
 
 export type ChipLayout = {
   /** masaüstü tasarım ölçeği (1440×900 = 1) */

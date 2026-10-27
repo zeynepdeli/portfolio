@@ -953,6 +953,7 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
         type="button"
         onClick={() => runStep(indexRef.current, 1)}
         aria-label={t("nav.next")}
+        data-i={index}
         className="flow-hint absolute left-1/2 z-40 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1 font-mono text-[10px] tracking-[.24em] text-[#a8eef6]"
         style={{
           bottom: 22,
@@ -962,7 +963,10 @@ export default function SiteFlow({ start = "story" }: { start?: FlowStart }) {
           textShadow: "0 0 8px rgba(79,216,255,.8)",
         }}
       >
-        {t("nav.scroll")}
+        {/* telefonda ana sayfada yazı gizli (alttaki sosyal ikonlarla
+            çakışıyordu): yalnızca ok, panelin alt kenarında */}
+        <style>{`@media (max-width: 639px) { .flow-hint[data-i="0"] { bottom: 2px !important; } .flow-hint[data-i="0"] .flow-hint-label { display: none; } }`}</style>
+        <span className="flow-hint-label">{t("nav.scroll")}</span>
         <span className="scroll-hint block h-3 w-3 rotate-45 border-r border-b border-[#a8eef6]" />
       </button>
 

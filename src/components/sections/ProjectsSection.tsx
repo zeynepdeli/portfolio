@@ -14,6 +14,7 @@ import {
 import SciFiBackground from "@/components/ui/ScifiBackground";
 import { useViewport } from "@/components/ui/ChipLayout";
 import { IMG } from "@/components/ui/assets";
+import { usePerfLite } from "@/components/ui/usePerfLite";
 import { useLang } from "@/i18n/lang";
 import { txt, type Txt } from "@/components/sections/CollectedSkillsPanel";
 
@@ -1091,6 +1092,12 @@ function ProjectFan({
   const uid = useId().replace(/:/g, "");
   const id = (name: string) => `${uid}-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
+  /* HAFİF MOD (telefon, tablet, Safari, Firefox, zayıf ekran kartı):
+     fan oluşurken her karede yeniden çizilen ~20 öğedeki SVG bulanıklık
+     süzgeçleri (glow / soft) kapatılır. Telefonda donmanın ana
+     sebebiydi: her karede her süzgeç baştan hesaplanıyordu. */
+  const lite = usePerfLite();
+  const fx = (name: string) => (lite ? undefined : url(name));
 
   const count = Math.max(projects.length, 1);
   const step = 360 / count;
@@ -1806,7 +1813,7 @@ function ProjectFan({
                 r={HUB_R * hubP * 1.15}
                 fill="#46beff"
                 opacity={0.08 + hubFlash * 0.16}
-                filter={url("soft")}
+                filter={fx("soft")}
               />
 
               <circle
@@ -2107,7 +2114,7 @@ function ProjectFan({
                     stroke="#cfe6ff"
                     strokeWidth={2.5 - q * 2}
                     strokeOpacity={(1 - q) * 0.8}
-                    filter={url("glow")}
+                    filter={fx("glow")}
                   />
                 );
               })}
@@ -2137,7 +2144,7 @@ function ProjectFan({
                       r={4.5 - k * 0.4}
                       fill={k % 3 ? "#cfe6ff" : "#ffffff"}
                       opacity={(1 - k / 9) * 0.85 * (1 - settleP)}
-                      filter={url("glow")}
+                      filter={fx("glow")}
                     />
                   );
                 })}
@@ -2157,7 +2164,7 @@ function ProjectFan({
                       stroke="#cfe6ff"
                       strokeWidth="2"
                       strokeOpacity={(1 - r) * 0.7 * (1 - settleP)}
-                      filter={url("glow")}
+                      filter={fx("glow")}
                     />
                   );
                 })}
@@ -2168,7 +2175,7 @@ function ProjectFan({
                 ry="11"
                 fill="#cfe6ff"
                 opacity={0.2 * (1 - settleP)}
-                filter={url("soft")}
+                filter={fx("soft")}
               />
 
               {/* oturma anı: dışa yayılan ışık dalgası */}
@@ -2180,7 +2187,7 @@ function ProjectFan({
                     stroke="#cfe6ff"
                     strokeWidth="3"
                     strokeOpacity={1 - landPulse}
-                    filter={url("glow")}
+                    filter={fx("glow")}
                   />
                   <circle
                     r={AVATAR_R * PF + landPulse * 150}
@@ -2188,7 +2195,7 @@ function ProjectFan({
                     stroke="#ffe4aa"
                     strokeWidth="2"
                     strokeOpacity={(1 - landPulse) * 0.8}
-                    filter={url("glow")}
+                    filter={fx("glow")}
                   />
                 </>
               )}
@@ -2273,7 +2280,7 @@ function ProjectFan({
                     stroke="#46beff"
                     strokeWidth="10"
                     strokeOpacity={0.25 * settleP}
-                    filter={url("soft")}
+                    filter={fx("soft")}
                   />
                   <circle
                     r={AVATAR_R * PF}
@@ -2284,7 +2291,7 @@ function ProjectFan({
                     pathLength={1}
                     strokeDasharray={`${settleP} 2`}
                     transform="rotate(-90)"
-                    filter={url("glow")}
+                    filter={fx("glow")}
                   />
                 </>
               )}
@@ -2309,7 +2316,7 @@ function ProjectFan({
                   stroke="rgb(var(--c-5fb8d0,161,196,217))"
                   strokeWidth="46"
                   strokeOpacity=".16"
-                  filter={url("soft")}
+                  filter={fx("soft")}
                 />
               </g>
               <path
