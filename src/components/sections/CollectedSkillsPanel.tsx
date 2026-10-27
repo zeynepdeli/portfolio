@@ -1,5 +1,6 @@
 "use client";
 
+import { TechLogos } from "@/components/ui/techIcons";
 import {
   useLayoutEffect,
   useRef,
@@ -754,7 +755,7 @@ function TechList({ techs }: { techs: Tech[] }) {
       {techs.map((t, i) => (
         <div
           key={txtMax(t.name)}
-          className="flex min-h-11 items-center rounded-[10px] px-3"
+          className="flex min-h-11 items-center gap-2.5 rounded-[10px] px-3"
           style={{
             background: glassSurface("8,26,52", 0.45),
             border: "1px solid rgba(255,255,255,0.16)",
@@ -762,6 +763,13 @@ function TechList({ techs }: { techs: Tech[] }) {
             animation: `tlRowIn .75s cubic-bezier(.22,1,.36,1) ${220 + i * 95}ms both`,
           }}
         >
+          {/* teknolojinin logosu (tek renk, sitenin turkuazı) */}
+          <TechLogos
+            name={txt(t.name, "en")}
+            size={16}
+            gap={4}
+            className="text-[rgb(var(--c-a8eef6,168,238,246))] opacity-90"
+          />
           <div className="min-w-0 flex-1">
             <div
               className="truncate text-[13px]"

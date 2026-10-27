@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { MapPin } from "lucide-react";
+import { TechLogos, techIcons } from "@/components/ui/techIcons";
 
 import CollectedSkillsPanel, {
   DEFAULT_CATEGORIES,
@@ -718,7 +719,12 @@ function layoutChips(
     const p = toPx(at);
     /* telefonda etiket en fazla CHIP_MAX_PHONE genişliğinde; uzun
        olan iki satıra iner */
-    const est = 36 + txtMax(NODES[i].name).length * chipFont * 0.63;
+    const est =
+      36 +
+      txtMax(NODES[i].name).length * chipFont * 0.63 +
+      /* soldaki logo(lar) */
+      techIcons(txt(NODES[i].name, "en")).length * (chipFont * 1.15 + 3) +
+      (techIcons(txt(NODES[i].name, "en")).length ? 3 : 0);
     const w = portrait ? Math.min(est, CHIP_MAX_PHONE) : est;
     /* telefonda satır sayısı: yazı alanı (ikon + boşluk hariç) kelime
        kaydırma payıyla */
@@ -1977,6 +1983,12 @@ export default function RoadmapSection({
                           : "none",
                       }}
                     >
+                      {/* teknolojinin logosu (tek renk: yazının renginde) */}
+                      <TechLogos
+                        name={txt(node.name, "en")}
+                        size={Math.round(chipFont * 1.15)}
+                        className="mr-1.5"
+                      />
                       {txt(node.name, lang)}
                     </div>
                     {/* yol haritası: her yetenek bir durak — harita iğnesi
