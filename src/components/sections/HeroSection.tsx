@@ -116,7 +116,7 @@ const PHOTO_POSITION = "50% 18%";
 const PORTRAIT_ASPECT = 3 / 4;
 /** Portrenin halka merkezine göre kayması (çip boyuna oran).
  *  x < 0 → sola. Alt kenar her zaman halkanın alt kenarında kalır. */
-const PORTRAIT_NUDGE = { x: -0.06, y: 0 };
+const PORTRAIT_NUDGE = { x: -0.085, y: 0.018 }; // biraz sola ve aşağı
 /** Portre boyu bu halka oranına göre hesaplanır (halka genişlese de
  *  portre aynı boyda kalsın diye orta daireden bağımsız) */
 const PORTRAIT_RING_RATIO = 0.215;
