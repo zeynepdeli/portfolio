@@ -626,11 +626,16 @@ export default function FooterSection({
                   _
                 </span>
               </p>
-              {/* HİKÂYEYİ BAŞTAN İZLE: terminal komutu gibi; tıklayınca
-                  açılış animasyonu baştan oynar */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                <ReplayIntro />
-              </div>
+            </div>
+            {/* SAĞDA (eski e-posta yeri): HİKÂYEYİ BAŞTAN İZLE + BAŞA DÖN —
+                ikisi de terminal komutu gibi, yan yana */}
+            <div
+              data-ft-in
+              className="flex flex-wrap items-center gap-2.5"
+              style={ftI(1)}
+            >
+              <ReplayIntro />
+              <BackTop />
             </div>
           </div>
 
@@ -1213,45 +1218,11 @@ function PhoneDeck({
           <Screw key={c} small className={`absolute ${c}`} />
         ))}
 
-        {/* saat + BAŞA DÖN + fan */}
+        {/* saat + fan */}
         <div className="flex items-center gap-3 pt-1">
           <div className="min-w-0 flex-1">
             <LcdClock powered={powered} />
           </div>
-          <a
-            href="/home"
-            aria-label={t("footer.topAria")}
-            className="flex flex-col items-center gap-0.5 outline-hidden"
-          >
-            <span
-              className="relative flex h-9 w-6 flex-col overflow-hidden rounded-sm"
-              style={{
-                background: "#020b17",
-                border: `1px solid rgba(${ICE},.45)`,
-              }}
-            >
-              <span
-                className="flex flex-1 items-center justify-center font-mono text-[9px] font-bold"
-                style={{
-                  background: powered
-                    ? `linear-gradient(180deg, rgb(${ICE}), rgb(${EDGE}))`
-                    : `rgba(${NAVY},1)`,
-                  color: powered ? `rgb(${DEEP})` : T_DIM,
-                }}
-              >
-                I
-              </span>
-              <span
-                className="flex flex-1 items-center justify-center font-mono text-[9px] font-bold"
-                style={{ color: T_DIM }}
-              >
-                O
-              </span>
-            </span>
-            <span className="font-mono text-[7px] tracking-[.12em] text-[rgba(var(--ft-t),.6)]">
-              {t("footer.top")}
-            </span>
-          </a>
           <div
             ref={fanRef}
             className={`relative shrink-0 ${compact ? "size-15" : "size-19"}`}
@@ -1285,10 +1256,7 @@ function PhoneDeck({
                     color={`rgb(${EDGE})`}
                     delay={powered ? 250 + i * POWER_STEP_MS : 0}
                   />
-                  <Icon className="size-2.75 shrink-0 text-[rgb(var(--ft-t))]" />
-                </span>
-                <span className="ft-plabel whitespace-nowrap font-mono text-[8.5px] tracking-[.02em] text-[rgb(var(--ft-t))]">
-                  {p.label}
+                  <Icon className="ft-plabel size-3.5 shrink-0 text-[rgb(var(--ft-t))]" />
                 </span>
               </a>
             );
@@ -1392,18 +1360,14 @@ function IOShield({ powered }: { powered: boolean }) {
                     />
                   </span>
                 </span>
+                {/* port adı yok: LED + simge yeter (adı aria-label'da) */}
                 <span className="flex items-center gap-1.5">
                   <Led
                     on={powered}
                     color={`rgb(${EDGE})`}
                     delay={powered ? 250 + i * POWER_STEP_MS : 0}
                   />
-                  <span className="whitespace-nowrap font-mono text-[clamp(8px,0.62vw,11px)] tracking-[.08em] text-[rgba(var(--ft-t),.6)]">
-                    {p.spec}
-                  </span>
-                </span>
-                <span className="ft-plabel flex items-center gap-1 whitespace-nowrap font-mono text-[clamp(10px,0.82vw,14px)] tracking-[.02em] text-[rgb(var(--ft-t))] transition">
-                  <Icon className="size-[1.15em] shrink-0" /> {p.label}
+                  <Icon className="ft-plabel size-[clamp(14px,1.1vw,18px)] shrink-0 text-[rgb(var(--ft-t))] transition" />
                 </span>
               </a>
             );
@@ -1642,42 +1606,6 @@ function PSU({
               </svg>
             </div>
 
-            {/* I/O anahtarı = BAŞA DÖN */}
-            <a
-              href="/home"
-              aria-label={t("footer.topAria")}
-              className="group flex flex-col items-center gap-1 outline-hidden"
-            >
-              <span
-                className="relative flex h-11 w-7.5 flex-col overflow-hidden rounded-[5px]"
-                style={{
-                  background: "#020b17",
-                  border: `1px solid rgba(${ICE},.45)`,
-                }}
-              >
-                <span
-                  className="flex flex-1 items-center justify-center font-mono text-[11px] font-bold transition"
-                  style={{
-                    background: powered
-                      ? `linear-gradient(180deg, rgb(${ICE}), rgb(${EDGE}))`
-                      : `rgba(${NAVY},1)`,
-                    color: powered ? `rgb(${DEEP})` : T_DIM,
-                    boxShadow: powered ? `0 0 12px rgba(${EDGE},.9)` : "none",
-                  }}
-                >
-                  I
-                </span>
-                <span
-                  className="flex flex-1 items-center justify-center font-mono text-[11px] font-bold transition group-hover:bg-[#46beff]/25"
-                  style={{ color: T_DIM }}
-                >
-                  O
-                </span>
-              </span>
-              <span className="font-mono text-[8px] tracking-[.16em] text-[rgba(var(--ft-t),.6)] transition group-hover:text-[#ffffff]">
-                {t("footer.top")}
-              </span>
-            </a>
           </div>
         </div>
       </div>
@@ -1851,6 +1779,33 @@ function Screw({
 }
 
 /** Açılış hikâyesini baştan oynatır (ana sayfayı yeniden yükler). */
+/** BAŞA DÖN: ana sayfanın en üstüne (hero) — replay düğmesiyle aynı
+ *  terminal görünümü, yukarı ok üstüne gelince yukarı kayar */
+function BackTop() {
+  const { t } = useLang();
+  return (
+    <a
+      href="/home"
+      aria-label={t("footer.topAria")}
+      className={`group ${CMD_BTN}`}
+    >
+      <span
+        aria-hidden
+        className="inline-block transition-transform duration-300 group-hover:-translate-y-0.5"
+        style={{ color: "#6ef5e8" }}
+      >
+        ↑
+      </span>
+      <span style={{ color: "#5df2a6" }}>cd</span>
+      <span>~ · {t("footer.top").toLocaleLowerCase()}</span>
+    </a>
+  );
+}
+
+/** footer'daki terminal komutu düğmelerinin ortak görünümü */
+const CMD_BTN =
+  "flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-[rgba(70,190,255,.28)] bg-[rgba(6,22,46,.55)] px-3 py-1.5 font-mono text-[12px] text-[#8fdcea] transition-colors hover:border-[#6ef5e8] hover:text-[#c4f7fb] focus-visible:outline-2 focus-visible:outline-[#6ef5e8] sm:text-[13px]";
+
 function ReplayIntro() {
   const { t } = useLang();
   return (
@@ -1863,7 +1818,7 @@ function ReplayIntro() {
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- bilerek tam yükleme
         else window.location.href = "/";
       }}
-      className="group flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-[rgba(70,190,255,.28)] bg-[rgba(6,22,46,.55)] px-2.5 py-1 font-mono text-[11px] text-[#8fdcea] transition-colors hover:border-[#6ef5e8] hover:text-[#c4f7fb] focus-visible:outline-2 focus-visible:outline-[#6ef5e8] sm:text-[12px]"
+      className={`group ${CMD_BTN}`}
       aria-label={t("footer.replayAria")}
     >
       <span

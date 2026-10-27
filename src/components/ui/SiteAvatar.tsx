@@ -122,7 +122,7 @@ const LAND_MS = ms(190); // isme konunca çömelip kalkma
    basıp bir sonrakine sekerek geçer (HeroSection > SocialChip'teki
    data-avatar-hop işaretli cam gövdeler) */
 const TO_SOCIAL_MS = ms(340); // isimden ilk ikona zıplama
-const HOP_AIR_MS = ms(150); // ikondan ikona havada geçen süre
+const HOP_AIR_MS = ms(300); // ilk ikondan son ikona TEK zıplayış (uzun yol)
 const HOP_SQUAT_MS = ms(45); // her ikona basma (ayak değme) süresi
 const HOP_HEIGHT = 26; // ikonlar arası sekme yüksekliği (px)
 const EXIT_MS = ms(450); // ekranın en solundan aşağı atlayıp çıkış
@@ -656,8 +656,9 @@ export default function SiteAvatar({
       end = { x: vw * 0.6, y: vh * 0.45 };
     }
     const nowX = vw / 2 - CONN_X + W / 2;
-    /* asılacağı yetenek satırı (HeroSection: data-avatar-skills) */
-    const hang = measureHang(end.y, end.x);
+    /* asılacağı yetenek satırı (HeroSection: data-avatar-skills):
+       isme kondığı yerin hemen altında (isimde koşmaz) */
+    const hang = measureHang(land.y, land.x);
     /* ölçüm sonucu bir sonraki karede state'e yazılır */
     const raf = requestAnimationFrame(() =>
       setSpots({ land, end, jumpLeft: land.x < nowX - 8, hang }),
@@ -668,9 +669,11 @@ export default function SiteAvatar({
   /* İsmin üstünde koşarken yetenek satırını yeniden ölç: yazı artık
      tamamen yazılmış, satırın gerçek başı belli */
   useEffect(() => {
-    if (stage !== "onName") return;
+    if (stage !== "land") return;
     const raf = requestAnimationFrame(() =>
-      setSpots((sp) => (sp ? { ...sp, hang: measureHang(sp.end.y, sp.end.x) } : sp)),
+      setSpots((sp) =>
+        sp ? { ...sp, hang: measureHang(sp.land.y, sp.land.x) } : sp,
+      ),
     );
     return () => cancelAnimationFrame(raf);
   }, [stage]);
@@ -802,9 +805,12 @@ export default function SiteAvatar({
         return { x: r.left + r.width / 2, y: r.top + 1 };
       })
       .filter((p) => p.x > 0 && p.x < window.innerWidth)
-      .sort((a, b) => b.x - a.x); // sağdan sola: Instagram → LinkedIn
+      .sort((a, b) => a.x - b.x); // soldan sağa: LinkedIn → WhatsApp
+    /* yalnızca İLK ve SON ikon: baştakinden sondakine tek zıplayış
+       (her ikona sekmek göz yoruyordu) */
+    const two = pts.length > 1 ? [pts[0], pts[pts.length - 1]] : pts;
     const raf = requestAnimationFrame(() => {
-      setHops(pts);
+      setHops(two);
       setHopIdx(0);
       setSquat(false);
     });
@@ -821,9 +827,9 @@ export default function SiteAvatar({
       const el = document.querySelectorAll<HTMLElement>("[data-avatar-hop]");
       const sorted = Array.from(el).sort(
         (a, b) =>
-          b.getBoundingClientRect().left - a.getBoundingClientRect().left,
+          a.getBoundingClientRect().left - b.getBoundingClientRect().left,
       );
-      pressChip(sorted[hopIdx]);
+      pressChip(sorted[hopIdx === 0 ? 0 : sorted.length - 1]);
     }, air);
     const t2 = setTimeout(() => {
       setSquat(false);
@@ -844,11 +850,12 @@ export default function SiteAvatar({
   }, [stage, isActive]);
   useEffect(() => {
     if (!isActive || stage !== "social" || !hops.length) return;
-    /* sekme sağdan sola: k. sekme = soldan (n-1-k). ikon */
+    /* soldan sağa, yalnızca ilk ve son ikon */
+    const total = document.querySelectorAll("[data-avatar-hop]").length;
     emitAvatar({
       type: "hop",
-      chip: hops.length - 1 - hopIdx,
-      total: hops.length,
+      chip: hopIdx === 0 ? 0 : total - 1,
+      total,
     });
   }, [stage, hopIdx, hops.length, isActive]);
 
@@ -926,7 +933,6 @@ export default function SiteAvatar({
       plugged: ["prejump", PLUG_MS],
       prejump: ["jump", PREJUMP_MS],
       jump: ["land", JUMP_MS],
-      land: ["onName", LAND_MS],
       toFloor: ["toLeft", TO_FLOOR_MS],
       toLeft: [hops.length ? "pinch" : "descending", floorRunMs],
       pinch: ["descending", PINCH_MS],
@@ -938,6 +944,9 @@ export default function SiteAvatar({
     /* İsimden sonra: ikon varsa onlara, yoksa eskisi gibi sol alta */
     const afterName: Stage = hops.length ? "social" : "descending";
     next.onName = [hasHang ? "toHang" : afterName, NAME_RUN_MS];
+    /* isme konar ve hemen alttaki satıra asılır (ismin üstünde
+       koşmaz: daha az hareket, göz yormaz) */
+    next.land = [hasHang ? "toHang" : afterName, LAND_MS];
     next.toHang = ["hang", TO_HANG_MS];
     next.hang = [afterName, HANG_MS];
     if (!isActive) return;
