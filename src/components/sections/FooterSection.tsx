@@ -162,7 +162,7 @@ const POWER_STEP_MS = 110; // LED'lerin sırayla yanma aralığı
 /* ---- panel: diğer sayfalardaki cam panelle aynı ---- */
 const PANEL_GAP = 12; // panelin zemin kenarlarına uzaklığı (px)
 /** port kutusu, menü yuvaları ve güç kaynağı kutusunun ORTAK yüksekliği (px) */
-const BOX_H = 184;
+const BOX_H = 204; // PSU'da saat + sosyal portlar arasında boşluk kalsın (eskiden 184)
 /** üst kenarın arka plana karışma yüksekliği (px) */
 const TOP_FADE = 90;
 const PANEL_INSET = {
@@ -1199,7 +1199,7 @@ function PhoneDeck({
         </span>
       </div>
       <div
-        className={`relative flex flex-col rounded-xl ${compact ? "gap-2 p-2.5" : "gap-3 p-3"}`}
+        className={`relative flex flex-col rounded-xl ${compact ? "gap-3 p-2.5" : "gap-4 p-3"}`}
         style={metal(8)}
       >
         {[
@@ -1525,7 +1525,8 @@ function PSU({
         </div>
 
         {/* KONTROLLER */}
-        <div className="flex h-full min-w-0 flex-1 flex-col justify-around">
+        {/* saat ve portlar arasında açık boşluk (birbirine değmesin) */}
+        <div className="flex h-full min-w-0 flex-1 flex-col justify-center gap-4">
           <LcdClock powered={powered} />
 
           {/* sosyal portlar (eskiden ayrı I/O kutusundaydı) */}

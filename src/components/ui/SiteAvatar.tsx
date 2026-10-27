@@ -129,7 +129,7 @@ const EXIT_MS = ms(450); // ekranın en solundan aşağı atlayıp çıkış
 /* SONDA: en solda durur, burnunu tutar ve suya atlar gibi aşağıdaki
    roadmap sayfasına zıplar (footer'daki ile aynı görsel) */
 const PINCH_IMG = "/images/zeynep-burun.webp";
-const PINCH_MS = ms(130); // atlamadan önce kısa çömelme (eskiden burnunu tutup bekliyordu)
+const PINCH_MS = ms(150); // burnunu tutar ve havaya çok az sıçrar (eskiden uzun bekliyordu)
 const PINCH_H = 58; // ayakta boyu (px)
 const PINCH_W = Math.round((PINCH_H * 223) / 720);
 /* İSİMDEN SONRA: isimden aşağı düşer, alttaki yetenek satırının
@@ -431,6 +431,13 @@ const AVATAR_CSS = `
           60%  { transform: scale(.97, 1.05); }
           100% { transform: none; }
         }
+        /* burnunu tutarken havaya ÇOK AZ sıçrar: atlayacağının belirtisi */
+        @keyframes avPinchHop {
+          0%   { transform: scale(1.04, .92); }
+          30%  { transform: translateY(-9px) scale(.98, 1.04); }
+          60%  { transform: translateY(0) scale(1.03, .95); }
+          100% { transform: none; }
+        }
         @keyframes avCrouch {
           0%   { transform: scale(1, 1); }
           70%  { transform: scale(1.08, .8); }
@@ -678,7 +685,7 @@ export default function SiteAvatar({
   /* İsmin üstünde koşarken yetenek satırını yeniden ölç: yazı artık
      tamamen yazılmış, satırın gerçek başı belli */
   useEffect(() => {
-    if (stage !== "land") return;
+    if (stage !== "prejump") return;
     const raf = requestAnimationFrame(() =>
       setSpots((sp) =>
         sp ? { ...sp, hang: measureHang(sp.land.y, sp.land.x, "name") } : sp,
@@ -802,9 +809,9 @@ export default function SiteAvatar({
     [],
   );
 
-  /* İsme konunca sosyal ikonların yerini ölç (sağdan sola) */
+  /* İsme atlarken sosyal ikonların yerini ölç (sağdan sola) */
   useEffect(() => {
-    if (stage !== "land") return;
+    if (stage !== "jump") return;
     const els = Array.from(
       document.querySelectorAll<HTMLElement>("[data-avatar-hop]"),
     );
@@ -956,6 +963,9 @@ export default function SiteAvatar({
     /* isme konar ve hemen alttaki satıra asılır (ismin üstünde
        koşmaz: daha az hareket, göz yormaz) */
     next.land = [hasHang ? "toHang" : afterName, LAND_MS];
+    /* İLK ATLAYIŞTA asılır: porttan doğrudan ismin harflerine tutunur
+       (önce isme konup sonra yandan gelip asılmaz) */
+    if (hasHang) next.jump = ["hang", JUMP_MS];
     next.toHang = ["hang", TO_HANG_MS];
     next.hang = [afterName, HANG_MS];
     if (!isActive) return;
@@ -1114,6 +1124,8 @@ export default function SiteAvatar({
           stage === "prejump" ||
           ((stage === "jump" || stage === "land") && !spots)
         ? { left: PORT_ROOT_LEFT_EDGE, top: edgeTop }
+        : stage === "jump" && spots?.hang
+          ? at(spots.hang)
         : (stage === "jump" || stage === "land") && spots
           ? at(spots.land)
           : stage === "onName" && spots
@@ -1226,12 +1238,7 @@ export default function SiteAvatar({
     (stage === "social" && !squat);
   /* Kenarda zıplamaya hazırlanırken ve isme konunca fotoğraf pozu
      (ikonlarda eğilmez, koşar adım basıp geçer) */
-  /* roadmap'e atlamadan önce de (pinch aşaması): burnunu tutup beklemek
-     yerine kısa bir çömelme — "atlayacak" belirtisi */
-  const crouching =
-    stage === "prejump" ||
-    stage === "land" ||
-    (hops.length > 0 && stage === "pinch");
+  const crouching = stage === "prejump" || stage === "land";
   /* Hızlı hareket anları: hız izi görünür */
   const fast =
     (stage === "toPort" && !atPort) ||
@@ -1244,7 +1251,8 @@ export default function SiteAvatar({
   /* burnunu tutup suya atlar gibi (roadmap'teki nehrin başına düşerken
      de bu poz) */
   const pinching =
-    stage === "descending" && (hops.length > 0 || !!chaseFrom);
+    (hops.length > 0 && stage === "pinch") ||
+    (stage === "descending" && (hops.length > 0 || !!chaseFrom));
   /* yetenek satırına asılı (elleri satırda) */
   const hanging = stage === "hang" || (stage === "toHang" && !!spots?.hang);
   /* Konma anları: ayak altında ışık halkası */
@@ -1719,7 +1727,10 @@ export default function SiteAvatar({
                       left: (W - PINCH_W) / 2,
                       top: H - PINCH_H,
                       transformOrigin: "50% 100%",
-                      animation: `avPinch ${PINCH_MS}ms ease-out both`,
+                      animation:
+                        stage === "pinch"
+                          ? `avPinchHop ${PINCH_MS}ms ease-out both`
+                          : `avPinch ${PINCH_MS}ms ease-out both`,
                     }}
                   />
                 )}
