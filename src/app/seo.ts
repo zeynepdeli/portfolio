@@ -13,10 +13,10 @@ export const NAME = "Zeynep Deli";
 /** aramada Türkçe karakterli ve karaktersiz yazılış ikisi de bulunsun */
 export const NAME_TR = "Zeynep DELİ";
 
-export const SITE_TITLE = `${NAME_TR} | Full Stack Developer — React, Next.js, React Native`;
+export const SITE_TITLE = `${NAME_TR} | Full Stack Web & Mobile Developer — React, Next.js, React Native`;
 
 export const SITE_DESCRIPTION =
-  "Zeynep Deli — İstanbul'da Full Stack Developer / Yazılım Geliştirici. React, Next.js, React Native, Node.js ve TypeScript ile modern, hızlı ve SEO uyumlu web ve mobil uygulamalar geliştiriyorum. Projelerim, yeteneklerim ve özgeçmişim.";
+  "Zeynep Deli — İstanbul'da Full Stack Web ve Mobil Uygulama Geliştirici (Web & Mobile Developer). React, Next.js, React Native, Node.js ve TypeScript ile modern, hızlı ve SEO uyumlu web siteleri, web uygulamaları ve iOS / Android mobil uygulamalar geliştiriyorum. Projelerim, yeteneklerim ve özgeçmişim.";
 
 export const KEYWORDS = [
   "Zeynep Deli",
@@ -31,7 +31,19 @@ export const KEYWORDS = [
   "Frontend Geliştirici",
   "Web Developer",
   "Web Geliştirici",
+  "Web & Mobile Developer",
+  "Web ve Mobil Geliştirici",
+  "Web ve Mobil Uygulama Geliştirici",
+  "Mobile Developer",
+  "Mobile App Developer",
+  "Mobil Geliştirici",
   "Mobil Uygulama Geliştirici",
+  "Mobil Yazılım Geliştirici",
+  "iOS ve Android uygulama geliştirme",
+  "Cross-platform mobil uygulama",
+  "Expo",
+  "Web uygulaması geliştirme",
+  "Web sitesi yapımı",
   "React Developer",
   "Next.js Developer",
   "React Native Developer",
@@ -67,7 +79,7 @@ export const PERSON_JSON_LD = {
   url: SITE_URL,
   image: `${SITE_URL}/icon.png`,
   email: `mailto:${EMAIL}`,
-  jobTitle: "Full Stack Developer",
+  jobTitle: "Full Stack Web & Mobile Developer",
   description: SITE_DESCRIPTION,
   address: {
     "@type": "PostalAddress",
@@ -85,6 +97,8 @@ export const PERSON_JSON_LD = {
     "REST API",
     "Web Development",
     "Mobile App Development",
+    "iOS Development",
+    "Android Development",
   ],
   sameAs: [LINKEDIN, GITHUB].filter(Boolean),
 };

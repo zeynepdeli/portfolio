@@ -4,7 +4,7 @@ import SiteFlow from "@/components/SiteFlow";
 export const metadata: Metadata = {
   title: "Projeler — Web ve Mobil Uygulamalar",
   description:
-    "Zeynep Deli'nin geliştirdiği web ve mobil uygulama projeleri: React, Next.js, React Native ve Node.js ile yapılmış işler.",
+    "Zeynep Deli'nin geliştirdiği web siteleri, web uygulamaları ve iOS / Android mobil uygulama projeleri: React, Next.js, React Native ve Node.js ile yapılmış işler.",
   alternates: { canonical: "/projects" },
 };
 
