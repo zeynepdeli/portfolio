@@ -7,7 +7,7 @@ import SiteMenu from "@/components/layout/SiteMenu";
 export const metadata: Metadata = {
   title: "Özgeçmiş (CV) — Türkçe ve İngilizce",
   description:
-    "Zeynep Deli — Full Stack Developer özgeçmişi (CV). Türkçe ve İngilizce PDF olarak görüntüleyin ve indirin.",
+    "Zeynep Deli — Full Stack Web & Mobile Developer özgeçmişi (CV). Türkçe ve İngilizce PDF olarak görüntüleyin ve indirin.",
   alternates: { canonical: "/documents" },
 };
 

@@ -4,7 +4,7 @@ import SiteFlow from "@/components/SiteFlow";
 export const metadata: Metadata = {
   title: "Yetenekler — React, Next.js, React Native, Node.js",
   description:
-    "Zeynep Deli'nin teknik yetenekleri: React, Next.js, React Native, Node.js, TypeScript, Tailwind CSS, REST API, veritabanları ve geliştirme araçları.",
+    "Zeynep Deli'nin web ve mobil geliştirme yetenekleri: React, Next.js, React Native, Node.js, TypeScript, Tailwind CSS, REST API, veritabanları ve geliştirme araçları.",
   alternates: { canonical: "/roadmap" },
 };
 
