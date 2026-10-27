@@ -3,7 +3,6 @@ import { Geist, Geist_Mono, Chakra_Petch } from "next/font/google";
 import { ThemeStyles } from "@/components/ui/Theme";
 import "./globals.css";
 import { LangProvider } from "@/i18n/lang";
-import LangSwitch from "@/components/ui/LangSwitch";
 import { ENGINE_SCRIPT } from "@/components/ui/perfTier";
 
 const geistSans = Geist({
@@ -47,11 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* RENK PALETİ (Theme.tsx → PALETTE): layout'ta olduğu için
             "/", "/home", "/projects", "/roadmap" — tüm sayfalarda geçerli */}
         <ThemeStyles />
-        <LangProvider>
-          {children}
-          {/* dil anahtarı (TR / EN): her sayfada sağ üst köşede, aynı yerde */}
-          <LangSwitch />
-        </LangProvider>
+        <LangProvider>{children}</LangProvider>
       </body>
     </html>
   );

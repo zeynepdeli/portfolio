@@ -72,7 +72,7 @@ const FLIP_ON_LEFT = false;
 /** Hız (ekran px / sn) */
 /* YOL HARİTASI HIZI — 1 = eski hız; büyüdükçe kayma, yetenek toplama,
    ışık topu ve panelin yanması aynı oranda YAVAŞLAR */
-const RM_SLOW = 3; // eskiden 2.4
+const RM_SLOW = 4; // eskiden 3: nehirde kayış ~%35 daha yavaş
 const WALK_SPEED = 1150 / RM_SLOW / 1.25; // avatar ayrıca %25 daha yavaş kayar
 /** Her yetenekte eğilip alma süresi (ms) — kısa ve tok */
 /* EKRANA DÖNÜK POZ — nehir aşağı (izleyiciye doğru) aktığı kıvrımlarda
@@ -94,7 +94,7 @@ const FRONT_INTRO_UNTIL = 8 * STEPS;
     panel yanmış haldeyken sayfa sakin biter */
 /** yetenekler paneli tamamen açılıp liste görününce sayfa bu kadar
  *  bekler, sonra projelere geçer (ms) */
-const END_HOLD_MS = 1600;
+const END_HOLD_MS = 2600; // eskiden 1600: toplanan yetenekler daha uzun görünür
 /** Alırken saçılan altın kıvılcımlar */
 
 const PICK_SPARKS: [number, number][] = [

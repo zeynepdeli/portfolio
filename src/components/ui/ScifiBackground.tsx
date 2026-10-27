@@ -3,6 +3,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { isPerfLite } from "./perfTier";
 import { usePerfLite } from "./usePerfLite";
+import { useLang } from "@/i18n/lang";
 import type { CSSProperties, ReactNode } from "react";
 
 type PanelInset = {
@@ -842,9 +843,11 @@ function TopConnector({ plugged = false }: { plugged?: boolean }) {
      ölçüde (≈32×8, panel kenarının 2px altında) — SiteAvatar'daki
      SLOT_W / SLOT_TOP / SLOT_H ile birlikte değiştir. */
   return (
+    <>
     <div
       data-part="connector"
-      className="pointer-events-none absolute top-0 left-1/2 z-30 h-5.5 w-24 -translate-x-1/2"
+      className="pointer-events-none absolute top-0 left-1/2 z-30 h-5.5 -translate-x-1/2"
+      style={{ width: BRACKET_W }}
       aria-hidden
     >
       {/* braket */}
@@ -862,12 +865,12 @@ function TopConnector({ plugged = false }: { plugged?: boolean }) {
         }}
       />
       {/* braket vidaları */}
-      {[11, 85].map((x) => (
+      {["l", "r"].map((side) => (
         <span
-          key={x}
+          key={side}
           className="absolute block rounded-full"
           style={{
-            left: x - 4,
+            [side === "l" ? "left" : "right"]: 5,
             top: 7,
             width: 8,
             height: 8,
@@ -929,7 +932,7 @@ function TopConnector({ plugged = false }: { plugged?: boolean }) {
       <span
         className="absolute block rounded-full"
         style={{
-          left: 46,
+          left: "calc(50% - 2px)",
           top: 15,
           width: 4,
           height: 4,
@@ -942,6 +945,123 @@ function TopConnector({ plugged = false }: { plugged?: boolean }) {
         }}
       />
     </div>
+    {/* DİL SEÇİMİ: soket braketinin iki yanında ışıklı TR · EN */}
+    <BracketLang />
+    </>
+  );
+}
+
+/** Soket braketinin genişliği: ortada soket ağzı, iki yanda TR / EN.
+ *  Dar telefonda daralır (sol üstteki menü düğmesine / sağdaki
+ *  lambalara değmesin) */
+const BRACKET_W = "clamp(112px, calc(100vw - 248px), 136px)";
+
+/* =========================================================
+   DİL SEÇİMİ — güç soketinin braketine basılı TR · EN
+   Ayrı bir parça yok: braketin sol yanında TR, sağ yanında EN yazar;
+   seçili dil turkuaz yanar (yanında küçük LED), öteki sönük. Dokunma
+   alanı yazıdan büyük (parmakla rahat basılsın). Her sayfanın üst
+   ortasında aynı yerde (footer'da soket yok).
+========================================================= */
+function BracketLang() {
+  const { lang } = useLang();
+  /* yalnızca GÖRÜNÜM: tıklama ekrana sabit LangHotspots'ta (bölüm
+     katmanlarının üstünde) yakalanır */
+  const item = (code: "tr" | "en", side: "l" | "r") => {
+    const on = lang === code;
+    return (
+      <span
+        key={code}
+        className="absolute flex items-center gap-[3px] font-mono font-bold leading-none"
+        style={{
+          top: 7,
+          /* soket ağzıyla vida arasının ortası */
+          [side === "l" ? "left" : "right"]: "calc(25% - 13px)",
+          fontSize: 8.5,
+          letterSpacing: ".06em",
+          color: on
+            ? "rgb(var(--c-a8eef6,168,238,246))"
+            : "rgba(var(--c-a8eef6,168,238,246),.38)",
+          textShadow: on
+            ? "0 0 6px rgba(var(--c-a8eef6,168,238,246),.85)"
+            : "none",
+          transition: "color .3s ease, text-shadow .3s ease",
+        }}
+      >
+        {side === "r" && <Led on={on} />}
+        {code.toUpperCase()}
+        {side === "l" && <Led on={on} />}
+      </span>
+    );
+  };
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute top-0 left-1/2 z-30 -translate-x-1/2"
+      style={{ width: BRACKET_W, height: 22 }}
+    >
+      {item("tr", "l")}
+      {item("en", "r")}
+    </div>
+  );
+}
+
+/** Soket braketindeki TR · EN için görünmez, ekrana sabit dokunma
+ *  alanları (SiteFlow kullanır): soket her bölümde üst ortada; ana
+ *  sayfada biraz daha aşağıda (y≈34), diğerlerinde y≈13 — alan ikisini
+ *  de kapsar. Ortadaki soket ağzının üstü boş bırakılır. */
+export function LangHotspots() {
+  const { lang, setLang, t } = useLang();
+  const zone = (code: "tr" | "en") => (
+    <button
+      key={code}
+      type="button"
+      role="radio"
+      aria-checked={lang === code}
+      aria-label={code === "tr" ? "Türkçe" : "English"}
+      onClick={() => setLang(code)}
+      className="absolute top-0 h-full cursor-pointer rounded-b-md outline-hidden focus-visible:ring-1 focus-visible:ring-[rgb(var(--c-a8eef6,168,238,246))]"
+      style={{
+        width: 52,
+        [code === "tr" ? "right" : "left"]: "calc(50% + 12px)",
+        background: "none",
+        border: 0,
+        padding: 0,
+        WebkitTapHighlightColor: "transparent",
+      }}
+    />
+  );
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t("lang.label")}
+      className="fixed inset-x-0 top-0 z-95"
+      style={{ height: 52, pointerEvents: "none" }}
+    >
+      <style>{`.lang-hot > button { pointer-events: auto; }`}</style>
+      <div className="lang-hot absolute inset-0">
+        {zone("tr")}
+        {zone("en")}
+      </div>
+    </div>
+  );
+}
+
+function Led({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className="block rounded-full"
+      style={{
+        width: 4,
+        height: 4,
+        background: on
+          ? "rgb(var(--c-6ef5e8,110,245,232))"
+          : "rgba(var(--c-6ef5e8,110,245,232),.2)",
+        boxShadow: on ? "0 0 5px rgb(var(--c-6ef5e8,110,245,232))" : "none",
+        transition: "background .3s ease, box-shadow .3s ease",
+      }}
+    />
   );
 }
 

@@ -134,7 +134,7 @@ const CLIMB_ASPECT = 486 / 420; // video oranı
 const CLIMB_LEDGE = 0.86; // videoda kenar çizgisi (sonda, diz çökünce)
 const CLIMB_GRIP = 0.74; // başta ellerin tutunduğu kenar
 const CLIMB_K = 0.8; // tırmanma kutusu boyu (avatar boyuna oran)
-const CLIMB_RATE = 2.8; // video oynatma hızı (eskiden 3.4: daha sakin)
+const CLIMB_RATE = 2.1; // video oynatma hızı (eskiden 2.8: daha sakin)
 const CLIMB_MS = Math.round(5000 / CLIMB_RATE);
 /** video yüklenemezse / bitmezse en geç bu süre sonra devam et */
 const CLIMB_FALLBACK_MS = CLIMB_MS + 1200;
@@ -146,12 +146,12 @@ const JUMP_K = 0.95; // boyu (avatar boyuna oran)
 const JUMP_FEET = 0.997; // görselde ayak tabanı (yüksekliğe oran)
 /** suya girerken boyunun ne kadarı suya batar (oran) */
 const JUMP_SINK = 0.3;
-const FALL_MS = 1250; // üst kenardan nehre düşüş (eskiden 950)
+const FALL_MS = 1700; // üst kenardan nehre düşüş (eskiden 1250)
 const HOP_UP = 34; // kenardan kalkarken küçük sıçrama (px)
 /** üst kenar: zemine karışan bölümün ortasında, panelin belirdiği yer
     (topFade'e oran) */
 const EDGE_IN_FADE = 0.55;
-const SPLASH_MS = 650; // suya değip toparlanma
+const SPLASH_MS = 850; // suya değip toparlanma (eskiden 650)
 
 /* ---- 0-1 nehri ---- */
 const RIVER_H = 120;
@@ -577,7 +577,8 @@ export default function FooterSection({
           className={`relative z-10 flex flex-col overflow-y-auto px-4 sm:gap-6 sm:px-8 sm:pb-1 sm:pt-24 lg:px-12 xl:overflow-visible xl:pb-1 xl:pt-28 ${short ? "gap-3.5 pb-4 pt-8" : "gap-6 pb-5 pt-12"}`}
           style={scrollerStyle}
         >
-          {/* ÜST: söz + e-posta */}
+          {/* ÜST: söz (+ geniş ekranda terminal satırı) + baştan izle.
+              E-posta satırı yok: alttaki E-mail portu aynı işi görüyor. */}
           <div className="flex flex-col gap-x-10 gap-y-3 lg:flex-row lg:items-end lg:justify-between">
             <div data-ft-in className="flex flex-col gap-2.5" style={ftI(0)}>
               <h2
@@ -594,8 +595,10 @@ export default function FooterSection({
                   {t("footer.line2")}
                 </span>
               </h2>
-              {/* terminalde yazılıyormuş gibi: sistem enerjilenince yazılır */}
-              <p className="flex items-center whitespace-nowrap font-mono text-[11px] text-[#8fdcea] sm:text-[12px]">
+              {/* terminalde yazılıyormuş gibi: sistem enerjilenince yazılır.
+                  Telefonda gizli (üst kısım kalabalık görünüyordu, satır
+                  dar ekrana sığmıyordu) */}
+              <p className="hidden items-center whitespace-nowrap sm:flex font-mono text-[11px] text-[#8fdcea] sm:text-[12px]">
                 <span style={{ color: "#5df2a6" }}>~/zeynep</span>
                 <span className="mx-1.5" style={{ color: `rgb(${EDGE})` }}>
                   $
@@ -628,9 +631,6 @@ export default function FooterSection({
               <div className="flex flex-wrap items-center gap-2.5">
                 <ReplayIntro />
               </div>
-            </div>
-            <div data-ft-in style={ftI(1)}>
-              <EmailCopy />
             </div>
           </div>
 
@@ -1176,65 +1176,170 @@ function Led({
 }
 
 /* =========================================================
-   TELEFON KUTUSU — sade: yalnızca sosyal portlar, tek sıra, vidalı
-   metal kutuda. (Saat, fan, BAŞA DÖN ve menü yuvaları telefonda yok:
-   ekran kalabalıklaşıyordu; menü zaten sol üstteki düğmede.)
+   TELEFON KUTUSU — web'deki üç kutunun hepsi tek bir güç kaynağı
+   kutusunda, küçültülmüş: üstte saat + fan, ortada sosyal portlar,
+   altta menü yuvaları ve BAŞA DÖN anahtarı.
 ========================================================= */
 function PhoneDeck({
   powered,
+  fanRef,
   compact = false,
 }: {
   powered: boolean;
+  fanRef?: Ref<HTMLDivElement>;
   /** kısa ekran: daha sık yerleşim */
   compact?: boolean;
 }) {
+  const { t } = useLang();
   return (
-    <div
-      className={`relative rounded-xl ${compact ? "p-2" : "p-2.5"}`}
-      style={metal(8)}
-    >
-      {[
-        "left-1.5 top-1.5",
-        "right-1.5 top-1.5",
-        "left-1.5 bottom-1.5",
-        "right-1.5 bottom-1.5",
-      ].map((c) => (
-        <Screw key={c} small className={`absolute ${c}`} />
-      ))}
-
-      {/* sosyal portlar: tek sıra */}
+    <div className="relative flex flex-col">
+      <div className="mb-1.5 flex h-4 items-center justify-between font-mono text-[9px] tracking-[.22em] text-[rgba(var(--ft-t),.6)]">
+        <span>PSU · I/O · SLOTS</span>
+        <span className="flex items-center gap-1.5">
+          <Led on={powered} color="#5df2a6" blink />
+          {powered ? "LINK UP" : "NO SIGNAL"}
+        </span>
+      </div>
       <div
-        className={`grid grid-cols-5 gap-1 rounded-lg px-1 ${compact ? "py-2" : "py-3"}`}
-        style={{ background: "rgba(2,11,23,.45)" }}
+        className={`relative flex flex-col rounded-xl ${compact ? "gap-2 p-2.5" : "gap-3 p-3"}`}
+        style={metal(8)}
       >
-        {PORTS.map((p, i) => {
-          const Icon = p.icon;
-          return (
-            <a
-              key={p.label}
-              {...linkProps(p.href)}
-              aria-label={p.label}
-              className="ft-port flex flex-col items-center gap-1.5 outline-hidden"
+        {[
+          "left-1.5 top-1.5",
+          "right-1.5 top-1.5",
+          "left-1.5 bottom-1.5",
+          "right-1.5 bottom-1.5",
+        ].map((c) => (
+          <Screw key={c} small className={`absolute ${c}`} />
+        ))}
+
+        {/* saat + BAŞA DÖN + fan */}
+        <div className="flex items-center gap-3 pt-1">
+          <div className="min-w-0 flex-1">
+            <LcdClock powered={powered} />
+          </div>
+          <a
+            href="/home"
+            aria-label={t("footer.topAria")}
+            className="flex flex-col items-center gap-0.5 outline-hidden"
+          >
+            <span
+              className="relative flex h-9 w-6 flex-col overflow-hidden rounded-sm"
+              style={{
+                background: "#020b17",
+                border: `1px solid rgba(${ICE},.45)`,
+              }}
             >
-              <span className="ft-hole flex h-6 items-center justify-center">
-                <span className="origin-center scale-[.7]">
-                  <PortShape kind={p.kind} />
+              <span
+                className="flex flex-1 items-center justify-center font-mono text-[9px] font-bold"
+                style={{
+                  background: powered
+                    ? `linear-gradient(180deg, rgb(${ICE}), rgb(${EDGE}))`
+                    : `rgba(${NAVY},1)`,
+                  color: powered ? `rgb(${DEEP})` : T_DIM,
+                }}
+              >
+                I
+              </span>
+              <span
+                className="flex flex-1 items-center justify-center font-mono text-[9px] font-bold"
+                style={{ color: T_DIM }}
+              >
+                O
+              </span>
+            </span>
+            <span className="font-mono text-[7px] tracking-[.12em] text-[rgba(var(--ft-t),.6)]">
+              {t("footer.top")}
+            </span>
+          </a>
+          <div
+            ref={fanRef}
+            className={`relative shrink-0 ${compact ? "size-15" : "size-19"}`}
+          >
+            <Fan powered={powered} />
+          </div>
+        </div>
+
+        {/* sosyal portlar: tek sıra, küçük */}
+        <div
+          className="grid grid-cols-5 gap-1 rounded-lg px-1 py-2"
+          style={{ background: "rgba(2,11,23,.45)" }}
+        >
+          {PORTS.map((p, i) => {
+            const Icon = p.icon;
+            return (
+              <a
+                key={p.label}
+                {...linkProps(p.href)}
+                aria-label={p.label}
+                className="ft-port flex flex-col items-center gap-1 outline-hidden"
+              >
+                <span className="ft-hole flex h-6 items-center justify-center">
+                  <span className="origin-center scale-[.62]">
+                    <PortShape kind={p.kind} />
+                  </span>
                 </span>
-              </span>
-              <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1">
+                  <Led
+                    on={powered}
+                    color={`rgb(${EDGE})`}
+                    delay={powered ? 250 + i * POWER_STEP_MS : 0}
+                  />
+                  <Icon className="size-2.75 shrink-0 text-[rgb(var(--ft-t))]" />
+                </span>
+                <span className="ft-plabel whitespace-nowrap font-mono text-[8.5px] tracking-[.02em] text-[rgb(var(--ft-t))]">
+                  {p.label}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+
+        {/* menü yuvaları: 2×2, küçük */}
+        <nav className="grid grid-cols-2 gap-1.5" aria-label="Footer">
+          {SLOTS.map((sl, i) => {
+            const cls =
+              "ft-slot relative flex h-7.5 items-center gap-2 rounded-md px-2 outline-hidden";
+            const style: CSSProperties = {
+              ...metal(sl.href ? 4 : -2),
+              color: sl.href ? T_HI : `rgba(${TURQ},.35)`,
+            };
+            const inner = (
+              <>
                 <Led
-                  on={powered}
+                  on={powered && !!sl.href}
                   color={`rgb(${EDGE})`}
-                  delay={powered ? 250 + i * POWER_STEP_MS : 0}
+                  delay={powered ? 250 + (PORTS.length + i) * POWER_STEP_MS : 0}
                 />
-                <Icon className="size-3 shrink-0 text-[rgb(var(--ft-t))]" />
+                <span className="flex-1 text-right font-mono text-[9.5px] tracking-[.16em]">
+                  {t(sl.label)}
+                </span>
+                <span
+                  aria-hidden
+                  className="ft-slot-glow pointer-events-none absolute inset-0 rounded-md opacity-0 transition-opacity duration-300"
+                  style={{
+                    boxShadow: `inset 3px 0 0 ${T_HI}, 0 0 12px rgba(${TURQ},.35)`,
+                    background: `linear-gradient(90deg, rgba(${TURQ},.2), transparent 70%)`,
+                  }}
+                />
+              </>
+            );
+            return sl.href ? (
+              <a key={sl.label} href={sl.href} className={cls} style={style}>
+                {inner}
+              </a>
+            ) : (
+              <span
+                key={sl.label}
+                className={cls}
+                style={style}
+                title={t("footer.soon")}
+              >
+                {inner}
               </span>
-              <span className="ft-plabel whitespace-nowrap font-mono text-[9px] tracking-[.02em] text-[rgb(var(--ft-t))]">
-                {p.label}
-              </span>
-            </a>
-          );
-        })}
+            );
+          })}
+        </nav>
       </div>
     </div>
   );
@@ -1771,43 +1876,5 @@ function ReplayIntro() {
       <span style={{ color: "#5df2a6" }}>{t("footer.replayCmd")}</span>
       <span>{t("footer.replayArg")}</span>
     </button>
-  );
-}
-
-function EmailCopy() {
-  const { t } = useLang();
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(EMAIL);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      window.location.href = `mailto:${EMAIL}`;
-    }
-  };
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <a
-        href={`mailto:${EMAIL}`}
-        className="font-mono text-[clamp(15px,1.5vw,20px)] text-[rgb(var(--ft-t))] underline decoration-[rgba(var(--ft-t),.5)] decoration-1 underline-offset-6 transition hover:decoration-[rgb(var(--ft-t))]"
-      >
-        {EMAIL}
-      </a>
-      <button
-        type="button"
-        onClick={copy}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 font-mono text-[11px] font-bold tracking-[.16em] transition hover:-translate-y-0.5 hover:brightness-110"
-        style={{
-          color: `rgb(${DEEP})`,
-          background: `linear-gradient(135deg, #eefcff, ${T_HI} 55%, rgba(${TURQ},.85))`,
-          border: `1px solid rgba(${TURQ},.9)`,
-          boxShadow: `0 0 16px rgba(${TURQ},.4), inset 0 1px 0 rgba(255,255,255,.45)`,
-        }}
-      >
-        {copied ? <FaCheck /> : <FaRegCopy />}
-        {copied ? t("footer.copied") : t("footer.copy")}
-      </button>
-    </div>
   );
 }

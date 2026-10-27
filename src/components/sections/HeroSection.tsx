@@ -127,7 +127,7 @@ const CHIP_BACK_OPACITY = 0.55;
 
 /** Avatar bir sebeple gelmezse (video yüklenmedi vb.) giriş yine de
  *  tamamlansın diye en geç bu süre sonra her şey açılır (ms) */
-const AVATAR_FALLBACK_MS = 19500;
+const AVATAR_FALLBACK_MS = 32000; // açılış + avatar yavaşladı
 const SOCIAL_COUNT = 4;
 const SOCIAL_W = 710; // 4 çip (WhatsApp eklendi)
 const CAMERA_OUT_MS = 2200;

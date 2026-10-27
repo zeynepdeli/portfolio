@@ -81,12 +81,12 @@ const CLIMB_SHIFT = Math.round(CLIMB_H * (LEDGE - LEDGE_GRIP));
 
 /* AVATAR HIZI — 1 = eski hız; büyüdükçe tüm hareketler YAVAŞLAR
    (videolar, yürüme, fiş takma, zıplamalar aynı oranda) */
-const SLOW = 2.3; // eskiden 1.85: avatar daha yavaş, hikâye okunaklı
+const SLOW = 3.1; // eskiden 2.3: avatar ~%35 daha yavaş, hikâye anlaşılır
 const ms = (v: number) => Math.round(v * SLOW);
 
 /* HIZ — kullanıcı beklemesin diye her şey hızlı ama akıcı.
    Videolar da aynı oranda hızlı oynar (adım/kol uyumu bozulmaz). */
-const CLIMB_RATE = 1.9; // tırmanma videosu hızı (eskiden 2.6): tırmanış daha okunaklı
+const CLIMB_RATE = 1.4; // tırmanma videosu hızı (eskiden 1.9): tırmanış daha okunaklı
 const RUN_RATE = 2.1 / SLOW; // koşma videosu oynatma hızı
 
 /** tırmanışın ekrandaki süresi (ms) — video 5 sn */
@@ -110,7 +110,7 @@ const EDGE_RGB = "222,231,243"; // hız izi / konma halkası: açık altın
 const WALK_MS = ms(150); // porta 1-2 adım (eskiden ms(260))
 const PLUG_MS = ms(270); // eskiden ms(380)
 /** "hero:built" hiç gelmezse avatar bu kadar sonra yine başlar (ms) */
-const SCENE_WAIT_FALLBACK_MS = 15000;
+const SCENE_WAIT_FALLBACK_MS = 24000; // açılış yavaşladı
 /** "hero:built" geldi ama "hero:plug" gelmezse portta en fazla bu kadar bekler (ms) */
 const PLUG_WAIT_FALLBACK_MS = 4000;
 const JUMP_MS = ms(420); // porttan isme zıplama
