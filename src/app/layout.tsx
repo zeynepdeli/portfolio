@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Chakra_Petch } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { ThemeStyles } from "@/components/ui/Theme";
 import "./globals.css";
 import { LangProvider } from "@/i18n/lang";
@@ -110,6 +111,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             "/", "/home", "/projects", "/roadmap" — tüm sayfalarda geçerli */}
         <ThemeStyles />
         <LangProvider>{children}</LangProvider>
+        {/* ziyaretçi sayısı: Vercel → proje → Analytics sekmesi */}
+        <Analytics />
       </body>
     </html>
   );
