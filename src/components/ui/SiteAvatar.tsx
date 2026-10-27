@@ -129,7 +129,7 @@ const EXIT_MS = ms(450); // ekranın en solundan aşağı atlayıp çıkış
 /* SONDA: en solda durur, burnunu tutar ve suya atlar gibi aşağıdaki
    roadmap sayfasına zıplar (footer'daki ile aynı görsel) */
 const PINCH_IMG = "/images/zeynep-burun.webp";
-const PINCH_MS = ms(260); // burnunu tutup hazırlanma
+const PINCH_MS = ms(130); // atlamadan önce kısa çömelme (eskiden burnunu tutup bekliyordu)
 const PINCH_H = 58; // ayakta boyu (px)
 const PINCH_W = Math.round((PINCH_H * 223) / 720);
 /* İSİMDEN SONRA: isimden aşağı düşer, alttaki yetenek satırının
@@ -461,8 +461,15 @@ const AVATAR_CSS = `
  *  (kutular tüm genişliği kaplar); "~/zeynep $ unvan" satırı değil, altındaki
  *  teknolojiler satırı seçilir. Dönen nokta: harflerin üst kenarı, h:
  *  satırın yüksekliği (yazının arkasında kalan bant). */
-function measureHang(belowY: number, nearX: number): HangPt | null {
-  const sk = document.querySelector("[data-avatar-skills]");
+function measureHang(
+  belowY: number,
+  nearX: number,
+  /** "name": İSMİN kendisine asılır (harflerin üst kenarı) */
+  target: "skills" | "name" = "skills",
+): HangPt | null {
+  const sk = document.querySelector(
+    target === "name" ? "[data-avatar-name]" : "[data-avatar-skills]",
+  );
   if (!sk) return null;
   const walker = document.createTreeWalker(sk, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
@@ -500,10 +507,12 @@ function measureHang(belowY: number, nearX: number): HangPt | null {
   }
   lines.sort((a, b) => a.top - b.top);
   const line =
-    lines.find(
-      (l) => !l.text.trimStart().startsWith(">") && !l.text.includes("$"),
-    ) ?? lines[0];
-  if (!line || line.top <= belowY + 8) return null;
+    target === "name"
+      ? lines[0]
+      : (lines.find(
+          (l) => !l.text.trimStart().startsWith(">") && !l.text.includes("$"),
+        ) ?? lines[0]);
+  if (!line || (target === "skills" && line.top <= belowY + 8)) return null;
   /* isimden düştüğü yerin altında; iki el de satırın üstünde kalsın */
   const half = (HANG_W * HANG_HANDS * AV_SCALE) / 2 + 2;
   const lo = line.left + half;
@@ -656,9 +665,9 @@ export default function SiteAvatar({
       end = { x: vw * 0.6, y: vh * 0.45 };
     }
     const nowX = vw / 2 - CONN_X + W / 2;
-    /* asılacağı yetenek satırı (HeroSection: data-avatar-skills):
-       isme kondığı yerin hemen altında (isimde koşmaz) */
-    const hang = measureHang(land.y, land.x);
+    /* İSMİN KENDİSİNE asılır: konduğu yerde harflerin üst kenarını
+       tutar, gövdesi ismin arkasından sarkar (isimde koşmaz) */
+    const hang = measureHang(land.y, land.x, "name");
     /* ölçüm sonucu bir sonraki karede state'e yazılır */
     const raf = requestAnimationFrame(() =>
       setSpots({ land, end, jumpLeft: land.x < nowX - 8, hang }),
@@ -672,7 +681,7 @@ export default function SiteAvatar({
     if (stage !== "land") return;
     const raf = requestAnimationFrame(() =>
       setSpots((sp) =>
-        sp ? { ...sp, hang: measureHang(sp.land.y, sp.land.x) } : sp,
+        sp ? { ...sp, hang: measureHang(sp.land.y, sp.land.x, "name") } : sp,
       ),
     );
     return () => cancelAnimationFrame(raf);
@@ -805,8 +814,8 @@ export default function SiteAvatar({
         return { x: r.left + r.width / 2, y: r.top + 1 };
       })
       .filter((p) => p.x > 0 && p.x < window.innerWidth)
-      .sort((a, b) => a.x - b.x); // soldan sağa: LinkedIn → WhatsApp
-    /* yalnızca İLK ve SON ikon: baştakinden sondakine tek zıplayış
+      .sort((a, b) => b.x - a.x); // sağdan sola: WhatsApp → LinkedIn
+    /* yalnızca en SAĞ ve en SOL ikon: sağdakinden soldakine tek zıplayış
        (her ikona sekmek göz yoruyordu) */
     const two = pts.length > 1 ? [pts[0], pts[pts.length - 1]] : pts;
     const raf = requestAnimationFrame(() => {
@@ -827,7 +836,7 @@ export default function SiteAvatar({
       const el = document.querySelectorAll<HTMLElement>("[data-avatar-hop]");
       const sorted = Array.from(el).sort(
         (a, b) =>
-          a.getBoundingClientRect().left - b.getBoundingClientRect().left,
+          b.getBoundingClientRect().left - a.getBoundingClientRect().left,
       );
       pressChip(sorted[hopIdx === 0 ? 0 : sorted.length - 1]);
     }, air);
@@ -850,11 +859,11 @@ export default function SiteAvatar({
   }, [stage, isActive]);
   useEffect(() => {
     if (!isActive || stage !== "social" || !hops.length) return;
-    /* soldan sağa, yalnızca ilk ve son ikon */
+    /* sağdan sola, yalnızca en sağ ve en sol ikon */
     const total = document.querySelectorAll("[data-avatar-hop]").length;
     emitAvatar({
       type: "hop",
-      chip: hopIdx === 0 ? 0 : total - 1,
+      chip: hopIdx === 0 ? total - 1 : 0,
       total,
     });
   }, [stage, hopIdx, hops.length, isActive]);
@@ -1217,7 +1226,12 @@ export default function SiteAvatar({
     (stage === "social" && !squat);
   /* Kenarda zıplamaya hazırlanırken ve isme konunca fotoğraf pozu
      (ikonlarda eğilmez, koşar adım basıp geçer) */
-  const crouching = stage === "prejump" || stage === "land";
+  /* roadmap'e atlamadan önce de (pinch aşaması): burnunu tutup beklemek
+     yerine kısa bir çömelme — "atlayacak" belirtisi */
+  const crouching =
+    stage === "prejump" ||
+    stage === "land" ||
+    (hops.length > 0 && stage === "pinch");
   /* Hızlı hareket anları: hız izi görünür */
   const fast =
     (stage === "toPort" && !atPort) ||
@@ -1230,8 +1244,7 @@ export default function SiteAvatar({
   /* burnunu tutup suya atlar gibi (roadmap'teki nehrin başına düşerken
      de bu poz) */
   const pinching =
-    (hops.length > 0 && stage === "pinch") ||
-    (stage === "descending" && (hops.length > 0 || !!chaseFrom));
+    stage === "descending" && (hops.length > 0 || !!chaseFrom);
   /* yetenek satırına asılı (elleri satırda) */
   const hanging = stage === "hang" || (stage === "toHang" && !!spots?.hang);
   /* Konma anları: ayak altında ışık halkası */
