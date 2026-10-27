@@ -739,6 +739,9 @@ export default function HeroSection({
         <SciFiBackground
           /* fişi bu sayfada avatar kendisi takar (animasyonlu) */
           plugged={pluggedProp || final}
+          /* açılışta (ilk fener portreyi aydınlatırken) soket ve TR · EN
+             görünmesin: sahne oturunca belirir */
+          connectorShown={final || dim || introDone || avatarPowered}
           panelInset={{
             left: `${panel.left}px`,
             top: `${panel.top}px`,

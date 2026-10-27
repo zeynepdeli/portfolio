@@ -24,6 +24,10 @@ type SciFiBackgroundProps = {
   plugged?: boolean;
   /** Üst orta soket hiç çizilmesin (ör. footer) */
   connector?: boolean;
+  /** Soket (TR · EN'li braket) görünsün mü: hero açılışında, ilk fener
+   *  portreyi aydınlatırken arkada görünmesin diye sahne oturana kadar
+   *  gizli; sonra yumuşakça belirir */
+  connectorShown?: boolean;
 };
 
 /* =========================================================
@@ -1421,6 +1425,7 @@ export default function SciFiBackground({
   hudOnFrame = false,
   plugged = true,
   connector = true,
+  connectorShown = true,
 }: SciFiBackgroundProps) {
   const inset = panelInset ?? {
     left: "1%",
@@ -1478,7 +1483,17 @@ export default function SciFiBackground({
         }}
       >
         <CaseHardware />
-        {connector && <TopConnector plugged={plugged} />}
+        {connector && (
+          <div
+            className="absolute inset-0"
+            style={{
+              opacity: connectorShown ? 1 : 0,
+              transition: "opacity 900ms ease",
+            }}
+          >
+            <TopConnector plugged={plugged} />
+          </div>
+        )}
         {!hudOnFrame && <Hud />}
       </div>
 

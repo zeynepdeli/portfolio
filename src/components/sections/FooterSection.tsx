@@ -639,9 +639,9 @@ export default function FooterSection({
             </div>
           </div>
 
-          {/* ALT: portlar · menü yuvaları · güç kaynağı YAN YANA
+          {/* ALT: menü yuvaları · güç kaynağı (portlar onun içinde) YAN YANA
               (avatar, güç kaynağının fanının ÖNÜNDE oturur) */}
-          <div className="grid items-end gap-5 md:grid-cols-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.75fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,1.25fr)_minmax(0,.8fr)_minmax(0,1.15fr)] xl:gap-7">
+          <div className="grid items-end gap-5 md:grid-cols-[minmax(0,.75fr)_minmax(0,1.4fr)] xl:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] xl:gap-7">
             {phone ? (
               /* TELEFON: portlar + menü + saat + fan TEK kutuda, küçük */
               <div data-ft-in style={ftI(2)}>
@@ -650,16 +650,9 @@ export default function FooterSection({
             ) : (
               <>
                 <div data-ft-in style={ftI(2)}>
-                  <IOShield powered={powered} />
-                </div>
-                <div data-ft-in style={ftI(3)}>
                   <ExpansionSlots powered={powered} />
                 </div>
-                <div
-                  data-ft-in
-                  className="md:col-span-2 lg:col-span-1"
-                  style={ftI(4)}
-                >
+                <div data-ft-in style={ftI(3)}>
                   <PSU powered={powered} fanRef={spotRef} />
                 </div>
               </>
@@ -1232,36 +1225,7 @@ function PhoneDeck({
         </div>
 
         {/* sosyal portlar: tek sıra, küçük */}
-        <div
-          className="grid grid-cols-5 gap-1 rounded-lg px-1 py-2"
-          style={{ background: "rgba(2,11,23,.45)" }}
-        >
-          {PORTS.map((p, i) => {
-            const Icon = p.icon;
-            return (
-              <a
-                key={p.label}
-                {...linkProps(p.href)}
-                aria-label={p.label}
-                className="ft-port flex flex-col items-center gap-1 outline-hidden"
-              >
-                <span className="ft-hole flex h-6 items-center justify-center">
-                  <span className="origin-center scale-[.62]">
-                    <PortShape kind={p.kind} />
-                  </span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <Led
-                    on={powered}
-                    color={`rgb(${EDGE})`}
-                    delay={powered ? 250 + i * POWER_STEP_MS : 0}
-                  />
-                  <Icon className="ft-plabel size-3.5 shrink-0 text-[rgb(var(--ft-t))]" />
-                </span>
-              </a>
-            );
-          })}
-        </div>
+        <PortRow powered={powered} />
 
         {/* menü yuvaları: 2×2, küçük */}
         <nav className="grid grid-cols-2 gap-1.5" aria-label="Footer">
@@ -1313,70 +1277,6 @@ function PhoneDeck({
   );
 }
 
-/* =========================================================
-   I/O PANELİ — her sosyal hesap bir port. Üstüne gelince altından
-   kablolu fiş kayarak takılır, portun LED'i yanar.
-========================================================= */
-function IOShield({ powered }: { powered: boolean }) {
-  return (
-    <div className="flex flex-col">
-      <div className="mb-2 flex h-4 items-center font-mono text-[10px] tracking-[.26em] text-[rgba(var(--ft-t),.6)] justify-between">
-        <span>I/O · CONNECT</span>
-        <span className="flex items-center gap-2">
-          <Led on={powered} color="#5df2a6" blink />
-          {powered ? "LINK UP" : "NO SIGNAL"}
-        </span>
-      </div>
-      <div
-        className="ft-iobox relative flex flex-col justify-around rounded-xl px-3 py-4 sm:px-5 sm:py-0"
-        style={metal(6)}
-      >
-        <div className="grid grid-cols-3 gap-x-2 gap-y-4 sm:grid-cols-5 sm:gap-x-3 sm:gap-y-0">
-          {PORTS.map((p, i) => {
-            const Icon = p.icon;
-            return (
-              <a
-                key={p.label}
-                {...linkProps(p.href)}
-                aria-label={p.label}
-                className="ft-port group relative flex flex-col items-center gap-1.5 outline-hidden"
-              >
-                <span className="relative flex h-11.5 w-full items-center justify-center overflow-hidden">
-                  <span className="ft-hole relative z-10 transition">
-                    <PortShape kind={p.kind} />
-                  </span>
-                  {/* takılan fiş + kablo */}
-                  <span className="ft-plug pointer-events-none absolute left-1/2 top-7.5 z-0 flex flex-col items-center opacity-0 transition duration-300">
-                    <span
-                      className="block h-3 w-8 rounded-[3px]"
-                      style={{
-                        background: `linear-gradient(180deg, rgb(${ICE}), rgb(${EDGE}))`,
-                        boxShadow: `0 0 10px rgba(${EDGE},.8)`,
-                      }}
-                    />
-                    <span
-                      className="block h-6 w-1"
-                      style={{ background: `rgb(${EDGE})` }}
-                    />
-                  </span>
-                </span>
-                {/* port adı yok: LED + simge yeter (adı aria-label'da) */}
-                <span className="flex items-center gap-1.5">
-                  <Led
-                    on={powered}
-                    color={`rgb(${EDGE})`}
-                    delay={powered ? 250 + i * POWER_STEP_MS : 0}
-                  />
-                  <Icon className="ft-plabel size-[clamp(14px,1.1vw,18px)] shrink-0 text-[rgb(var(--ft-t))] transition" />
-                </span>
-              </a>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /** port delikleri (SVG) */
 function PortShape({ kind }: { kind: PortKind }) {
@@ -1545,6 +1445,50 @@ function ExpansionSlots({ powered }: { powered: boolean }) {
 /* =========================================================
    GÜÇ KAYNAĞI — sistem açılınca fan döner, ekran yanar.
 ========================================================= */
+/* =========================================================
+   SOSYAL PORTLAR — tek sıra: port deliği, LED + simge, hesabın adı
+   (teknik port adı yok). Telefon kutusunda ve web'de PSU kutusunda.
+========================================================= */
+function PortRow({ powered, big = false }: { powered: boolean; big?: boolean }) {
+  return (
+    <div
+      className={`grid grid-cols-5 gap-1 rounded-lg px-1 ${big ? "py-2.5" : "py-2"}`}
+      style={{ background: "rgba(2,11,23,.45)" }}
+    >
+      {PORTS.map((p, i) => {
+        const Icon = p.icon;
+        return (
+          <a
+            key={p.label}
+            {...linkProps(p.href)}
+            aria-label={p.label}
+            className="ft-port flex flex-col items-center gap-1 outline-hidden"
+          >
+            <span className="ft-hole flex h-6 items-center justify-center">
+              <span className={`origin-center ${big ? "scale-[.72]" : "scale-[.62]"}`}>
+                <PortShape kind={p.kind} />
+              </span>
+            </span>
+            <span className="flex items-center gap-1">
+              <Led
+                on={powered}
+                color={`rgb(${EDGE})`}
+                delay={powered ? 250 + i * POWER_STEP_MS : 0}
+              />
+              <Icon className="size-3 shrink-0 text-[rgb(var(--ft-t))]" />
+            </span>
+            <span
+              className={`ft-plabel whitespace-nowrap font-mono tracking-[.02em] text-[rgb(var(--ft-t))] ${big ? "text-[clamp(8.5px,0.7vw,11px)]" : "text-[8.5px]"}`}
+            >
+              {p.label}
+            </span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function PSU({
   powered,
   fanRef,
@@ -1584,29 +1528,8 @@ function PSU({
         <div className="flex h-full min-w-0 flex-1 flex-col justify-around">
           <LcdClock powered={powered} />
 
-          <div className="flex items-end justify-between gap-3">
-            {/* güç girişi + kablo */}
-            <div className="relative flex flex-col items-center gap-1">
-              <span className="font-mono text-[8px] tracking-[.16em] text-[rgba(var(--ft-t),.6)]">
-                AC IN
-              </span>
-              <svg width="44" height="34" viewBox="0 0 44 34" aria-hidden>
-                <path
-                  d="M4 2 H40 V24 L32 32 H12 L4 24 Z"
-                  fill="#020b17"
-                  stroke={`rgba(${ICE},.5)`}
-                />
-                {/* takılı fiş */}
-                <path
-                  d="M8 5 H36 V22 L30 28 H14 L8 22 Z"
-                  fill={`rgba(${NAVY},1)`}
-                  stroke={powered ? `rgb(${EDGE})` : `rgba(${ICE},.3)`}
-                  style={{ transition: "stroke 400ms" }}
-                />
-              </svg>
-            </div>
-
-          </div>
+          {/* sosyal portlar (eskiden ayrı I/O kutusundaydı) */}
+          <PortRow powered={powered} big />
         </div>
       </div>
     </div>
