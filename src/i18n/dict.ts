@@ -30,8 +30,8 @@ const tr = {
 
   "card.role": "FULL STACK GELİŞTİRİCİ",
 
-  "footer.line1": "Hayalindeki proje",
-  "footer.line2": "bir commit uzağında.",
+  "footer.line1": "Fikriniz veya hayaliniz",
+  "footer.line2": "sadece bir commit uzağınızda.",
   "footer.commit": 'git commit -m "birlikte başlayalım"',
   "footer.copy": "KOPYALA",
   "footer.copied": "KOPYALANDI",
@@ -84,8 +84,8 @@ const en: Record<DictKey, string> = {
 
   "card.role": "FULL STACK DEVELOPER",
 
-  "footer.line1": "Your dream project",
-  "footer.line2": "is one commit away.",
+  "footer.line1": "Your idea or your dream",
+  "footer.line2": "is just one commit away.",
   "footer.commit": 'git commit -m "let\'s build it together"',
   "footer.copy": "COPY",
   "footer.copied": "COPIED",
